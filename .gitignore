@@ -1,6 +1,5 @@
 # Don't include synthetic data
-Data/synthetic/
-Data/genetic_data
+Data/
 
 # Exclude Images
 Images/

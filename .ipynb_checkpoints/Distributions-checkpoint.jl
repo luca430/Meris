@@ -32,17 +32,15 @@ function get_frequencies(df; occ = 0.05)
     # Reorder columns counts from most occupied to least occupied
     zero_counts = vec(sum(freqs .== 0, dims=1))
     col_order = sortperm(zero_counts)
-    println(col_order)
-    # freqs = freqs[:, col_order]
+    freqs = freqs[:, col_order]
     
-    
-    # # Filter counts by only consider species with high occupancy
-    # zero_counts = vec(sum(freqs .== 0, dims=1))
-    # max_idx = findfirst(>(occ * T), zero_counts)
-    # freqs = freqs[:, 1:max_idx]
+    # Filter counts by only consider species with high occupancy
+    zero_counts = vec(sum(freqs .== 0, dims=1))
+    max_idx = findfirst(>(occ * T), zero_counts)
+    freqs = freqs[:, 1:max_idx]
 
     # Multiply by the occupancy
-    zero_counts = sum(freqs .== 0, dims=1)
+    zero_counts = sum(freqs .!= 0, dims=1)
     freqs  .*= zero_counts ./ T
 
     return freqs
@@ -73,14 +71,14 @@ function get_counts(df; occ = 0.05)
     
     # Reorder columns counts from most occupied to least occupied
     zero_counts = sum(counts .== 0, dims=1)
-    col_order = sortperm(vec(zero_counts, rev=true))
+    col_order = sortperm(vec(zero_counts))
     counts = counts[:, col_order]
     
     
     # Filter counts by only consider species with high occupancy
-    # zero_counts = vec(sum(counts .== 0, dims=1))
-    # max_idx = findfirst(>(occ * T), zero_counts)
-    # counts = counts[:, 1:max_idx]
+    zero_counts = vec(sum(counts .== 0, dims=1))
+    max_idx = findfirst(>(occ * T), zero_counts)
+    counts = counts[:, 1:max_idx]
 
     return counts, nreads
 end
@@ -148,25 +146,34 @@ function cross_moments(df; occ=0.05)
     return xy
 end
 
-function get_statistic(df; occ=0.05)
+function get_statistic(df; occ=0.05, cov=false, corr=false)
 
-    x, xx, xy = first_moment(df; occ=occ), second_moment(df; occ=occ), cross_moments(df; occ=occ)
+    x, xx = first_moment(df; occ=occ), second_moment(df; occ=occ)
     
     mean_x = copy(x)
     var_x = xx .- x.^2
-    cov_x = xy .- x' * x
-    for i in 1:size(cov_x,1)
-        cov_x[i,i] = var_x[i]
-    end
-
-    corr_x = copy(cov_x)
-    for i in 1:size(corr_x,1)
-        for j in 1:size(corr_x,1)
-            corr_x[i,j] /= sqrt(var_x[i] * var_x[j])
+    if cov
+        xy = cross_moments(df; occ=occ)
+        cov_x = xy .- x' * x
+        for i in 1:size(cov_x,1)
+            cov_x[i,i] = var_x[i]
         end
+
+        return mean_x, var_x, cov_x
     end
 
-    return mean_x, var_x, cov_x, corr_x
+    if corr
+        corr_x = copy(cov_x)
+        for i in 1:size(corr_x,1)
+            for j in 1:size(corr_x,1)
+                corr_x[i,j] /= sqrt(var_x[i] * var_x[j])
+            end
+        end
+
+        return mean_x, var_x, cov_x, corr_x
+    end
+
+    return mean_x, var_x
 end
 
 function make_AFD(data; missing_thresh=size(data, 1), Δb=0.05, env=nothing)
