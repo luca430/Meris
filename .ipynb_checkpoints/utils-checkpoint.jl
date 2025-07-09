@@ -30,7 +30,7 @@ function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
     return df
 end
 
-function get_frequencies(df; occ = 0.95)
+function get_frequencies(df; occ = 0.9)
 
     occ = 1 - occ
     dff = copy(df)
@@ -63,7 +63,10 @@ function get_frequencies(df; occ = 0.95)
     
     # Filter counts by only consider species with high occupancy
     zero_counts = vec(sum(freqs .== 0, dims=1))
-    max_idx = findfirst(>(occ * T), zero_counts)
+    max_idx = findfirst(>=(occ * T), zero_counts)
+    if isnothing(max_idx)
+        max_idx = T
+    end
     freqs = freqs[:, 1:max_idx]
 
     # Multiply by the occupancy
@@ -73,7 +76,39 @@ function get_frequencies(df; occ = 0.95)
     return freqs
 end
 
+function check_occupancy_thresh(df; occ=0.95)
+    sam_ids = unique(df.sample_id)
+    T = length(sam_ids)
+    ct_map = countmap(df.species_id)
+    occ = []
+    
+    for key in keys(ct_map)
+        push!(occ, ct_map[key] / T)
+    end
+
+    return length(occ)
+end
+
 function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp")
+    """
+    
+    Compute the aggregated frequency distribution (AFD) of occurrences in the DataFrame `df`, grouped by the environment column.
+    
+    # Arguments
+    - `df::DataFrame`: Input DataFrame. Must contain a column named `env` and the data columns for frequency calculation.
+    - `occ::Float64=0.99`: Occupancy threshold passed to `get_frequencies` to filter rare events.
+    - `bins::Integer=30`: Number of histogram bins for estimating the PDF of z-scores.
+    - `plot::Bool=false`: If `true`, returns a Makie `Figure` object along with the AFD data.
+    - `verbose::Bool=false`: If `true`, prints the name of each environment as it is processed.
+    - `save::Bool=false`: If `true`, saves the resulting AFD dictionary to a JLD2 file named `"<filename>.jld2"`.
+    - `filename::String="temp"`: Base name for the output file if `save=true`.
+    
+    # Returns
+    - `afd_out::Dict{Any, Tuple{Vector{Float64}, Vector{Float64}}}`: A dictionary mapping each environment to a tuple `(centers, pdf)`:
+        - `centers::Vector{Float64}`: Bin centers of the histogram for non-NaN z-scores.
+        - `pdf::Vector{Float64}`: Estimated probability density values at each center.
+    - If `plot=true`, returns a tuple `(afd_out, fig)` where `fig` is a Makie `Figure` displaying the AFD curves for each environment.
+    """
     
     envs = unique(df.env)
     afd_out = Dict()
