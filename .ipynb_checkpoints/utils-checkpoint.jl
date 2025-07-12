@@ -2,6 +2,7 @@ module Utils
 
 using DataFrames, CairoMakie, JLD2
 using FHist, Statistics, SparseArrays
+using StatsBase
 
 function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
 
@@ -60,18 +61,23 @@ function get_frequencies(df; occ = 0.9)
     zero_counts = vec(sum(freqs .== 0, dims=1))
     col_order = sortperm(zero_counts)
     freqs = freqs[:, col_order]
+    ######
+    println(size(freqs))
     
     # Filter counts by only consider species with high occupancy
     zero_counts = vec(sum(freqs .== 0, dims=1))
-    max_idx = findfirst(>=(occ * T), zero_counts)
+    max_idx = findfirst(<=(occ * T), zero_counts)
     if isnothing(max_idx)
         max_idx = T
     end
     freqs = freqs[:, 1:max_idx]
+    ######
+    println(max_idx)
+    println(size(freqs))
 
     # Multiply by the occupancy
-    zero_counts = sum(freqs .!= 0, dims=1)
-    freqs  .*= zero_counts ./ T
+    # zero_counts = sum(freqs .!= 0, dims=1)
+    # freqs  .*= zero_counts ./ T
 
     return freqs
 end
