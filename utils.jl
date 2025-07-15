@@ -2,7 +2,7 @@ module Utils
 
 using DataFrames, CairoMakie, JLD2
 using FHist, Statistics, SparseArrays
-using StatsBase
+using StatsBase, Distributions, SpecialFunctions
 
 function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
 
@@ -31,7 +31,50 @@ function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
     return df
 end
 
-function get_frequencies(df; occ = 0.9)
+function get_counts(df; occ = 0.95)
+    
+    occ = 1 - occ
+    
+    # Transform raw data into matrix of counts and vector of nreads
+    species = unique(df.species_id)
+    samples = unique(df.sample_id)
+    
+    S, T = length(species), length(samples)
+    sm_groups = groupby(df, :sample_id)
+    
+    counts = zeros(T, S)
+    nreads = zeros(T)
+    otu_index = Dict(sp => i for (i, sp) in enumerate(species))
+    run_index = Dict(sm => i for (i, sm) in enumerate(samples))
+    
+    for g in sm_groups
+        sm = g.sample_id[1]
+        i = run_index[sm]
+        nreads[i] = g.nreads[1]
+        for (sp, val) in zip(g.species_id, g.count)
+            j = otu_index[sp]
+            counts[i,j] = val
+        end
+    end
+    
+    # Reorder columns counts from most occupied to least occupied
+    zero_counts = sum(counts .== 0, dims=1)
+    col_order = sortperm(vec(zero_counts))
+    counts = counts[:, col_order]
+    
+    
+    # Filter counts by only consider species with high occupancy
+    zero_counts = vec(sum(counts .== 0, dims=1))
+    max_idx = findfirst(>(occ * T), zero_counts)
+    if isnothing(max_idx)
+        max_idx = S
+    end
+    counts = counts[:, 1:max_idx]
+
+    return counts, nreads
+end
+
+function get_frequencies(df; occ = 0.9, rescale=true)
 
     occ = 1 - occ
     dff = copy(df)
@@ -61,23 +104,19 @@ function get_frequencies(df; occ = 0.9)
     zero_counts = vec(sum(freqs .== 0, dims=1))
     col_order = sortperm(zero_counts)
     freqs = freqs[:, col_order]
-    ######
-    println(size(freqs))
     
     # Filter counts by only consider species with high occupancy
     zero_counts = vec(sum(freqs .== 0, dims=1))
-    max_idx = findfirst(<=(occ * T), zero_counts)
+    max_idx = findfirst(>(occ * T), zero_counts)
     if isnothing(max_idx)
-        max_idx = T
+        max_idx = S
     end
     freqs = freqs[:, 1:max_idx]
-    ######
-    println(max_idx)
-    println(size(freqs))
 
-    # Multiply by the occupancy
-    # zero_counts = sum(freqs .!= 0, dims=1)
-    # freqs  .*= zero_counts ./ T
+    if rescale # Multiply by the occupancy
+        zero_counts = sum(freqs .!= 0, dims=1)
+        freqs  .*= zero_counts ./ T
+    end
 
     return freqs
 end
@@ -93,6 +132,61 @@ function check_occupancy_thresh(df; occ=0.95)
     end
 
     return length(occ)
+end
+
+function reads_distribution(df; bins=30, plot=false, verbose=false, save=false, filename="temp")
+
+    envs = unique(df.env)
+    reads_out = Dict()
+
+    for env in envs
+        if verbose
+            println(env)
+        end
+        sub   = df[df.env .== env, :]
+        
+        data = []
+        group = groupby(sub, :sample_id)
+        for g in group
+            push!(data, g.nreads[1])
+        end
+        
+        data = log.(data)
+        data = (data .- mean(data)) ./ std(data)
+        
+        bmin, bmax = extrema(data)
+        Δb = (bmax - bmin) / 30
+        fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
+        ctrs = bincenters(fh)
+        pdf  = bincounts(fh) ./ (integral(fh) * Δb)
+        
+        mask = pdf .> 0
+        reads_out[env] = (ctrs[mask], pdf[mask])
+    end
+
+    if save
+        @save "$filename.jld2" reads_out
+    end
+
+    if plot
+        fig = Figure(figsize=(900,500))
+        ax  = Axis(fig[1, 1]; yscale=log10,
+                   xlabel = "z", ylabel = "pdf", 
+                   title = "Reads Distribution")
+    
+        for key in keys(reads_out)
+            x, y = afd_out[key]
+            sc = scatter!(ax, x, 10 .^ log.(y),
+                        label=key,
+                        markersize=15,
+                        strokewidth = 0.8,
+                        strokecolor = :black)
+        end
+
+        return reads_out, fig
+    end
+
+    return reads_out
 end
 
 function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp")
@@ -149,7 +243,7 @@ function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=fals
     if plot
         fig = Figure(figsize=(900,500))
         ax  = Axis(fig[1, 1]; yscale=log10,
-                   xlabel = "log(z)", ylabel = "pdf", 
+                   xlabel = "z", ylabel = "pdf", 
                    title = "AFD")
     
         for key in keys(afd_out)
@@ -169,6 +263,112 @@ function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=fals
 
     return afd_out
 end
+
+function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp")
+    """
+    This function computes Taylor's Law from a given DataFrame `df`, which contains species count data across different environments. The function performs data processing, aggregation, and optionally plots and saves the results.
+    
+    ### Arguments
+    - `df::DataFrame`: The input data frame containing the species count data. The `df` should have a column `env` representing different environments, and other columns representing species counts.
+    - `occ::Float64`: The occupancy threshold (default: `0.99`). This parameter is used to filter the data for species that appear in a given proportion of samples.
+    - `bins::Int`: The number of bins for binning the mean values (default: `30`). The function divides the x-axis (log-transformed means) into `bins` number of intervals.
+    - `plot::Bool`: A flag to indicate whether to generate a plot of Taylor's Law (default: `false`).
+    - `verbose::Bool`: A flag for printing progress information (default: `false`).
+    - `save::Bool`: A flag to save the output to a file (default: `false`).
+    - `filename::String`: The filename to save the output if `save=true` (default: `"temp"`).
+    
+    ### Returns
+    - If `plot=false`: Returns a dictionary `taylor_out`, where the keys are environment labels and the values are tuples of x and y values representing the log-transformed means and variances for each environment.
+    - If `plot=true`: Returns both the dictionary `taylor_out` and the figure object `fig` for plotting the results.
+    """
+    
+    envs = unique(df.env)
+    taylor_out = Dict()
+
+    for env in envs
+        if verbose
+            println(env)
+        end
+        sub   = df[df.env .== env, :]
+        counts, nreads = get_counts(sub, occ=occ)
+        T, S = size(counts)
+
+        # Compute mean and var for each species
+        mean_data = sum(counts ./ nreads, dims=1) ./ T
+        var_data = sum(counts .* (counts .- 1) ./ (nreads .* (nreads .- 1)), dims=1) ./ T .- (sum(counts ./ nreads, dims=1) ./ T) .^ 2
+        mask = var_data .> 0
+
+        if length(var_data[mask]) < 2
+            continue
+        end
+    
+        # Log transform: it's easier to fit power laws in log-space
+        log_mean = log.(mean_data[mask])
+        log_var = log.(var_data[mask])
+    
+        # Bin x-axis (means) and aggregate y-axis (variances)
+        bmin = minimum(log_mean)
+        bmax = maximum(log_mean)
+        Δb = (bmax - bmin) / bins
+        binedges = bmin:Δb:bmax
+        xx = 0.5 .* (binedges[2:end] .+ binedges[1:end-1])
+        yy = [mean(log_var[(log_mean .>= binedges[i]) .& (log_mean .< binedges[i+1])]) for i in 1:length(binedges)-1]
+
+        taylor_out[env] = (xx, yy)
+    end
+
+    if save
+        @save "$filename.jld2" taylor_out
+    end
+
+    if plot
+        fig = Figure(figsize=(900,500))
+        ax  = Axis(fig[1, 1];
+                   xlabel = "log(μ)", ylabel = "log(σ^2)", 
+                   title = "Taylor's Law")
+    
+        for key in keys(taylor_out)
+            x, y = taylor_out[key]
+            sc = scatter!(ax, x, y,
+                        label=key,
+                        markersize=15,
+                        strokewidth = 0.8,
+                        strokecolor = :black)
+        end
+
+        leg = Legend(fig, ax; orientation = :vertical)
+        fig[1, 2] = leg 
+
+        return taylor_out, fig
+    end
+
+    return taylor_out
+end
+
+#### ZOO OF DISTRIBUTIONS ####
+function lrg(z, α)
+    return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
+end
+
+function lrb(z, α, β)
+    m = digamma(α) - digamma(α + β)
+    s = sqrt(trigamma(α) - trigamma(α + β))
+    c = loggamma(α + β) - loggamma(α) - loggamma(β)
+    return c .+ α .* (z .* s .+ m) .+ (β - 1) .* log.(1 .- exp.(z .* s .+ m)) .+ log(s)
+end
+
+function lrln(z, σ)
+    return -z .^ 2 ./ 2 .+ log(sqrt(σ / 2 / π))
+end
+
+function lrtn(z, μ, σ, Z)
+    return z .- (z .- μ) .^ 2 ./ (2*σ^2) .- Z
+end
+
+function ts(z, ν)
+    return loggamma((ν + 1) / 2) .- log(sqrt(π * ν)) .- loggamma(ν / 2) .- ((ν + 1 ) / 2) .* log.(1 .+ z .^ 2 ./ ν)
+end
+##############################
 
 
 end
