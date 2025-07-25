@@ -3,6 +3,7 @@ module Utils
 using DataFrames, CairoMakie, JLD2
 using FHist, Statistics, SparseArrays
 using StatsBase, Distributions, SpecialFunctions
+using NLsolve
 
 function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
 
@@ -345,9 +346,101 @@ function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false
     return taylor_out
 end
 
+function compute_MAD(df; c=exp(-Inf), bins=30, plot=false, verbose=false, save=false, filename="temp")
+
+    envs = unique(df.env)
+    mad_out = Dict()
+    c_dict = Dict()
+
+    for env in envs
+        if verbose
+            println(env)
+        end
+        
+        if c isa AbstractFloat
+            c_dict[env] = c
+        elseif c isa AbstractDict
+            c_dict[env] = c[env]
+        end
+        
+        sub   = df[df.env .== env, :]
+        freqs = get_frequencies(sub, occ=0)
+
+        non_zero = [col[col .> 0] for col in eachcol(freqs)]
+        mean_logs = log.(mean.(non_zero))
+        mean_logs = mean_logs[mean_logs .> log(c_dict[env])]
+
+        bmin, bmax = round(minimum(mean_logs)), round(maximum(mean_logs))
+        Δb = (bmax - bmin) / bins
+        fh = FHist.Hist1D(mean_logs, binedges=bmin:Δb:bmax)
+
+        m1 = mean(mean_logs)
+        m2 = mean(mean_logs .^ 2)
+        μ, σ = compute_MAD_params(m1, m2, c_dict[env])
+    
+        ctrs = bincenters(fh)
+        ctrs .-= μ
+        ctrs ./= σ
+
+        pdf = bincounts(fh) ./ (integral(fh) * Δb)
+        valid = pdf .> 0.0
+        erfc_arg = (log(c_dict[env]) - μ) / sqrt(2 * σ^2)
+        pdf = pdf[valid] .* (erfc(erfc_arg) / 2) .* σ
+
+        mad_out[env] = (ctrs[valid], pdf)
+    end
+
+    if save
+        @save "$filename.jld2" mad_out
+    end
+
+    if plot
+        fig = Figure(figsize=(900,500))
+        ax  = Axis(fig[1, 1]; yscale=log10,
+                   xlabel = "rescaled z", ylabel = "pdf", 
+                   title = "MAD")
+    
+        for key in keys(mad_out)
+            x, y = mad_out[key]
+            sc = scatter!(ax, x, 10 .^ log.(y),
+                        label=key,
+                        markersize=15,
+                        strokewidth = 0.8,
+                        strokecolor = :black)
+        end
+
+        leg = Legend(fig, ax; orientation = :vertical)
+        fig[1, 2] = leg 
+
+        return mad_out, fig
+    end
+
+    return mad_out
+end
+
+function compute_MAD_params(m1, m2, c)
+    function make_system(m1, m2, c)
+        return function F!(F, x)
+            F[1] = x[1] - m1 + sqrt(2/π) * x[2] * exp(-(log(c) - x[1])^2 / (2 * x[2]^2)) / erfc((log(c) - x[1]) / sqrt(2 * x[2]^2))
+            F[2] = x[2]^2 + m1*x[1] + log(c)*m1 - x[1]*log(c) - m2
+        end
+    end
+    
+    f! = make_system(m1, m2, c)
+    initial_x = [-15.0, 2.0]
+    result = nlsolve(f!, initial_x)
+    solution = result.zero
+
+    return solution[1], solution[2]
+end
+
 #### ZOO OF DISTRIBUTIONS ####
 function lrg(z, α)
     return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
+end
+
+function lrig(z, β)
+    return -β .* (z .* sqrt(trigamma(β)) .- digamma(β)) .- exp.(digamma(β) .- z .* sqrt(trigamma(β))) .- loggamma(β) .+ log(sqrt(trigamma(β)))
 end
 
 function lrb(z, α, β)
@@ -358,7 +451,7 @@ function lrb(z, α, β)
 end
 
 function lrln(z, σ)
-    return -z .^ 2 ./ 2 .+ log(sqrt(σ / 2 / π))
+    return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
 end
 
 function lrtn(z, μ, σ, Z)
