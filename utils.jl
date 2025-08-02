@@ -1,7 +1,7 @@
 module Utils
 
 using DataFrames, CairoMakie, JLD2
-using FHist, Statistics, SparseArrays
+using FHist, Statistics, SparseArrays, LinearAlgebra
 using StatsBase, Distributions, SpecialFunctions
 using NLsolve
 
@@ -265,7 +265,7 @@ function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=fals
     return afd_out
 end
 
-function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp")
+function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp", interpretation=1)
     """
     This function computes Taylor's Law from a given DataFrame `df`, which contains species count data across different environments. The function performs data processing, aggregation, and optionally plots and saves the results.
     
@@ -293,14 +293,24 @@ function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false
         sub   = df[df.env .== env, :]
         counts, nreads = get_counts(sub, occ=occ)
         T, S = size(counts)
+        
+        if S < 4
+            continue
+        end
 
         # Compute mean and var for each species
-        mean_data = sum(counts ./ nreads, dims=1) ./ T
-        var_data = sum(counts .* (counts .- 1) ./ (nreads .* (nreads .- 1)), dims=1) ./ T .- (sum(counts ./ nreads, dims=1) ./ T) .^ 2
-        mask = var_data .> 0
-
-        if length(var_data[mask]) < 2
-            continue
+        if interpretation == 1
+            mean_data = sum(counts ./ nreads, dims=1) ./ T
+            var_data = sum(counts .* (counts .- 1) ./ (nreads .* (nreads .- 1)), dims=1) ./ T .- (sum(counts ./ nreads, dims=1) ./ T) .^ 2
+            mask = var_data .> 0
+    
+            if length(var_data[mask]) < 2
+                continue
+            end
+        elseif interpretation == 2
+            mean_data = [mean(x) for x in eachcol(counts ./ nreads)]
+            var_data = [var(x) for x in eachcol(counts ./ nreads)]
+            mask = var_data .> 0
         end
     
         # Log transform: it's easier to fit power laws in log-space
@@ -346,7 +356,25 @@ function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false
     return taylor_out
 end
 
-function compute_MAD(df; c=exp(-Inf), bins=30, plot=false, verbose=false, save=false, filename="temp")
+function compute_MAD(df; c=exp(-10), bins=30, plot=false, verbose=false, save=false, filename="temp")
+    """
+    Compute the median absolute deviation (MAD) distribution of log‐transformed mean frequencies per environment, optionally saving and/or plotting the results.
+    
+    # Arguments
+    - `df::DataFrame`: The input data frame containing the species count data. The `df` should have a column `env` representing different environments, and other columns representing species counts.
+    - `c::Union{Float64, Dict}`: Cutoff parameter: if a `Float64`, the same cutoff is applied to all environments; if a `Dict`, a separate cutoff per environment (accessed as `c[env]`).
+    - `bins::Int`: The number of bins for binning the mean values (default: `30`). The function divides the x-axis (log-transformed means) into `bins` number of intervals.
+    - `plot::Bool`: A flag to indicate whether to generate a plot of Taylor's Law (default: `false`).
+    - `verbose::Bool`: A flag for printing progress information (default: `false`).
+    - `save::Bool`: A flag to save the output to a file (default: `false`).
+    - `filename::String`: The filename to save the output if `save=true` (default: `"temp"`).
+    
+    # Returns
+    - `mad_out::Dict{Any, Tuple{Vector{Float64}, Vector{Float64}}}`: A dictionary mapping each environment to a tuple `(centers, pdf)`:
+        - `centers::Vector{Float64}`: Bin centers of the histogram for non-NaN z-scores.
+        - `pdf::Vector{Float64}`: Estimated probability density values at each center.
+    - If `plot=true`, returns a tuple `(mad_out, fig)` where `fig` is a Makie `Figure` displaying the MAD curves for each environment.
+    """
 
     envs = unique(df.env)
     mad_out = Dict()
@@ -364,28 +392,48 @@ function compute_MAD(df; c=exp(-Inf), bins=30, plot=false, verbose=false, save=f
         end
         
         sub   = df[df.env .== env, :]
-        freqs = get_frequencies(sub, occ=0)
+        counts, nreads = get_counts(sub, occ=0)
+        T, S = size(counts)
+        
+        if S < 4
+            continue
+        end
 
-        non_zero = [col[col .> 0] for col in eachcol(freqs)]
-        mean_logs = log.(mean.(non_zero))
-        mean_logs = mean_logs[mean_logs .> log(c_dict[env])]
+        mean_data = [mean(x) for x in eachcol(counts ./ nreads)]
+        mean_logs = log.(mean_data)
+        
+        if !isnothing(c)
+            mean_logs = mean_logs[mean_logs .> log(c_dict[env])]
+        end
 
         bmin, bmax = round(minimum(mean_logs)), round(maximum(mean_logs))
         Δb = (bmax - bmin) / bins
         fh = FHist.Hist1D(mean_logs, binedges=bmin:Δb:bmax)
 
-        m1 = mean(mean_logs)
-        m2 = mean(mean_logs .^ 2)
-        μ, σ = compute_MAD_params(m1, m2, c_dict[env])
-    
-        ctrs = bincenters(fh)
-        ctrs .-= μ
-        ctrs ./= σ
-
-        pdf = bincounts(fh) ./ (integral(fh) * Δb)
-        valid = pdf .> 0.0
-        erfc_arg = (log(c_dict[env]) - μ) / sqrt(2 * σ^2)
-        pdf = pdf[valid] .* (erfc(erfc_arg) / 2) .* σ
+        if !isnothing(c)
+            m1 = mean(mean_logs)
+            m2 = mean(mean_logs .^ 2)
+            μ, σ = compute_MAD_params(m1, m2, c_dict[env])
+            
+            ctrs = bincenters(fh)
+            ctrs .-= μ
+            ctrs ./= σ
+                
+            pdf = bincounts(fh) ./ (integral(fh) * Δb)
+            valid = pdf .> 0.0
+            erfc_arg = (log(c_dict[env]) - μ) / sqrt(2 * σ^2)
+            pdf = pdf[valid] .* (erfc(erfc_arg) / 2) .* σ
+        else
+            μ, σ = mean(fh), std(fh)
+            
+            ctrs = bincenters(fh)
+            ctrs .-= μ
+            ctrs ./= σ
+                
+            pdf = bincounts(fh) ./ (integral(fh) * Δb)
+            valid = pdf .> 0.0
+            pdf = pdf[valid] .* sqrt(2 * π * σ)
+        end
 
         mad_out[env] = (ctrs[valid], pdf)
     end
@@ -418,6 +466,106 @@ function compute_MAD(df; c=exp(-Inf), bins=30, plot=false, verbose=false, save=f
     return mad_out
 end
 
+function compute_pearson(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp", interpretation = 1)
+    """
+    Compute the distribution of Pearson correlations in the DataFrame `df`, grouped by the environment column.
+    
+    # Arguments
+    - `df::DataFrame`: Input DataFrame. Must contain a column named `env` and the data columns for frequency calculation.
+    - `occ::Float64=0.99`: Occupancy threshold passed to `get_frequencies` to filter rare events.
+    - `bins::Integer=30`: Number of histogram bins for estimating the PDF of z-scores.
+    - `plot::Bool=false`: If `true`, returns a Makie `Figure` object along with the AFD data.
+    - `verbose::Bool=false`: If `true`, prints the name of each environment as it is processed.
+    - `save::Bool=false`: If `true`, saves the resulting AFD dictionary to a JLD2 file named `"<filename>.jld2"`.
+    - `filename::String="temp"`: Base name for the output file if `save=true`.
+    
+    # Returns
+    - `corr_out::Dict{Any, Tuple{Vector{Float64}, Vector{Float64}}}`: A dictionary mapping each environment to a tuple `(centers, pdf)`:
+        - `centers::Vector{Float64}`: Bin centers of the histogram for non-NaN correlations.
+        - `pdf::Vector{Float64}`: Estimated probability density values at each center.
+    - If `plot=true`, returns a tuple `(corr_out, fig)` where `fig` is a Makie `Figure` displaying the correlation curves for each environment.
+    """
+    
+    envs = unique(df.env)
+    corr_out = Dict()
+
+    for env in envs
+        if verbose
+            println(env)
+        end
+        sub = df[df.env .== env, :]
+
+        counts, nreads = get_counts(sub; occ=occ)
+        S, T = size(counts, 2), size(counts, 1)
+        if S < 4
+            continue
+        end
+        
+        # Compute mean and var for each species
+        if interpretation == 1
+            mean_data = sum(counts ./ nreads, dims=1) ./ T
+            var_data = sum(counts .* (counts .- 1) ./ (nreads .* (nreads .- 1)), dims=1) ./ T .- mean_data .^ 2
+            mask = var_data .> 0
+            var_data = var_data[:, mask[1,:]]
+            mean_data = mean_data[:, mask[1,:]]
+            
+            if length(var_data) < 2
+                continue
+            end
+    
+            counts = counts[:, mask[1,:]]
+    
+            allz = [(sum(counts[:,i] .* counts ./ (nreads .* (nreads .- 1)), dims=1) ./ T .- mean_data[i] .* mean_data) ./ sqrt.(var_data[i] .* var_data) for i in 1:size(counts,2)]
+            allz = vcat(allz...)
+            for i in 1:size(allz, 1)
+                allz[i,i] = NaN
+            end
+            
+        elseif interpretation == 2
+            allz = pairwise_correlations(counts ./ nreads)
+        end
+            
+        allz = allz[.!isnan.(allz)]
+        allz = allz[abs.(allz) .<= 1]
+        
+        bmin, bmax = minimum(allz), maximum(allz)
+        Δb = (bmax - bmin) / bins
+        fh = FHist.Hist1D(allz, binedges=bmin:Δb:bmax)
+        ctrs = bincenters(fh)
+        pdf  = bincounts(fh) ./ (integral(fh) * Δb)
+
+        mask = pdf .> 0
+        corr_out[env] = (ctrs[mask], pdf[mask])
+    end
+
+    if save
+        @save "$filename.jld2" corr_out
+    end
+
+    if plot
+        fig = Figure(figsize=(900,500))
+        ax  = Axis(fig[1, 1]; yscale=log10,
+                   xlabel = "ρ", ylabel = "pdf", 
+                   title = "Pearson")
+    
+        for key in keys(corr_out)
+            x, y = corr_out[key]
+            sc = scatter!(ax, x, 10 .^ log.(y),
+                        label=key,
+                        markersize=15,
+                        strokewidth = 0.8,
+                        strokecolor = :black)
+        end
+
+        leg = Legend(fig, ax; orientation = :vertical)
+        fig[1, 2] = leg 
+
+        return corr_out, fig
+    end
+
+    return corr_out
+end
+
 function compute_MAD_params(m1, m2, c)
     function make_system(m1, m2, c)
         return function F!(F, x)
@@ -432,6 +580,16 @@ function compute_MAD_params(m1, m2, c)
     solution = result.zero
 
     return solution[1], solution[2]
+end
+
+function pairwise_correlations(M::AbstractMatrix)
+    # 1) compute the full corr matrix (n×n)
+    C = cor(M)  
+
+    # 2) extract just the upper‐triangle, i<j
+    #    `triu(mask, k=1)` is a Bool mask with ones for i<j
+    mask = triu(trues(size(C)), 1)
+    return C[mask]
 end
 
 #### ZOO OF DISTRIBUTIONS ####
@@ -460,6 +618,17 @@ end
 
 function ts(z, ν)
     return loggamma((ν + 1) / 2) .- log(sqrt(π * ν)) .- loggamma(ν / 2) .- ((ν + 1 ) / 2) .* log.(1 .+ z .^ 2 ./ ν)
+end
+
+function allegri_lol(z, a, l)
+    C1 = gamma((a + 2) / 2) / gamma((a + 1) / 2)
+    C2 = gamma((a + 3) / 2) / gamma((a + 1) / 2) - C1^2
+    m = C1 / sqrt(l)
+    s = sqrt(C2 / l)
+    
+    f1 = 2 * l ^ ((a + 1) / 2) / gamma((a + 1 / 2))
+    f2 = (s .* z .+ m) .^ a .* exp.(-l .* z .^ 2)
+    return log.(f2) .+ log(s) .+ log.(f1)
 end
 ##############################
 
