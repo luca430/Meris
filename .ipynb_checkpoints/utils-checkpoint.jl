@@ -619,18 +619,41 @@ end
 function ts(z, ν)
     return loggamma((ν + 1) / 2) .- log(sqrt(π * ν)) .- loggamma(ν / 2) .- ((ν + 1 ) / 2) .* log.(1 .+ z .^ 2 ./ ν)
 end
-
-function allegri_lol(z, a, l)
-    C1 = gamma((a + 2) / 2) / gamma((a + 1) / 2)
-    C2 = gamma((a + 3) / 2) / gamma((a + 1) / 2) - C1^2
-    m = C1 / sqrt(l)
-    s = sqrt(C2 / l)
-    
-    f1 = 2 * l ^ ((a + 1) / 2) / gamma((a + 1 / 2))
-    f2 = (s .* z .+ m) .^ a .* exp.(-l .* z .^ 2)
-    return log.(f2) .+ log(s) .+ log.(f1)
-end
 ##############################
 
+using QuadGK
 
+# function f(x, b, A, q)
+#     return (1 - A - A * x ^ (-b * x) * (1 - x) ^ (-b * (1 - x))) ^ (-q)
+# end
+
+# function func(z, b, A, q)
+#     Z = first(quadgk(x -> f(x, b, A, q), 0, 1))
+#     m = first(quadgk(x -> log(x) * f(x, b, A, q), 0, 1)) / Z
+#     m2 = first(quadgk(x -> log(x)^2 * f(x, b, A, q), 0, 1)) / Z
+#     s = sqrt(m2 - m^2)
+
+#     y = s .* z .+ m
+#     x = exp.(y)
+
+#     return log.(s .* x .* f.(x, b, A, q) ./ Z)
+# end
+
+function f(x, b, a)
+    return (1 + b * (x * log(x) + (1 - x) * log(1 - x))) ^ (-a)
 end
+
+function func(z, b, a)
+    Z = first(quadgk(x -> f(x, b, a), 0, 1))
+    m = first(quadgk(x -> log(x) * f(x, b, a), 0, 1)) / Z
+    m2 = first(quadgk(x -> log(x)^2 * f(x, b, a), 0, 1)) / Z
+    s = sqrt(m2 - m^2)
+
+    y = s .* z .+ m
+    x = exp.(y)
+
+    return log.(s .* x .* f.(x, b, a) ./ Z)
+end
+
+
+end # End module
