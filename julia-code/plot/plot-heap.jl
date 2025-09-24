@@ -11,14 +11,15 @@ using JLD2
 using StatsBase
 
 #/ Modules
-import Moira.DATADIR as DATADIR
+import Meris.DATADIR as DATADIR
 
 #################
 ### FUNCTIONS ###
 function plot_scaling(;
-    αv = [0.0, 0.2, 0.5, 0.9],
+    αv = [0.0, 0.2, 0.5],
     DIR = DATADIR * "heap/pitmanyor/",
     BOOKDIR = DATADIR * "heap/books/",
+    LEGODIR = DATADIR * "heap/lego/",
     savefig = false,
     figname = true
 )
@@ -37,28 +38,28 @@ function plot_scaling(;
     )
 
     #/ Do the same for a Chinese book
-    cfilename = "stone-vocabsize.jld2"
-    cdb = JLD2.load(BOOKDIR*"chinese/"*cfilename)
+    cfilename = "lego-vocabsize.jld2"
+    cdb = JLD2.load(LEGODIR*cfilename)
     cV, cN = cdb["V"], cdb["N"]
     cV = dropdims(mean(cV, dims=2), dims=2)
-
     
     
     Nmin = 3.25
     Nmax = log10.(cN[end]) + 1
     Nfit = exp10.(range(Nmin, Nmax, 128))
     cs = scatter!(ax, log10.(cN), log10.(cV), marker=:rect, markersize=5)
-    clogfun(x,p) = @. p[1] + p[2]*log(x)
+    # clogfun(x,p) = @. p[1] + p[2]*log(x)
+    clogfun(x, p) = @. p[1] + p[2]*x^p[3]
     cfit = LsqFit.curve_fit(clogfun, cN[5:end], cV[5:end], [0.,1.,1.])
     l = lines!(
         ax, log10.(Nfit), log10.(clogfun(Nfit, cfit.param)),
-        linewidth=1., label=L"\textrm{Story of the stone}", linestyle=(:dash,:dense)
+        linewidth=1., label=L"\textrm{LEGO}", linestyle=(:dash,:dense)
     )
     tidx = 82
-    ct = text!(
-        ax, log10(Nfit[tidx]), log10(clogfun(Nfit[tidx], cfit.param))*1.05,
-        text = L"\propto \log N", fontsize=10, align=(:right,:bottom)
-    )
+    # ct = text!(
+    #     ax, log10(Nfit[tidx]), log10(clogfun(Nfit[tidx], cfit.param))*1.05,
+    #     text = L"\propto \log N", fontsize=10, align=(:right,:bottom)
+    # )
 
     for i in eachindex(αv)
         αs = round(αv[i], digits=1)

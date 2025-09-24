@@ -3,8 +3,8 @@
 using JLD2
 
 #/ Modules
-using Moira
-DATADIR = Moira.DATADIR * "heap/pitmanyor/"
+using Meris
+DATADIR = Meris.DATADIR * "heap/pitmanyor/"
 mkpath(DATADIR)
 
 #~ Specify variables
@@ -19,7 +19,7 @@ for α in αv
     #/ Compute the no. of categories V
     #~ note: the function `count_categories` returns the mean no. of categories from a
     #        Pitman-Yor process of size N
-    V = Moira.PitmanYor.countvocabsize(Nv; n=nseeds, θ=θ, α=α)
+    V = Meris.PitmanYor.countvocabsize(Nv; n=nseeds, θ=θ, α=α)
     #~ Save
     if save
         αs = round(α, digits=1)

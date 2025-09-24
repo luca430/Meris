@@ -5,8 +5,8 @@
 using JLD2
 
 #/ Modules
-using Moira
-DATADIR = Moira.DATADIR * "heap/books/chinese/"
+using Meris
+DATADIR = Meris.DATADIR * "heap/books/chinese/"
 mkpath(DATADIR)
 
 #~ Specify variables
@@ -17,7 +17,7 @@ nseeds = 144
 #/ Compute the no. of categories V
 #~ note: the function `count_categories` returns the mean no. of categories from a
 #        Pitman-Yor process of size N
-V = Moira.BookSampler.samplevocabsize(N; n=nseeds)
+V = Meris.BookSampler.samplevocabsize(N; n=nseeds)
 #~ Save
 if save
     filename = "stone-vocabsize.jld2"

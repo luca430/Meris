@@ -11,8 +11,8 @@ using DataFrames
 using Random
 using StatsBase
 
-#/ Modules
-import Moira.BOOKDIR as BOOKDIR
+#/ Modules, directories
+import Meris.BOOKDIR as BOOKDIR
 
 #################
 ### FUNCTIONS ###
