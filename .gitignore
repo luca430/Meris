@@ -3,3 +3,5 @@ Data/
 
 # Exclude Images
 Images/
+**/**.jld2
+**/**.csv
