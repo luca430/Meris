@@ -582,6 +582,41 @@ function compute_MAD_params(m1, m2, c)
     return solution[1], solution[2]
 end
 
+"""
+symmetric_index(hist; skip=0, normalize=true)
+
+hist = (centers, freqs) or [centers, freqs]
+Compares mirrored bins by index (i vs end-i+1).
+
+- skip: ignore that many pairs near the edges
+- normalize: divide by total mass so the score is in [0, 2] (≈ scale-free)
+
+Returns: s::Float64
+"""
+function symmetric(hist; skip::Int=0, normalize::Bool=true)
+    centers, freqs = hist
+    L = length(freqs)
+    @assert L == length(centers) "centers and freqs must match length"
+    @assert L ≥ 2 "need at least 2 bins"
+    # how many pairs?
+    pairs = (L ÷ 2) - skip
+    pairs ≤ 0 && return 0.0
+
+    # first half vs reversed second half
+    left  = @view freqs[1+skip : skip+pairs]
+    right = @view freqs[end-skip : -1 : end-skip-pairs+1]
+
+    s = sum(abs.(left .- right))
+
+    if normalize
+        # if freqs are counts, divide by total counts; if densities, this is still a scale
+        tot = max(sum(freqs), eps())
+        s /= tot
+    end
+    return s
+end
+
+
 function pairwise_correlations(M::AbstractMatrix)
     # 1) compute the full corr matrix (n×n)
     C = cor(M)  
