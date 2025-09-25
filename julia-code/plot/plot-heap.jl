@@ -20,6 +20,7 @@ function plot_scaling(;
     DIR = DATADIR * "heap/pitmanyor/",
     BOOKDIR = DATADIR * "heap/books/",
     LEGODIR = DATADIR * "heap/lego/",
+    OTUDIR  = DATADIR * "heap/otu/",
     rescale = true,
     savefig = false,
     figname = true
@@ -30,14 +31,14 @@ function plot_scaling(;
 
     colors = MakiePublication.COLORS[begin]
 
-    width = .85 * 246
+    width = .95 * 246
     height = 3*width / 4.67
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
     ax = Axis(
         fig[1,1],
         xlabel=L"\textrm{sample size}\;\log_{10}N", xlabelsize=11,
-        ylabel=L"\textrm{resc. vocab. size}\;\log_{10} V(N)", ylabelsize=11,
-        limits=(2,6,0,6)
+        ylabel=L"\textrm{resc. vocab. size}\;\log_{10} \hat{V}(N)", ylabelsize=11,
+        limits=(1,6,0,6)
     )
     #~ Define some functions for fitting
     logfun(x,p) = @. p[1] + p[2]*log(x)
@@ -49,7 +50,7 @@ function plot_scaling(;
         αs = round(αv[i], digits=1)
         if αv[i] == 0.0
             # ~ Fit a line
-            Nmin = 2
+            Nmin = 1
             Nmax = 6
             Nfit = exp10.(range(Nmin, Nmax, 128))
             llog = lines!(
@@ -63,7 +64,7 @@ function plot_scaling(;
             # V = dropdims(mean(V, dims=2), dims=2)
 
             # ~ Fit a line
-            Nmin = 2
+            Nmin = 1
             Nmax = 6
             Nfit = exp10.(range(Nmin, Nmax, 128))
             #~ Idenfity index in data that is closest to Nmin
@@ -73,12 +74,12 @@ function plot_scaling(;
                 V = @. (V - pyfit.param[1]) / pyfit.param[2]
             end
             l = lines!(
-                ax, log10.(Nfit), log10.(Nfit.^αv[i]), color=colors[i+2],
+                ax, log10.(Nfit), log10.(Nfit.^αv[i]), color=colors[i+3],
                 linewidth=1., label=L"\alpha=%$(αs)\;\textrm{(PY)}"
             )            
             spow = scatter!(
                 ax, log10.(N[idx:end]), log10.(V[idx:end]),
-                marker=:circle, markersize=5, color=:white, strokecolor=colors[i+2]
+                marker=:circle, markersize=5, color=:white, strokecolor=colors[i+3]
             )
         end
     end
@@ -117,7 +118,7 @@ function plot_scaling(;
     Vlego, Nlego = legodb["V"], legodb["N"]
     Vlego = dropdims(mean(Vlego, dims=2), dims=2)
     #~ Idenfity index in data that is closest to Nmin
-    Nmin = 2.0
+    Nmin = 1.0
     Nfit = exp10.(range(Nmin, Nmax, 128))
     idx = argmin(abs.(log10.(Nlego) .- Nmin))
     legofit = LsqFit.curve_fit(powfun, Nlego[idx:end], Vlego[idx:end], [1.,1.,.5])
@@ -135,16 +136,45 @@ function plot_scaling(;
     )
     #~ Some text
     αlego = round(legofit.param[3], digits=2)
-    ct = text!(
-        ax, 5.5, 2.7, color=:black,
-        text = L"\propto N^{%$(αlego)}", fontsize=10, align=(:center,:bottom)
+    lt = text!(
+        ax, 5.5, 2.5, color=:black, rotation=0.175,
+        text = L"\propto N^{%$(αlego)}", fontsize=10, align=(:center,:top)
+    )
+
+    #/ Load vocabulary for OTUs
+    otufilename = "otu-gut1-vocabsize.jld2"
+    otudb = JLD2.load(OTUDIR*otufilename)
+    Votu, Notu = otudb["V"], otudb["N"]
+    Votu = dropdims(mean(Votu, dims=2), dims=2)
+    #~ Idenfity index in data that is closest to Nmin
+    Nmin = 1.0
+    Nfit = exp10.(range(Nmin, Nmax, 128))
+    idx = argmin(abs.(log10.(Notu) .- Nmin))
+    otufit = LsqFit.curve_fit(powfun, Notu[idx:end], Votu[idx:end], [1.,1.,.5])
+    if rescale
+        Votu = @. (Votu - otufit.param[1]) / otufit.param[2]
+    end
+    #~ scatter plot raw data
+    l = lines!(
+        ax, log10.(Nfit), log10.(Nfit.^otufit.param[3]),
+        linewidth=1., color=colors[3], linestyle=(:dashdot,:dense)
+    )
+    otuscat = scatter!(
+        ax, log10.(Notu), log10.(Votu), marker=:rect, markersize=5,
+        label=L"\textrm{gut1}", color=:white, strokecolor=colors[3]
+    )
+    #~ Some text
+    αotu = round(otufit.param[3], digits=2)
+    ot = text!(
+        ax, 5.5, 3.5, color=:black, rotation=0.275,
+        text = L"\propto N^{%$(αotu)}", fontsize=10, align=(:center,:bottom)
     )
 
     
     axislegend(
         ax,
         position=:lt, labelsize=10, patchsize=(8,20),
-        margin=(4,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
+        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
     )
     
     return fig
