@@ -632,63 +632,16 @@ function lrg(z, α)
     return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
 end
 
-function lrig(z, β)
-    return -β .* (z .* sqrt(trigamma(β)) .- digamma(β)) .- exp.(digamma(β) .- z .* sqrt(trigamma(β))) .- loggamma(β) .+ log(sqrt(trigamma(β)))
-end
-
-function lrb(z, α, β)
-    m = digamma(α) - digamma(α + β)
-    s = sqrt(trigamma(α) - trigamma(α + β))
-    c = loggamma(α + β) - loggamma(α) - loggamma(β)
-    return c .+ α .* (z .* s .+ m) .+ (β - 1) .* log.(1 .- exp.(z .* s .+ m)) .+ log(s)
+function lrl(z, b)
+    s = sqrt(trigamma(1) + trigamma(b))
+    m = digamma(1) - digamma(b)
+    return log(s * b) .+ z .* s .+ m .- (b + 1) .* log.(1 .+ exp.(z .* s .+ m))
 end
 
 function lrln(z, σ)
     return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
 end
-
-function lrtn(z, μ, σ, Z)
-    return z .- (z .- μ) .^ 2 ./ (2*σ^2) .- Z
-end
-
-function ts(z, ν)
-    return loggamma((ν + 1) / 2) .- log(sqrt(π * ν)) .- loggamma(ν / 2) .- ((ν + 1 ) / 2) .* log.(1 .+ z .^ 2 ./ ν)
-end
 ##############################
-
-using QuadGK
-
-# function f(x, b, A, q)
-#     return (1 - A - A * x ^ (-b * x) * (1 - x) ^ (-b * (1 - x))) ^ (-q)
-# end
-
-# function func(z, b, A, q)
-#     Z = first(quadgk(x -> f(x, b, A, q), 0, 1))
-#     m = first(quadgk(x -> log(x) * f(x, b, A, q), 0, 1)) / Z
-#     m2 = first(quadgk(x -> log(x)^2 * f(x, b, A, q), 0, 1)) / Z
-#     s = sqrt(m2 - m^2)
-
-#     y = s .* z .+ m
-#     x = exp.(y)
-
-#     return log.(s .* x .* f.(x, b, A, q) ./ Z)
-# end
-
-function f(x, b, a)
-    return (1 + b * (x * log(x) + (1 - x) * log(1 - x))) ^ (-a)
-end
-
-function func(z, b, a)
-    Z = first(quadgk(x -> f(x, b, a), 0, 1))
-    m = first(quadgk(x -> log(x) * f(x, b, a), 0, 1)) / Z
-    m2 = first(quadgk(x -> log(x)^2 * f(x, b, a), 0, 1)) / Z
-    s = sqrt(m2 - m^2)
-
-    y = s .* z .+ m
-    x = exp.(y)
-
-    return log.(s .* x .* f.(x, b, a) ./ Z)
-end
 
 
 end # End module
