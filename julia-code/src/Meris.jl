@@ -6,6 +6,8 @@ const BOOKDIR = DATADIR * "datasets/books/"
 const LEGODIR = DATADIR * "datasets/lego/"
 const OTUDIR  = DATADIR * "datasets/otu/"
 
+const CORPUSDIR = DATADIR * "datasets/corpus/"
+
 ## SUBMODULES
 #~ Data samplers 
 include("dataframes/books/booksampler.jl")
