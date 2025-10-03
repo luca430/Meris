@@ -632,13 +632,6 @@ function lrg(z, α)
     return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
 end
 
-function lre(z)
-    g = 0.57721566490153286060
-    m = -g
-    s = π ^ 2 / 6 - g ^ 2
-    return log(s) .+ s .* z .+ m .- exp.(s .*z .+ m)
-end
-
 function lrl(z, b)
     s = sqrt(trigamma(1) + trigamma(b))
     m = digamma(1) - digamma(b)
