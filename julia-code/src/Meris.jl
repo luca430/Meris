@@ -11,10 +11,14 @@ const CORPUSDIR = DATADIR * "datasets/corpus/"
 ## SUBMODULES
 #~ Data samplers 
 include("dataframes/books/booksampler.jl")
+include("dataframes/books/wordsampler.jl")
 include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")
+#~ Utilities
+include("dataframes/afd.jl")
+include("dataframes/taylor.jl")
 
 end # module Meris
