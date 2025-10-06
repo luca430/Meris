@@ -224,7 +224,7 @@ function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=fals
         log_non_zero = [log.(col[col .> 0]) for col in eachcol(freqs)]
         μ = mean.(log_non_zero)
         σ = std.(log_non_zero)
-        allz = vcat( [(x .- μ[j]) ./ σ[j] for (j, x) in enumerate(log_non_zero)]... )
+        allz = vcat([(x .- μ[j]) ./ σ[j] for (j, x) in enumerate(log_non_zero)]...)
         allz = allz[.!isnan.(allz)]
 
         bmin, bmax = round(minimum(allz)), round(maximum(allz))
