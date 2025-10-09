@@ -3,3 +3,7 @@ Data/
 
 # Exclude Images
 Images/
+
+# Exclude temporary files
+tmp/
+tmp.*/

@@ -2,7 +2,11 @@
    "sources" : [
       {
          "usage" : "toplevel",
-         "filename" : "confirmingrev_arch.tex"
+         "filename" : "main.tex"
+      },
+      {
+         "usage" : "ignore",
+         "filename" : "JHEP.bst"
       }
    ],
    "spec_version" : 1,
