@@ -2,7 +2,7 @@
 
 julia_version = "1.11.1"
 manifest_format = "2.0"
-project_hash = "80ed0c01a6f64b019d14a8c576ab7a85e2a8e82d"
+project_hash = "153d55fb2cead19c10d6dc827a1b32e6ecc496b7"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "be7ae030256b8ef14a441726c4c37766b90b93a3"
@@ -1605,6 +1605,12 @@ deps = ["Animations", "Base64", "CRC32c", "ColorBrewer", "ColorSchemes", "ColorT
 git-tree-sha1 = "8ca3fbbe6685f2fb232526cabe25ef471d520c37"
 uuid = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 version = "0.24.3"
+
+[[deps.MakiePublication]]
+deps = ["ColorSchemes", "Colors", "Makie", "MathTeXEngine"]
+git-tree-sha1 = "11f22ca64ef19cee963181d77e8b8417bd8dbc8d"
+uuid = "dde8697e-0d61-460d-88dd-856f66710dd1"
+version = "0.4.3"
 
 [[deps.ManualMemory]]
 git-tree-sha1 = "bcaef4fc7a0cfe2cba636d84cda54b5e4e4ca3cd"
