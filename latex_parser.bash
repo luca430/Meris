@@ -2,8 +2,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-SRC_DIR="./Data/arx_sources/astro-ph/CO/sources"
-TXT_DIR="./Data/arx_sources/astro-ph/CO/texts"
+SRC_DIR="./Data/arx_sources/nlin/AO/sources"
+TXT_DIR="./Data/arx_sources/nlin/AO/texts"
 TMP_DIR="./tmp"
 
 mkdir -p "$TXT_DIR" "$TMP_DIR"

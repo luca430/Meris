@@ -628,18 +628,26 @@ function pairwise_correlations(M::AbstractMatrix)
 end
 
 #### ZOO OF DISTRIBUTIONS ####
-function lrg(z, α)
+function lr_gamma(z, α)
     return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
 end
 
-function lrl(z, b)
-    s = sqrt(trigamma(1) + trigamma(b))
-    m = digamma(1) - digamma(b)
-    return log(s * b) .+ z .* s .+ m .- (b + 1) .* log.(1 .+ exp.(z .* s .+ m))
+function lr_lognormal(z, σ)
+    return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
 end
 
-function lrln(z, σ)
-    return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
+function lr_betap(z, a, b)
+    s = sqrt(trigamma(a) + trigamma(b))
+    m = digamma(a) - digamma(b)
+    B = gamma(a) * gamma(b) / gamma(a + b)
+    return log(s / B) .+ a .* (s .* z .+ m) .- (a + b) .* log.(1 .+ exp.(s .* z .+ m))
+end
+
+function lr_gam_bp_mix(z, α, a, b)
+    g = exp.(lr_gamma(z, α))
+    bp = exp.(lr_betap(z, a, b))
+    mix = g .+ bp
+    return log.(mix ./ 2)
 end
 ##############################
 
