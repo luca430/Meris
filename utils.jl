@@ -643,12 +643,12 @@ function lr_betap(z, a, b)
     return log(s / B) .+ a .* (s .* z .+ m) .- (a + b) .* log.(1 .+ exp.(s .* z .+ m))
 end
 
-function lr_gam_bp_mix(z, α, a, b)
-    g = exp.(lr_gamma(z, α))
-    bp = exp.(lr_betap(z, a, b))
-    mix = g .+ bp
-    return log.(mix ./ 2)
+function lr_gumbel(z, a, b)
+    z = (z .- a) ./ b
+    return -log(b) .- z .- exp.(-z)
 end
+
+
 ##############################
 
 
