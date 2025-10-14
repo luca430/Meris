@@ -8,3 +8,12 @@ Images/
 **/*Manifest.toml
 Manifest.toml
 julia-code/Manifest.toml
+/julia-code/data/datasets/arxiv/raw-data/
+/julia-code/data/datasets/arxiv/raw-text/
+/julia-code/data/datasets/corpus/
+/julia-code/data/datasets/lego/
+/julia-code/data/datasets/otu/
+/julia-code/data/gutenberg/
+/julia-code/figures/
+/poetry.lock
+Manifest.toml

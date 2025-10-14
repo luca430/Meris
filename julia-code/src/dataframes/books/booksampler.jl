@@ -53,7 +53,8 @@ end
 Take a sample from a vector of 'words'. Words can be anything, as long as their String is unique.
 """
 function _sample(
-    words::Vector{String}, N::    rng = Random.Xoshiro(42)
+    words::Vector{String}, N::Int;
+    rng = Random.Xoshiro(42)
 )
     #~ Sample and count the vocabulary size V
     s = sample(rng, words, N, replace=false)

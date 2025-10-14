@@ -11,17 +11,19 @@ using JLD2
 using StatsBase
 
 #/ Modules
-import Meris.DATADIR as DATADIR
+import Meris.DATADIR as DATADIR     #~ Data with (parsed/analyzed) results, for plotting
+import Meris.ARXIVDIR as RARXIVDIR  #~ Directory with raw arXiv data
 
 #################
 ### FUNCTIONS ###
 function plot_scaling(;
-    αv = [0.0, 0.2, 0.5],
+    αv = [0.0, 0.2, 0.5, 0.9],
     DIR = DATADIR * "heap/pitmanyor/",
     BOOKDIR = DATADIR * "heap/books/",
     LEGODIR = DATADIR * "heap/lego/",
     OTUDIR  = DATADIR * "heap/otu/",
     ARXIVDIR = DATADIR * "heap/arxiv/",
+    ARXIVCATEGORIES = ["q-bio.QM"], #readlines(RARXIVDIR*"categories.txt"),
     rescale = true,
     savefig = false,
     figname = true
@@ -80,7 +82,7 @@ function plot_scaling(;
             )            
             spow = scatter!(
                 ax, log10.(N[idx:end]), log10.(V[idx:end]),
-                marker=:circle, markersize=5, color=:white, strokecolor=colors[i+3]
+                marker=:circle, markersize=4, color=:white, strokecolor=colors[i+3]
             )
         end
     end
@@ -104,7 +106,7 @@ function plot_scaling(;
     end
     #~ scatter plot raw data
     bookscat = scatter!(
-        ax, log10.(Nbook), log10.(Vbook), marker=:rect, markersize=5,
+        ax, log10.(Nbook), log10.(Vbook), marker=:rect, markersize=4,
         label=L"\textrm{Chinese book}", color=:white, strokecolor=colors[1]
     )    
     #~ Some text
@@ -132,7 +134,7 @@ function plot_scaling(;
         linewidth=1., color=colors[2], linestyle=(:dashdot,:dense)
     )
     legoscat = scatter!(
-        ax, log10.(Nlego), log10.(Vlego), marker=:rect, markersize=5,
+        ax, log10.(Nlego), log10.(Vlego), marker=:rect, markersize=4,
         label=L"\textrm{LEGO}", color=:white, strokecolor=colors[2]
     )
     #~ Some text
@@ -161,7 +163,7 @@ function plot_scaling(;
         linewidth=1., color=colors[3], linestyle=(:dashdot,:dense)
     )
     otuscat = scatter!(
-        ax, log10.(Notu), log10.(Votu), marker=:rect, markersize=5,
+        ax, log10.(Notu), log10.(Votu), marker=:rect, markersize=4,
         label=L"\textrm{OTU-gut1}", color=:white, strokecolor=colors[3]
     )
     #~ Some text
@@ -172,32 +174,37 @@ function plot_scaling(;
     )
 
     #/ Load vocabulary for arXiv papers [of a specific category]
-    arxivfilename = "arxiv-vocabsize.jld2"
-    arxivdb = JLD2.load(ARXIVDIR*arxivfilename)
-    arxivdf, meanarxivdf = arxivdb["raw"], arxivdb["average"]
-    Narxiv, mNarxiv = arxivdf[!,:documentsize], meanarxivdf[!,:documentsize]
-    Varxiv, mVarxiv = arxivdf[!,:vocabularysize], meanarxivdf[!,:vocabularysize]
-    idx = argmin(abs.(log10.(Narxiv) .- Nmin))
-    arxivfit = LsqFit.curve_fit(powfun, Narxiv[idx:end], Varxiv[idx:end], [1.,1.,.5])
-    if rescale
-        Varxiv = @. (Varxiv - arxivfit.param[1]) / arxivfit.param[2]
-        mVarxiv = @. (mVarxiv - arxivfit.param[1]) / arxivfit.param[2]
+    for CATEGORY in ARXIVCATEGORIES
+        arxivfilename = "arxiv-$(CATEGORY)-vocabsize.jld2"
+        arxivdb = JLD2.load(ARXIVDIR*arxivfilename)
+        arxivdf, meanarxivdf = arxivdb["raw"], arxivdb["average"]
+        Narxiv, mNarxiv = arxivdf[!,:documentsize], meanarxivdf[!,:documentsize]
+        Varxiv, mVarxiv = arxivdf[!,:vocabularysize], meanarxivdf[!,:vocabularysize]
+        idx = argmin(abs.(log10.(Narxiv) .- Nmin))
+        arxivfit = LsqFit.curve_fit(powfun, Narxiv[idx:end], Varxiv[idx:end], [1.,1.,.5])
+        if rescale
+            Varxiv = @. (Varxiv - arxivfit.param[1]) / arxivfit.param[2]
+            mVarxiv = @. (mVarxiv - arxivfit.param[1]) / arxivfit.param[2]
+        end
+        #~ line plot
+        l = lines!(
+            ax, log10.(Nfit), log10.(Nfit.^arxivfit.param[3]),
+            linewidth=1., color=colors[4], linestyle=(:dashdot,:dense)
+        )
+        #~ scatter plot raw data
+        categorylabel = replace(CATEGORY, "-" => "‐")
+        arxivscat = scatter!(
+            ax, log10.(mNarxiv), log10.(mVarxiv), marker=:rect, markersize=4,
+            # label=L"\textrm{arXiv-q‐bio.PE}",
+            label=L"\textrm{arXiv-%$(categorylabel)}",
+            color=:white, strokecolor=colors[4]
+        )
     end
-    #~ line plot
-    l = lines!(
-        ax, log10.(Nfit), log10.(Nfit.^arxivfit.param[3]),
-        linewidth=1., color=colors[4], linestyle=(:dashdot,:dense)
-    )
-    #~ scatter plot raw data
-    arxivscat = scatter!(
-        ax, log10.(mNarxiv), log10.(mVarxiv), marker=:rect, markersize=5,
-        label=L"\textrm{arXiv-q‐bio.PE}", color=:white, strokecolor=colors[4]
-    )
     
     #/ Add legend    
     axislegend(
         ax,
-        position=:lt, labelsize=10, patchsize=(8,20),
+        position=:lt, labelsize=9, patchsize=(8,20),
         margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
     )
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))

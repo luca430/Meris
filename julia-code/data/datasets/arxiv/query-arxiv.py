@@ -10,6 +10,7 @@ args = parser.parse_args()
 # Specify parameters
 NUM_PAPERS    = args.n   # no. of papers to fetch
 DELAY_SECONDS = 5        # arXiv politeness (keep it ≥3)
+MAX_RETRIES   = 5        # if unexpected empty returns, retry at most MAX_RETRIES times
 
 # Specify/load categories of interest
 f = open("categories.txt")
@@ -41,7 +42,8 @@ for CATEGORY in CATEGORIES:
     # Download 
     downloaded = 0
     seen = 0
-    while True:
+    retries = 0
+    while retries < MAX_RETRIES:
         try:
             for r in client.results(search):
                 seen += 1
@@ -52,12 +54,13 @@ for CATEGORY in CATEGORIES:
                 try:
                     r.download_source(dirpath=OUT_DIR)
                     downloaded += 1
-                    print(f"[{downloaded}/{NUM_PAPERS}] saved {arxiv_id}")
+                    print(f"[{downloaded}/{NUM_PAPERS}] saved {arxiv_id}", end="\r")
                 except Exception as e:
                     print(f"[skip] {arxiv_id}: {e}", file=sys.stderr)
             break
         except arxiv.UnexpectedEmptyPageError as e:
             # Rare hiccup; quick retry
+            retries += 1
             print("[warn] empty page from API; retrying in 5s…", file=sys.stderr)
             time.sleep(5)
             continue

@@ -41,6 +41,8 @@ while IFS= read -r line; do
         fi
         
         # Use `detex` to strip all LaTeX
+        # Also convert to lower case using `tr`, and finally
+        # `grep` to get only lines with alphabetical characters
         find "$TMP_DIR" -type f -name "*.tex" -print0 | sort -z | xargs -0 cat \
              |awk '
                   /\\begin{document}/ {inrange=1; next}
@@ -57,8 +59,6 @@ while IFS= read -r line; do
             echo "[warn] empty output for $name — removing"
             rm -f "$final"
         else
-            # Parse it using a simple Python script
-            
             echo "✔ wrote $final"
         fi
     done
