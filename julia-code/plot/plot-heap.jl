@@ -21,6 +21,7 @@ function plot_scaling(;
     BOOKDIR = DATADIR * "heap/books/",
     LEGODIR = DATADIR * "heap/lego/",
     OTUDIR  = DATADIR * "heap/otu/",
+    ARXIVDIR = DATADIR * "heap/arxiv/",
     rescale = true,
     savefig = false,
     figname = true
@@ -38,7 +39,7 @@ function plot_scaling(;
         fig[1,1],
         xlabel=L"\textrm{sample size}\;\log_{10}N", xlabelsize=11,
         ylabel=L"\textrm{resc. vocab. size}\;\log_{10} \hat{V}(N)", ylabelsize=11,
-        limits=(1,6,0,6)
+        limits=(1,6,0,5)
     )
     #~ Define some functions for fitting
     logfun(x,p) = @. p[1] + p[2]*log(x)
@@ -161,7 +162,7 @@ function plot_scaling(;
     )
     otuscat = scatter!(
         ax, log10.(Notu), log10.(Votu), marker=:rect, markersize=5,
-        label=L"\textrm{gut1}", color=:white, strokecolor=colors[3]
+        label=L"\textrm{OTU-gut1}", color=:white, strokecolor=colors[3]
     )
     #~ Some text
     αotu = round(otufit.param[3], digits=2)
@@ -170,13 +171,36 @@ function plot_scaling(;
         text = L"\propto N^{%$(αotu)}", fontsize=10, align=(:center,:bottom)
     )
 
+    #/ Load vocabulary for arXiv papers [of a specific category]
+    arxivfilename = "arxiv-vocabsize.jld2"
+    arxivdb = JLD2.load(ARXIVDIR*arxivfilename)
+    arxivdf, meanarxivdf = arxivdb["raw"], arxivdb["average"]
+    Narxiv, mNarxiv = arxivdf[!,:documentsize], meanarxivdf[!,:documentsize]
+    Varxiv, mVarxiv = arxivdf[!,:vocabularysize], meanarxivdf[!,:vocabularysize]
+    idx = argmin(abs.(log10.(Narxiv) .- Nmin))
+    arxivfit = LsqFit.curve_fit(powfun, Narxiv[idx:end], Varxiv[idx:end], [1.,1.,.5])
+    if rescale
+        Varxiv = @. (Varxiv - arxivfit.param[1]) / arxivfit.param[2]
+        mVarxiv = @. (mVarxiv - arxivfit.param[1]) / arxivfit.param[2]
+    end
+    #~ line plot
+    l = lines!(
+        ax, log10.(Nfit), log10.(Nfit.^arxivfit.param[3]),
+        linewidth=1., color=colors[4], linestyle=(:dashdot,:dense)
+    )
+    #~ scatter plot raw data
+    arxivscat = scatter!(
+        ax, log10.(mNarxiv), log10.(mVarxiv), marker=:rect, markersize=5,
+        label=L"\textrm{arXiv-q‐bio.PE}", color=:white, strokecolor=colors[4]
+    )
     
+    #/ Add legend    
     axislegend(
         ax,
         position=:lt, labelsize=10, patchsize=(8,20),
         margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
     )
-    
+    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
 

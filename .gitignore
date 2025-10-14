@@ -5,3 +5,6 @@ Data/
 Images/
 **/**.jld2
 **/**.csv
+**/*Manifest.toml
+Manifest.toml
+julia-code/Manifest.toml

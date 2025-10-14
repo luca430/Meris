@@ -2,15 +2,6 @@
 #/ Start module
 module AFDPlotter
 
-#/ Packages
-using CairoMakie
-using MakiePublication
-using CSV, DataFrames
-using FHist
-using LaTeXStrings
-using SpecialFunctions, Optim
-# using LsqFit
-using JLD2
 using StatsBase
 
 #/ Modules
@@ -35,17 +26,25 @@ function plot_brownafd(;
 
     width = .95 * 246
     height = 3*width / 4.67
-    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    fig = Figure(; size=(1.5*width,height), figure_padding=(2,4,2,14))
     ax = Axis(
         fig[1,1],
-        xlabel=L"z", xlabelsize=11,
-        ylabel=L"p(z)", ylabelsize=11,
+        xlabel=L"z", xlabelsize=12,
+        ylabel=L"p(z)", ylabelsize=12,
         # yscale=log10,
         limits = (-5.,3.,0,0.6)
+    )
+    axtl = Axis(
+        fig[1,2],
+        xlabel=L"\textrm{mean}\;\mu", xlabelsize=12,
+        ylabel=L"\textrm{variance}\;\sigma^2", ylabelsize=12,
     )
 
     #/ Plot
     β = zeros(length(methods))
+    a = zeros(length(methods))
+    b = zeros(length(methods))
+    μplot = -10.0:0.01:0.0
     for i in eachindex(methods)
         zdf = CSV.read(DIR*methods[i]*"_"*FILENAME, DataFrame)
         z = zdf[!,:z]
@@ -55,7 +54,14 @@ function plot_brownafd(;
         #~ Compute β using Taylor's law
         tldf = CSV.read(DIR*methods[i]*"_"*TLFILENAME, DataFrame)
         c = mean(tldf[!,:meanfrequency] .^2 ./ tldf[!,:varfrequency])
+        a[i], b[i] = CurveFit.linear_fit(
+            log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency])
+        )
+        # ltl = lines!(axtl, μplot, af .+ bf .* μplot)
         β[i] = 2*c/(c-1)
+        # stl = scatter!(axtl, 2.0 .* log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency]))
+        stl = scatter!(axtl, log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency]))
+
         #~ Try to plot log-Lomax
         #~ Find the `b` param of the log-lomax by fitting [@TODO Use Taylor's law instead]
         # neglogll(p) = -sum(loglomax(z, p))
@@ -70,15 +76,24 @@ function plot_brownafd(;
     βplot = mean(β)
     zplot = -5:0.01:3
     pplot = loglomax.(zplot, βplot)
-    lines!(ax, zplot, exp.(pplot), linewidth=.8, color=:black, label=L"\textrm{log-Lomax}")
+    lines!(ax, zplot, exp.(pplot), linewidth=.8, color=:black, label=L"\textrm{Lomax}")
+
+    #~ Plot a straight line with exponent β
+    σplot(b) = b .* μplot
+    lines!(axtl, μplot, mean(a) .+ σplot(mean(b)), linewidth=.8, color=:black)
+    lines!(axtl, [-6.,-3.], [-14.,-11.], linewidth=.8, color=:black, linestyle=(:dash,:dense))
+    text!(
+        axtl, -5.25, -11.5; text=L"\sigma^2 \propto \mu",
+        align=(:center,:center), rotation=π/4.5
+    )
 
     
     axislegend(
         ax,
-        position=:lt, labelsize=10, patchsize=(8,20),
+        position=:lt, labelsize=9, patchsize=(8,20),
         margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
     )
-    
+    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
 
