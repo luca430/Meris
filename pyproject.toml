@@ -14,6 +14,8 @@ numpy = "^2.3.3"
 lxml = "^6.0.2"
 arxiv = "^2.2.0"
 ipython = "^9.6.0"
+kagglehub = "^0.3.13"
+fastparquet = "^2024.11.0"
 
 
 [build-system]

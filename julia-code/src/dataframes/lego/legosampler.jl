@@ -51,22 +51,24 @@ Compute vocabulary size of LEGO sets of sufficient size
 function computevocabsize(;
     minquantity::Int = 50,       #~ Min. no of LEGO pieces in a set
     mindistinctpieces::Int = 50, #~ Min. no of *distinct* LEGO pieces in a set
-    aggregate = true,
+    aggregate = false,
+    returnsummary = true,
     DIR = LEGODIR,
     FILENAME = "inventory_parts.csv"
 )
 	  #/ Load into DataFrame
-    #~ When `returnsummary=true`, return the summarizing statistics, which contains the 
-    #  columns 
+    #~ When `returnsummary=true`, return the summarizing statistics
     legodf = filterlegos(;
         minquantity=minquantity, mindistinctpieces=mindistinctpieces,
-        DIR=DIR, FILENAME=FILENAME, returnsummary=true
+        DIR=DIR, FILENAME=FILENAME, returnsummary=returnsummary
     )
-    #/ Aggregate the data by computing, for each unique sample size, the mean vocabularysize
+    #/ Aggregate the data by computing, for each unique sample size, the mean vocabularysize.
+    #  This is useful for investigating Heap's law.
     if aggregate
-        sdf = @by(legodf, :samplesize, :meanvocabularysize = mean(:vocabularysize))
+        sdf = @by(legodf, :documentsize, :meanvocabularysize = mean(:vocabularysize))
+        return sdf
     end
-    return sdf
+    return legodf
 end
 
 ########################
@@ -103,10 +105,10 @@ function filterlegos(;
         #~ Rename columns for consistency
         sdf = @chain sdf begin
 	          @rename(
-                :samplesize = :totalquantity,
+                :documentsize = :totalquantity,
                 :vocabularysize = :distinctpieces
             )
-            @select(:samplesize, :vocabularysize)
+            @select(:documentsize, :vocabularysize)
         end
         return sdf
     end

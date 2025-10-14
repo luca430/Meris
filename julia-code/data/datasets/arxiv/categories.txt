@@ -1,4 +1,3 @@
 cond-mat.stat-mech
-physics.bio-ph
 q-bio.PE
 q-bio.QM
