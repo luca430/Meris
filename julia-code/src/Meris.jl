@@ -7,6 +7,7 @@ const LEGODIR   = DATADIR * "datasets/lego/"
 const OTUDIR    = DATADIR * "datasets/otu/"
 const ARXIVDIR  = DATADIR * "datasets/arxiv/"
 const CORPUSDIR = DATADIR * "datasets/corpus/"
+const RFCDIR    = DATADIR * "datasets/rfc/"
 
 ## SUBMODULES
 #~ Data samplers 
@@ -21,5 +22,6 @@ include("processes/pitman-yor.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
+include("distributions/mle.jl")
 
 end # module Meris

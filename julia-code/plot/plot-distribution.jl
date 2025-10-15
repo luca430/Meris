@@ -58,6 +58,40 @@ function plot_pareto(;
     return fig
 end
 
+function plot_TruncatedPareto4(;
+    α = 1.5,
+    β = 1.0,
+    γ = 1.0,
+    ε = 1.0,
+    savefig = false,
+    figname = nothing
+)
+    __theme = MakiePublication.theme_acs(; ishollowmarkers=[true,true])
+    set_theme!(__theme)
+    
+	  width = .95 * 246
+    height = 3*width / 4.67
+    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    ax = Axis(
+        fig[1,1],
+        xlabel=L"\log x", xlabelsize=11,
+        ylabel=L"\log p(x)", ylabelsize=11,
+    )
+
+    xplot = exp.(range(-4,4,128))
+    
+    #~ Plot Pareto
+    θ = [α, β, γ, ε]
+    pplot = TruncatedPareto4.(xplot, Ref(θ))
+    l = lines!(
+        ax, log.(xplot), pplot, label=L"\textrm{Pareto(x; \alpha,\theta)}",
+        color=:black, linewidth=.8
+    )
+    
+    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
+    return fig
+end
+
 ########################
 ### HELPER FUNCTIONS ###
 function pareto(x; α=2.0, θ=1.0)
@@ -68,6 +102,12 @@ end
 function lomax(x; α=2.0, θ=1.0)
 	  p = (x < 0) ? NaN : log.(α*θ^α / (x + θ)^(1+α))
     return p
+end
+
+function TruncatedPareto4(x, θ)
+    α, β, γ, ε = θ
+    p = (x < 0) ? 0.0 : x^(-α-1)*(x+ε)^(β-α-1)*exp(-γ*x/ε)
+    return log(p)
 end
 
 end # module DistPlotter

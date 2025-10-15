@@ -14,6 +14,8 @@ using FHist
 #/ Modules
 import Meris.DATADIR as DATADIR     #~ Data with (parsed/analyzed) results, for plotting
 import Meris.ARXIVDIR as RARXIVDIR  #~ Directory with raw arXiv data
+import Meris.RFCDIR as RFCDIR
+import Meris.MLEstimator as MLE
 
 #################
 ### FUNCTIONS ###
@@ -21,7 +23,7 @@ function plot_documentsize(;
     LEGODIR  = DATADIR * "documentsize/lego/",
     ARXIVDIR = DATADIR * "documentsize/arxiv/",
     ARXIVCATEGORIES = readlines(RARXIVDIR*"categories.txt"),
-    nbins=17
+    nbins=21
 )
     sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
@@ -37,28 +39,60 @@ function plot_documentsize(;
         xlabel=L"\textrm{document size}\;\log\,N", xlabelsize=11,
         ylabel=L"\textrm{pdf}\;P(N)", ylabelsize=11,
         yscale=log10,
-        limits=(-4,4,1e-4,1)
+        limits=(-8,4,1e-4,1)
     )
+
+    #/ RFC
+    rfcfilename = "rfc-documentsize.csv"
+    rfcdf = CSV.read(RFCDIR*rfcfilename, DataFrame)
+    filter!(:documentsize => x -> x > 128, rfcdf)
+    z = log.(rfcdf.documentsize)
+    μ = mean(log.(z))
+    σ = std(log.(z))
+    zrfc = (log.(z) .- μ) ./ σ
+    zmin, zmax = extrema(zrfc)
+    binedges = range(zmin, zmax, nbins)
+    fh = FHist.Hist1D(zrfc; counttype=Int, binedges=binedges, overflow=true) |> normalize
+    s = scatter!(ax, bincenters(fh), fh.bincounts, label=L"\textrm{RFC}")
 
     #/ Lego sets
     legofilename = "lego-documentsize.csv"
     legodf = CSV.read(LEGODIR*legofilename, DataFrame)
-    z = log.(legodf.documentsize)
-    μ = mean(log.(z))
-    σ = std(log.(z))
-    z = (log.(z) .- μ) ./ σ
-    # gamma = Distributions.Gamma(4.0, 1.0)
-    # z = log.(rand(gamma, 4*256))
-    zmin, zmax = extrema(z)
+    filter!(:documentsize => x -> x > 64, legodf)
+    zlego = log.(legodf.documentsize)
+    μ = mean(log.(zlego))
+    σ = std(log.(zlego))
+    zlego = (log.(zlego) .- μ) ./ σ
+    zmin, zmax = extrema(zlego)
     binedges = range(zmin, zmax, nbins)
-    fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
-    # return fh
+    fh = FHist.Hist1D(zlego; counttype=Int, binedges=binedges, overflow=true) |> normalize
+    # # return fh
     s = scatter!(ax, bincenters(fh), fh.bincounts, label=L"\textrm{LEGO}")
-    #~ naively fit a Gamma distribution
-    gamma = Distributions.fit_mle(Gamma, exp.(z))
-    xgam = exp.(zmin:0.01:zmax)
-    ygam = xgam .* Distributions.pdf.(gamma, xgam)
-    lines!(ax, log.(xgam), ygam, linewidth=1.)
+    # #~ naively fit a Gamma distribution
+    # gamma = Distributions.fit_mle(LogNormal, exp.(z))
+    # xgam = exp.(zmin:0.01:zmax)
+    # ygam = xgam .* Distributions.pdf.(gamma, xgam)
+    # lines!(ax, log.(xgam), ygam, linewidth=1.)
+
+    
+    #~ Try fitting some distribution(s)
+    fs = [MLE.Burr] #, MLE.ShiftedPareto, MLE.LogLogistic]
+    fsnames = [
+        L"\textrm{Burr}",
+        L"\textrm{ShiftedPareto}",
+        L"\textrm{LogLogistic}",
+        L"\textrm{InverseGaussian}",
+        L"\textrm{BetaPrime}"
+    ]
+    for z in [zrfc, zlego]
+        for (f, fname) in zip(fs, fsnames)
+            initial_guess = f == MLE.Burr ? [1.0,1.0,1.0] : [1.0,1.0]
+            θstar = MLE.fit(f, exp.(z), initial_guess)
+            xplot = exp.(-10:0.01:6)
+            yplot = xplot .* f.(xplot, Ref(θstar))
+            lines!(ax, log.(xplot), yplot, linewidth=1., label=fname)
+        end
+    end
 
     
 
