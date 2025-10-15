@@ -17,3 +17,9 @@ julia-code/Manifest.toml
 /julia-code/figures/
 /poetry.lock
 Manifest.toml
+/julia-code/data/datasets/movie-transcripts/**/*.txt
+/julia-code/data/datasets/rfc/raw-text/**
+/julia-code/data/datasets/rfc/**/*.txt
+/julia-code/data/datasets/rfc/**/*.xml
+/julia-code/data/datasets/rfc/**/*.css
+/julia-code/data/datasets/books/**/*.parquet
