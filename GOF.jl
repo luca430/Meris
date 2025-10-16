@@ -22,7 +22,7 @@ end
 
 
 """
-    chi2(data, G; nbins=30, nparams=0)
+    chi2(data, G; nbins=30)
 
 Perform a χ² (chi-squared) goodness-of-fit test comparing `data` to distribution `G`.
 
@@ -30,12 +30,11 @@ Perform a χ² (chi-squared) goodness-of-fit test comparing `data` to distributi
 - `data`: Sample data.
 - `G`: Cumulative distribution function (CDF) of the theoretical distribution.
 - `nbins`: Number of histogram bins (default = 30).
-- `nparams`: Number of estimated parameters (optional, currently unused).
 
 # Returns
 The chi-squared test statistic.
 """
-function chi2(data, G; nbins=30, nparams=0)
+function chi2(data, G; nbins=30)
     bmin, bmax = round(minimum(data)), round(maximum(data))
     Δb = (bmax - bmin) / nbins
     fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
@@ -50,20 +49,20 @@ end
 
 
 """
-    KS(data, G; supp=-10:1e-3:10)
+    KS(data, G)
 
 Compute the Kolmogorov–Smirnov test statistic comparing empirical data to CDF `G`.
 
 # Arguments
 - `data`: Sample data.
 - `G`: Theoretical cumulative distribution function (CDF).
-- `supp`: Support grid for evaluating the EDF (default = -10:1e-3:10).
 
 # Returns
 The Kolmogorov–Smirnov statistic `√n * max|Fₙ(x) - G(x)|`.
 """
-function KS(data, G; supp=-10:1e-3:10)
+function KS(data, G; m=1e-2)
     n = length(data)
+    supp = minimum(data):m:maximum(data)
     Fn = make_EDF(data, supp)
     D = abs.(Fn .- G.(supp))
     return sqrt(n) * maximum(D)
@@ -86,7 +85,7 @@ function AD(data, G)
     n = length(data)
     U = G.(sort(data))
     i = 1:n
-    A = sum((2 .* i .- 1) .* (log.(U) .+ log.(1 - reverse(U))))
+    A = sum((2 .* i .- 1) .* (log.(U) .+ log.(1 .- reverse(U))))
     return -A / n - n
 end
 
@@ -107,7 +106,7 @@ function CvM(data, G)
     n = length(data)
     U = G.(sort(data))
     i = 1:n
-    W = sum((U .- (2 .* i .- 1) ./ n) .^ 2)
+    W = sum((U .- (2 .* i .- 1) ./ 2n) .^ 2)
     return W + 1 / (12n)
 end
 
