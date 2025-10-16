@@ -11,7 +11,7 @@ using StatsBase
 #################
 ### FUNCTIONS ###
 ""
-function compute(df::DataFrame)
+function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-1)
     #~ Compute the (log) relative frequency of each of the "species"
     @transform!(df, :frequency = :counts ./ :nreads)
     @transform!(df, :logfrequency = log.(:frequency))
@@ -19,14 +19,24 @@ function compute(df::DataFrame)
     nsamples = length(unique(df[!,:sample_id]))
     sdf = @chain df begin
         @by(
-            :species_id,
-            :occupancy = length(:sample_id) ./ nsamples,
+            idcolname,
+            :occupancy = length($(idcolname)) ./ nsamples,
             :meanfrequency = mean(:frequency),
             :varfrequency = var(:frequency, corrected=false),
             :meanlog = mean(:logfrequency),
-            :stdlog  = std(:logfrequency, corrected=false)
+            :varlog  = var(:logfrequency, corrected=false)
         )
-        @subset(:occupancy .≈ 1., :varfrequency .> 0, :stdlog .> 0)
+        
+        #~ Take the occupation number into account
+        #~ this means that μ → o⋅μ and σ² → o⋅[σ²+μ²(1-o)], where o the occupancy
+        @transform(:meanfrequency = :meanfrequency .* :occupancy)
+        @transform(:varfrequency = :varfrequency .+ :meanfrequency.^2 .* (1 .- :occupancy))
+        @transform(:varfrequency = :varfrequency .* :occupancy)
+        # @transform(:meanlog = :meanlog .* :occupancy)
+        # @transform(:varlog = :varlog .+ :meanlog.^2 .* (1 .- :occupancy))
+        # @transform(:varlog = :varlog .* :occupancy)
+        #~ Perform a log-transform on the mean-frequency (needed for lognormal)
+        @subset(:occupancy .> minoccupancy, :varfrequency .> 0.0)
     end
     return sdf
 end

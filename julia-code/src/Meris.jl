@@ -16,6 +16,7 @@ include("dataframes/books/wordsampler.jl")
 include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
 include("dataframes/arxiv/arxivsampler.jl")
+include("dataframes/rfc/rfcsampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")

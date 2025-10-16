@@ -120,9 +120,9 @@ function filterlegos(;
         fdf = @chain fdf begin
             @rename(
 	              :sample_id = :inventory_id,
-                :species_id = :part_num,
+                :component_id = :part_num,
                 :counts = :quantity,
-                :reads = :totalquantity,
+                :nreads = :totalquantity,
                 :vocabularysize = :distinctpieces
             )
             #~ [for now, omit vocabularysize size as it is not needed]
