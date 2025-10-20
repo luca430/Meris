@@ -8,6 +8,7 @@ const OTUDIR    = DATADIR * "datasets/otu/"
 const ARXIVDIR  = DATADIR * "datasets/arxiv/"
 const CORPUSDIR = DATADIR * "datasets/corpus/"
 const RFCDIR    = DATADIR * "datasets/rfc/"
+const TREEDIR   = DATADIR * "datasets/bci.tree/"
 
 ## SUBMODULES
 #~ Data samplers 
@@ -17,6 +18,7 @@ include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
 include("dataframes/arxiv/arxivsampler.jl")
 include("dataframes/rfc/rfcsampler.jl")
+include("dataframes/bci.tree/bctreesampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")

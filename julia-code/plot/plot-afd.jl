@@ -18,8 +18,8 @@ import Meris.MLEstimator as MLE
 #################
 ### FUNCTIONS ###
 function plot_afds(;
-    DIRECTORIES = ["lego/", "rfc/"],
-    LABELS = [L"\textrm{LEGO}", L"\textrm{RFC}"],
+    DIRECTORIES = ["lego/", "rfc/", "bci.tree/"],
+    LABELS = [L"\textrm{LEGO}", L"\textrm{RFC}", L"\textrm{BCI}"],
     nbins::Int = 27,
     DIR = DATADIR * "macro/afd/",
     BASEFILENAME = "z-values.csv",
@@ -41,7 +41,7 @@ function plot_afds(;
         xlabel=L"z", xlabelsize=12,
         ylabel=L"p(z)", ylabelsize=12,
         yscale=log10,
-        # limits=(-14,10,1e-8,1.0)
+        # limits=(-14,10,1e-8,1e1)
         # limits = (-5.,3.,0,0.6)
     )
     axtl = Axis(
