@@ -24,3 +24,11 @@ Manifest.toml
 /julia-code/data/datasets/rfc/**/*.css
 /julia-code/data/datasets/books/**/*.parquet
 /julia-code/data/datasets/movie-transcripts/**
+
+# Exclude temporary files
+tmp/
+tmp.*/
+/.git-old/
+/.ipynb_checkpoints/
+/.dir-locals.el
+/.projectile

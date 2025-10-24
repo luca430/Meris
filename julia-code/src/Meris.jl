@@ -11,7 +11,7 @@ const RFCDIR    = DATADIR * "datasets/rfc/"
 const TREEDIR   = DATADIR * "datasets/bci.tree/"
 
 ## SUBMODULES
-#~ Data samplers 
+#~ Data handlers, loaders, and samplers 
 include("dataframes/books/booksampler.jl")
 include("dataframes/books/wordsampler.jl")
 include("dataframes/lego/legosampler.jl")
@@ -22,6 +22,8 @@ include("dataframes/bci.tree/bctreesampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")
+#~ Goodness of fit
+include("fits/goodness-of-fit.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
