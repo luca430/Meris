@@ -86,6 +86,59 @@ function plot_afds(;
     return fig
 end
 
+"Plot AFD of component systems of a very specific 'type'"
+function plot_typedafd(;
+    DIRECTORY = "macro/afd/lego/",
+    LABELS = [L"\textrm{Star Wars}"],
+    nbins::Int = 27,
+    DIR = DATADIR,
+    BASEFILENAME = "themed-z-values.csv",
+    # BASETLFILENAME = "themed-tl-stats.csv",
+    savefig = false,
+    figname = true
+)
+    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
+    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
+    set_theme!(__theme)
+
+    colors = MakiePublication.COLORS[begin]
+
+    width = .95 * 246
+    height = 3*width / 4.67
+    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    ax = Axis(
+        fig[1,1],
+        xlabel=L"z", xlabelsize=12,
+        ylabel=L"p(z)", ylabelsize=12,
+        yscale=log10,
+        limits=(-25.0,5.0,1e-6,1e0)
+    )
+    
+    #/ Load data
+    zdf = CSV.read(DIR*DIRECTORY*BASEFILENAME, DataFrame)
+    z = zdf[!,:z]
+    zmin, zmax = extrema(zdf[!,:z])
+    binedges = range(zmin, zmax, nbins)
+    fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
+    #~ Scatter
+    s = scatter!(ax, bincenters(fh), fh.bincounts, label=LABELS[begin], markersize=5)
+    #~ do something stupid
+    gamma = Distributions.fit_mle(Gamma, exp.(z))
+    zgamma = -25.0:0.01:3.0
+    gammaplot = exp.(zgamma) .* Distributions.pdf.(gamma, exp.(zgamma))
+    lines!(ax, zgamma, gammaplot, color=:black, linestyle=(:dash,:dense))
+
+    axislegend(
+        ax,
+        position=:lt, labelsize=9, patchsize=(8,20),
+        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
+    )
+    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
+    return fig
+end
+
+
+"Plot AFD of the Brown corpus"
 function plot_brownafd(;
     methods = ["noreplace", "replace", "multinomial", "mvhypgeom"],
     nbins::Int = 19,

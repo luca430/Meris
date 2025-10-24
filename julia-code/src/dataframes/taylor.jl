@@ -20,6 +20,7 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-1)
     sdf = @chain df begin
         @by(
             idcolname,
+            :noccurences = length($idcolname),
             :occupancy = length($(idcolname)) ./ nsamples,
             :meanfrequency = mean(:frequency),
             :varfrequency = var(:frequency, corrected=false),
