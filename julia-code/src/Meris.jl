@@ -22,8 +22,9 @@ include("dataframes/bci.tree/bctreesampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")
-#~ Goodness of fit
+#~ Fitting
 include("fits/goodness-of-fit.jl")
+include("fits/straight-line.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")

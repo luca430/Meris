@@ -14,6 +14,7 @@ using FHist
 #/ Modules
 import Meris.DATADIR as DATADIR
 import Meris.MLEstimator as MLE
+import Meris.StraightLine as SL
 
 #################
 ### FUNCTIONS ###
@@ -41,12 +42,12 @@ function plot_afds(;
         xlabel=L"z", xlabelsize=12,
         ylabel=L"p(z)", ylabelsize=12,
         yscale=log10,
-        # limits=(-14,10,1e-8,1e1)
+        limits=(-30,10,1e-6,1e1)
         # limits = (-5.,3.,0,0.6)
     )
     axtl = Axis(
         fig[1,2],
-        xlabel=L"\textrm{mean}\;\mu", xlabelsize=12,
+        xlabel=L"\textrm{mean}\;\mu^2", xlabelsize=12,
         ylabel=L"\textrm{variance}\;\sigma^2", ylabelsize=12,
         limits=(-25,0,-25,0)
     )
@@ -72,8 +73,20 @@ function plot_afds(;
         # lines!(ax, log.(xplot), yplot, linewidth=1., label=L"\textrm{Burr}")
 
         tldf = CSV.read(DIR*DIRECTORIES[i]*BASETLFILENAME, DataFrame)
-        _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
-        stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)
+        #~ Fix a straight line using York's method
+        xs = -25:1.0:0.0
+        x = log.(tldf[!,:meanfrequency].^2)
+        y = log.(tldf[!,:varfrequency])
+        wx = 1 ./ y
+        wy = 1 ./ (2.0.*y.^2)
+        straightlinefit = SL.weightedyorkfit(x, y, wx, wy)
+        l = lines!(
+            axtl, xs, straightlinefit.a .+ straightlinefit.b .* xs,
+            linestyle=(:dash,:dense), linewidth=.8, color=colors[i]
+        )
+        stl = scatter!(axtl, x, y, markersize=4, strokewidth=.7)
+        # _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
+        # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)        
     end
 
     

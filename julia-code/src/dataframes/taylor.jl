@@ -25,7 +25,7 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-1)
             :meanfrequency = mean(:frequency),
             :varfrequency = var(:frequency, corrected=false),
             :meanlog = mean(:logfrequency),
-            :varlog  = var(:logfrequency, corrected=false)
+            :varlog  = var(:logfrequency, corrected=false),
         )
         
         #~ Take the occupation number into account
@@ -33,6 +33,10 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-1)
         @transform(:meanfrequency = :meanfrequency .* :occupancy)
         @transform(:varfrequency = :varfrequency .+ :meanfrequency.^2 .* (1 .- :occupancy))
         @transform(:varfrequency = :varfrequency .* :occupancy)
+        #~ Compute weights needed to infer Taylor's law
+        @transform(:meanlog = log.(:meanfrequency), :varlog = log.(:varfrequency))
+        @transform(:meanweight = :noccurences ./ :varlog)
+        @transform(:varweight  = (:noccurences .- 1) ./ (2 .* :varlog.^2))
         # @transform(:meanlog = :meanlog .* :occupancy)
         # @transform(:varlog = :varlog .+ :meanlog.^2 .* (1 .- :occupancy))
         # @transform(:varlog = :varlog .* :occupancy)

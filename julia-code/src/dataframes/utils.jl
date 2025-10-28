@@ -1,196 +1,48 @@
-module Utils
+module MacroPatterns
 
-using DataFrames, CairoMakie, JLD2
-using FHist, Statistics, SparseArrays, LinearAlgebra
-using StatsBase, Distributions, SpecialFunctions
-using NLsolve
+using DataFrames, JLD2
+using FHist, Statistics
+using NLsolve, SpecialFunctions
 
-function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
+include("./DataTools.jl")
+using .DataTools
 
-    # First remove samples with nreads < min_nreads
-    filter!(row -> row.nreads >= min_nreads, df)
+"""
+    make_hist(data; nbins=20, normalize=true, all_values=false)
 
-    # Consider only nevironments with more than min_samples
-    grouped = groupby(df, [:env])
-    temp = combine(grouped) do sdf
-        if length(unique(sdf.sample_id)) >= min_samples
-            return sdf
-        else
-            return DataFrame(
-                env    = Float64[],
-                species_id  = Float64[],
-                sample_id  = Float64[],
-                count  = Int64[],
-                nreads  = Int64[],
-                )
-        end
+Construct a histogram from `data` using `FHist`.
+
+# Arguments
+- `data`: Vector of numerical data.
+- `nbins`: Number of bins (default = 20).
+- `normalize`: If `true`, normalizes the histogram so that the area under the curve is 1.
+- `all_values`: If `false`, returns only bins with nonzero counts.
+
+# Returns
+A tuple `(centers, pdf)` where:
+- `centers`: Vector of bin centers.
+- `pdf`: Vector of (possibly normalized) counts or densities.
+"""
+function make_hist(data; nbins=20, normalize=true, all_values=false)
+    bmin, bmax = round(minimum(data)), round(maximum(data))
+    Δb = (bmax - bmin) / nbins
+    fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
+    centers = bincenters(fh)
+    pdf = bincounts(fh)
+
+    if normalize
+        pdf ./= (integral(fh) * Δb)
     end
 
-    good_set  = unique(temp.env)
-    filter!(row -> row.env in good_set, df)
-
-    return df
-end
-
-function get_counts(df; occ = 0.95)
-    
-    occ = 1 - occ
-    
-    # Transform raw data into matrix of counts and vector of nreads
-    species = unique(df.species_id)
-    samples = unique(df.sample_id)
-    
-    S, T = length(species), length(samples)
-    sm_groups = groupby(df, :sample_id)
-    
-    counts = zeros(T, S)
-    nreads = zeros(T)
-    otu_index = Dict(sp => i for (i, sp) in enumerate(species))
-    run_index = Dict(sm => i for (i, sm) in enumerate(samples))
-    
-    for g in sm_groups
-        sm = g.sample_id[1]
-        i = run_index[sm]
-        nreads[i] = g.nreads[1]
-        for (sp, val) in zip(g.species_id, g.count)
-            j = otu_index[sp]
-            counts[i,j] = val
-        end
-    end
-    
-    # Reorder columns counts from most occupied to least occupied
-    zero_counts = sum(counts .== 0, dims=1)
-    col_order = sortperm(vec(zero_counts))
-    counts = counts[:, col_order]
-    
-    
-    # Filter counts by only consider species with high occupancy
-    zero_counts = vec(sum(counts .== 0, dims=1))
-    max_idx = findfirst(>(occ * T), zero_counts)
-    if isnothing(max_idx)
-        max_idx = S
-    end
-    counts = counts[:, 1:max_idx]
-
-    return counts, nreads
-end
-
-function get_frequencies(df; occ = 0.9, rescale=true)
-
-    occ = 1 - occ
-    dff = copy(df)
-    dff.f = dff.count ./ dff.nreads
-    
-    # Transform raw data into matrix of counts and vector of nreads
-    species = unique(df.species_id)
-    samples = unique(df.sample_id)
-    
-    S, T = length(species), length(samples)
-    sm_groups = groupby(dff, :sample_id)
-    
-    freqs = zeros(T, S)
-    otu_index = Dict(sp => i for (i, sp) in enumerate(species))
-    run_index = Dict(sm => i for (i, sm) in enumerate(samples))
-    
-    for g in sm_groups
-        sm = g.sample_id[1]
-        i = run_index[sm]
-        for (sp, val) in zip(g.species_id, g.f)
-            j = otu_index[sp]
-            freqs[i,j] = val
-        end
-    end
-    
-    # Reorder columns counts from most occupied to least occupied
-    zero_counts = vec(sum(freqs .== 0, dims=1))
-    col_order = sortperm(zero_counts)
-    freqs = freqs[:, col_order]
-    
-    # Filter counts by only consider species with high occupancy
-    zero_counts = vec(sum(freqs .== 0, dims=1))
-    max_idx = findfirst(>(occ * T), zero_counts)
-    if isnothing(max_idx)
-        max_idx = S
-    end
-    freqs = freqs[:, 1:max_idx]
-
-    if rescale # Multiply by the occupancy
-        zero_counts = sum(freqs .!= 0, dims=1)
-        freqs  .*= zero_counts ./ T
-    end
-
-    return freqs
-end
-
-function check_occupancy_thresh(df; occ=0.95)
-    sam_ids = unique(df.sample_id)
-    T = length(sam_ids)
-    ct_map = countmap(df.species_id)
-    occ = []
-    
-    for key in keys(ct_map)
-        push!(occ, ct_map[key] / T)
-    end
-
-    return length(occ)
-end
-
-function reads_distribution(df; bins=30, plot=false, verbose=false, save=false, filename="temp")
-
-    envs = unique(df.env)
-    reads_out = Dict()
-
-    for env in envs
-        if verbose
-            println(env)
-        end
-        sub   = df[df.env .== env, :]
-        
-        data = []
-        group = groupby(sub, :sample_id)
-        for g in group
-            push!(data, g.nreads[1])
-        end
-        
-        data = log.(data)
-        data = (data .- mean(data)) ./ std(data)
-        
-        bmin, bmax = extrema(data)
-        Δb = (bmax - bmin) / 30
-        fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
-        ctrs = bincenters(fh)
-        pdf  = bincounts(fh) ./ (integral(fh) * Δb)
-        
+    if !all_values
         mask = pdf .> 0
-        reads_out[env] = (ctrs[mask], pdf[mask])
+        centers = centers[mask]
+        pdf = pdf[mask]
     end
-
-    if save
-        @save "$filename.jld2" reads_out
-    end
-
-    if plot
-        fig = Figure(figsize=(900,500))
-        ax  = Axis(fig[1, 1]; yscale=log10,
-                   xlabel = "z", ylabel = "pdf", 
-                   title = "Reads Distribution")
-    
-        for key in keys(reads_out)
-            x, y = afd_out[key]
-            sc = scatter!(ax, x, 10 .^ log.(y),
-                        label=key,
-                        markersize=15,
-                        strokewidth = 0.8,
-                        strokecolor = :black)
-        end
-
-        return reads_out, fig
-    end
-
-    return reads_out
+    return centers, pdf
 end
 
-function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp")
+function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp")
     """
     
     Compute the aggregated frequency distribution (AFD) of occurrences in the DataFrame `df`, grouped by the environment column.
@@ -219,53 +71,25 @@ function compute_AFD(df; occ=0.99, bins=30, plot=false, verbose=false, save=fals
             println(env)
         end
         sub   = df[df.env .== env, :]
-        freqs = get_frequencies(sub, occ=occ)
+        freqs = DataTools.get_frequencies(sub, occ=occ)
 
         log_non_zero = [log.(col[col .> 0]) for col in eachcol(freqs)]
         μ = mean.(log_non_zero)
         σ = std.(log_non_zero)
-        allz = vcat( [(x .- μ[j]) ./ σ[j] for (j, x) in enumerate(log_non_zero)]... )
+        allz = vcat([(x .- μ[j]) ./ σ[j] for (j, x) in enumerate(log_non_zero)]...)
         allz = allz[.!isnan.(allz)]
 
-        bmin, bmax = round(minimum(allz)), round(maximum(allz))
-        Δb = (bmax - bmin) / bins
-        fh = FHist.Hist1D(allz, binedges=bmin:Δb:bmax)
-        ctrs = bincenters(fh)
-        pdf  = bincounts(fh) ./ (integral(fh) * Δb)
-
-        mask = pdf .> 0
-        afd_out[env] = (ctrs[mask], pdf[mask])
+        afd_out[env] = make_hist(allz; nbins=bins)
     end
 
     if save
         @save "$filename.jld2" afd_out
     end
 
-    if plot
-        fig = Figure(figsize=(900,500))
-        ax  = Axis(fig[1, 1]; yscale=log10,
-                   xlabel = "z", ylabel = "pdf", 
-                   title = "AFD")
-    
-        for key in keys(afd_out)
-            x, y = afd_out[key]
-            sc = scatter!(ax, x, 10 .^ log.(y),
-                        label=key,
-                        markersize=15,
-                        strokewidth = 0.8,
-                        strokecolor = :black)
-        end
-
-        leg = Legend(fig, ax; orientation = :vertical)
-        fig[1, 2] = leg 
-
-        return afd_out, fig
-    end
-
     return afd_out
 end
 
-function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp", interpretation=1)
+function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp", interpretation=1)
     """
     This function computes Taylor's Law from a given DataFrame `df`, which contains species count data across different environments. The function performs data processing, aggregation, and optionally plots and saves the results.
     
@@ -291,7 +115,7 @@ function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false
             println(env)
         end
         sub   = df[df.env .== env, :]
-        counts, nreads = get_counts(sub, occ=occ)
+        counts, nreads = DataTools.get_counts(sub, occ=occ)
         T, S = size(counts)
         
         if S < 4
@@ -332,31 +156,10 @@ function compute_TL(df; occ=0.99, bins=30, plot=false, verbose=false, save=false
         @save "$filename.jld2" taylor_out
     end
 
-    if plot
-        fig = Figure(figsize=(900,500))
-        ax  = Axis(fig[1, 1];
-                   xlabel = "log(μ)", ylabel = "log(σ^2)", 
-                   title = "Taylor's Law")
-    
-        for key in keys(taylor_out)
-            x, y = taylor_out[key]
-            sc = scatter!(ax, x, y,
-                        label=key,
-                        markersize=15,
-                        strokewidth = 0.8,
-                        strokecolor = :black)
-        end
-
-        leg = Legend(fig, ax; orientation = :vertical)
-        fig[1, 2] = leg 
-
-        return taylor_out, fig
-    end
-
     return taylor_out
 end
 
-function compute_MAD(df; c=exp(-10), bins=30, plot=false, verbose=false, save=false, filename="temp")
+function compute_MAD(df; c=nothing, bins=30, verbose=false, save=false, filename="temp")
     """
     Compute the median absolute deviation (MAD) distribution of log‐transformed mean frequencies per environment, optionally saving and/or plotting the results.
     
@@ -392,7 +195,7 @@ function compute_MAD(df; c=exp(-10), bins=30, plot=false, verbose=false, save=fa
         end
         
         sub   = df[df.env .== env, :]
-        counts, nreads = get_counts(sub, occ=0)
+        counts, nreads = DataTools.get_counts(sub, occ=0)
         T, S = size(counts)
         
         if S < 4
@@ -442,31 +245,10 @@ function compute_MAD(df; c=exp(-10), bins=30, plot=false, verbose=false, save=fa
         @save "$filename.jld2" mad_out
     end
 
-    if plot
-        fig = Figure(figsize=(900,500))
-        ax  = Axis(fig[1, 1]; yscale=log10,
-                   xlabel = "rescaled z", ylabel = "pdf", 
-                   title = "MAD")
-    
-        for key in keys(mad_out)
-            x, y = mad_out[key]
-            sc = scatter!(ax, x, 10 .^ log.(y),
-                        label=key,
-                        markersize=15,
-                        strokewidth = 0.8,
-                        strokecolor = :black)
-        end
-
-        leg = Legend(fig, ax; orientation = :vertical)
-        fig[1, 2] = leg 
-
-        return mad_out, fig
-    end
-
     return mad_out
 end
 
-function compute_pearson(df; occ=0.99, bins=30, plot=false, verbose=false, save=false, filename="temp", interpretation = 1)
+function compute_pearson_distribution(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp", interpretation = 1)
     """
     Compute the distribution of Pearson correlations in the DataFrame `df`, grouped by the environment column.
     
@@ -495,7 +277,7 @@ function compute_pearson(df; occ=0.99, bins=30, plot=false, verbose=false, save=
         end
         sub = df[df.env .== env, :]
 
-        counts, nreads = get_counts(sub; occ=occ)
+        counts, nreads = DataTools.get_counts(sub; occ=occ)
         S, T = size(counts, 2), size(counts, 1)
         if S < 4
             continue
@@ -528,44 +310,18 @@ function compute_pearson(df; occ=0.99, bins=30, plot=false, verbose=false, save=
         allz = allz[.!isnan.(allz)]
         allz = allz[abs.(allz) .<= 1]
         
-        bmin, bmax = minimum(allz), maximum(allz)
-        Δb = (bmax - bmin) / bins
-        fh = FHist.Hist1D(allz, binedges=bmin:Δb:bmax)
-        ctrs = bincenters(fh)
-        pdf  = bincounts(fh) ./ (integral(fh) * Δb)
-
-        mask = pdf .> 0
-        corr_out[env] = (ctrs[mask], pdf[mask])
+        corr_out[env] = make_hist(allz; nbins=bins)
     end
 
     if save
         @save "$filename.jld2" corr_out
     end
 
-    if plot
-        fig = Figure(figsize=(900,500))
-        ax  = Axis(fig[1, 1]; yscale=log10,
-                   xlabel = "ρ", ylabel = "pdf", 
-                   title = "Pearson")
-    
-        for key in keys(corr_out)
-            x, y = corr_out[key]
-            sc = scatter!(ax, x, 10 .^ log.(y),
-                        label=key,
-                        markersize=15,
-                        strokewidth = 0.8,
-                        strokecolor = :black)
-        end
-
-        leg = Legend(fig, ax; orientation = :vertical)
-        fig[1, 2] = leg 
-
-        return corr_out, fig
-    end
-
     return corr_out
 end
 
+
+### Useful functions
 function compute_MAD_params(m1, m2, c)
     function make_system(m1, m2, c)
         return function F!(F, x)
@@ -590,69 +346,6 @@ function pairwise_correlations(M::AbstractMatrix)
     #    `triu(mask, k=1)` is a Bool mask with ones for i<j
     mask = triu(trues(size(C)), 1)
     return C[mask]
-end
-
-#### ZOO OF DISTRIBUTIONS ####
-function lrg(z, α)
-    return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
-end
-
-function lrig(z, β)
-    return -β .* (z .* sqrt(trigamma(β)) .- digamma(β)) .- exp.(digamma(β) .- z .* sqrt(trigamma(β))) .- loggamma(β) .+ log(sqrt(trigamma(β)))
-end
-
-function lrb(z, α, β)
-    m = digamma(α) - digamma(α + β)
-    s = sqrt(trigamma(α) - trigamma(α + β))
-    c = loggamma(α + β) - loggamma(α) - loggamma(β)
-    return c .+ α .* (z .* s .+ m) .+ (β - 1) .* log.(1 .- exp.(z .* s .+ m)) .+ log(s)
-end
-
-function lrln(z, σ)
-    return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
-end
-
-function lrtn(z, μ, σ, Z)
-    return z .- (z .- μ) .^ 2 ./ (2*σ^2) .- Z
-end
-
-function ts(z, ν)
-    return loggamma((ν + 1) / 2) .- log(sqrt(π * ν)) .- loggamma(ν / 2) .- ((ν + 1 ) / 2) .* log.(1 .+ z .^ 2 ./ ν)
-end
-##############################
-
-using QuadGK
-
-# function f(x, b, A, q)
-#     return (1 - A - A * x ^ (-b * x) * (1 - x) ^ (-b * (1 - x))) ^ (-q)
-# end
-
-# function func(z, b, A, q)
-#     Z = first(quadgk(x -> f(x, b, A, q), 0, 1))
-#     m = first(quadgk(x -> log(x) * f(x, b, A, q), 0, 1)) / Z
-#     m2 = first(quadgk(x -> log(x)^2 * f(x, b, A, q), 0, 1)) / Z
-#     s = sqrt(m2 - m^2)
-
-#     y = s .* z .+ m
-#     x = exp.(y)
-
-#     return log.(s .* x .* f.(x, b, A, q) ./ Z)
-# end
-
-function f(x, b, a)
-    return (1 + b * (x * log(x) + (1 - x) * log(1 - x))) ^ (-a)
-end
-
-function func(z, b, a)
-    Z = first(quadgk(x -> f(x, b, a), 0, 1))
-    m = first(quadgk(x -> log(x) * f(x, b, a), 0, 1)) / Z
-    m2 = first(quadgk(x -> log(x)^2 * f(x, b, a), 0, 1)) / Z
-    s = sqrt(m2 - m^2)
-
-    y = s .* z .+ m
-    x = exp.(y)
-
-    return log.(s .* x .* f.(x, b, a) ./ Z)
 end
 
 
