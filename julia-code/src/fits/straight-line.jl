@@ -24,8 +24,8 @@ function weightedyorkfit(X, Y, XWEIGHTS, YWEIGHTS; tol=1e-6, maxiterations::Int 
     converged = false
 
     iterations = 0
-    eps = -Inf
-    while eps < tol && iterations < maxiterations
+    eps = Inf
+    while eps > tol && iterations < maxiterations
         W = (XWEIGHTS .* YWEIGHTS) ./ (XWEIGHTS .+ b^2 .* YWEIGHTS)
         ZW = sum(W)
         XBAR = sum(W.*X) ./ ZW

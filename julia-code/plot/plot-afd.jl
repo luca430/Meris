@@ -19,8 +19,8 @@ import Meris.StraightLine as SL
 #################
 ### FUNCTIONS ###
 function plot_afds(;
-    DIRECTORIES = ["lego/", "rfc/", "bci.tree/"],
-    LABELS = [L"\textrm{LEGO}", L"\textrm{RFC}", L"\textrm{BCI}"],
+    DIRECTORIES = [ "rfc/", "lego/","bci.tree/"],
+    LABELS = [L"\textrm{RFC}", L"\textrm{LEGO}", L"\textrm{BCI}"],
     nbins::Int = 27,
     DIR = DATADIR * "macro/afd/",
     BASEFILENAME = "z-values.csv",
@@ -42,14 +42,14 @@ function plot_afds(;
         xlabel=L"z", xlabelsize=12,
         ylabel=L"p(z)", ylabelsize=12,
         yscale=log10,
-        limits=(-30,10,1e-6,1e1)
+        limits=(-24,6,1e-8,1e1)
         # limits = (-5.,3.,0,0.6)
     )
     axtl = Axis(
         fig[1,2],
         xlabel=L"\textrm{mean}\;\mu^2", xlabelsize=12,
         ylabel=L"\textrm{variance}\;\sigma^2", ylabelsize=12,
-        limits=(-25,0,-25,0)
+        # limits=(-25,0,-25,0)
     )
 
     #/ Plot
@@ -64,7 +64,9 @@ function plot_afds(;
         binedges = range(zmin, zmax, nbins)
         fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
         #~ Scatter
-        s = scatter!(ax, bincenters(fh), fh.bincounts, label=LABELS[i], markersize=5)
+        s = scatter!(
+            ax, bincenters(fh), fh.bincounts, label=LABELS[i], markersize=4.5, strokewidth=1.
+        )
         #~ try something
         # f = MLE.Burr
         # θstar = MLE.fit(f, exp.(z), [1.0,1.0,1.0])
@@ -77,16 +79,23 @@ function plot_afds(;
         xs = -25:1.0:0.0
         x = log.(tldf[!,:meanfrequency].^2)
         y = log.(tldf[!,:varfrequency])
-        wx = 1 ./ y
-        wy = 1 ./ (2.0.*y.^2)
+        wx = tldf[!,:noccurences] .* tldf[!,:meanfrequency].^2 ./ tldf[!,:varfrequency] ./ 4
+        wy = (tldf[!,:noccurences] .- 1) ./ 2
         straightlinefit = SL.weightedyorkfit(x, y, wx, wy)
+        # @info "fit" straightlinefit
         l = lines!(
             axtl, xs, straightlinefit.a .+ straightlinefit.b .* xs,
             linestyle=(:dash,:dense), linewidth=.8, color=colors[i]
         )
-        stl = scatter!(axtl, x, y, markersize=4, strokewidth=.7)
+        #~ Scatter w.r.t. to their weight
+        minwidth = .33
+        maxwidth = 1.0
+        strokewidth = (maxwidth - minwidth) .* wx./sum(wx) .+ minwidth
+        #~ rescale so that they have slope 1
+        # yrescaled = y .- straightlinefit.a
+        stl = scatter!(axtl, x, y, markersize=4, strokewidth=strokewidth)
         # _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
-        # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)        
+        # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)
     end
 
     
@@ -139,7 +148,7 @@ function plot_typedafd(;
     gamma = Distributions.fit_mle(Gamma, exp.(z))
     zgamma = -25.0:0.01:3.0
     gammaplot = exp.(zgamma) .* Distributions.pdf.(gamma, exp.(zgamma))
-    lines!(ax, zgamma, gammaplot, color=:black, linestyle=(:dash,:dense))
+    lines!(ax, zgamma, gammaplot, color=:black, linestyle=(:dash,:dense), linewidth=1.)
 
     axislegend(
         ax,

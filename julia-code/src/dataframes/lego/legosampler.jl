@@ -167,7 +167,7 @@ function filterlegos(;
         ldf = CSV.read(DIR*FILENAME, DataFrame)
     end
     #/ Select only relevant columns
-    ldf = @select(ldf, :inventory_id, :part_num, :quantity)
+    ldf = @select(ldf, :inventory_id, :part_num, :quantity, :color_id)
     #~ Convert default String7 or String31 to String
     transform!(ldf, :part_num => ByRow(String) => :part_num)
     #/ Compute summary statistics and use it to filter
@@ -200,6 +200,9 @@ function filterlegos(;
                 :nreads = :totalquantity,
                 :vocabularysize = :distinctpieces
             )
+            #~ Pieces with the same component_id may have distinct colors, so make here a unique
+            #  id that combines the component_id and the color_id
+            @transform(:component_id = :component_id .* "-" .* string.(:color_id))
             #~ [for now, omit vocabularysize size as it is not needed]
             @select(Not(:vocabularysize))
         end

@@ -21,8 +21,8 @@ legodf = Meris.LegoSampler.filterlegos(;
 )
 #/ Compute AFD and mean-variance
 #~ note: here, :component_id is the relevant column
-afddf = Meris.AFD.compute(legodf, :component_id; minoccupancy=1e-1)
-tldf  = Meris.Taylor.compute(legodf, :component_id, minoccupancy=1e-1)
+afddf = Meris.AFD.compute(legodf, :component_id; maxfrequency=1.)
+tldf  = Meris.Taylor.compute(legodf, :component_id, maxfrequency=1.)
 
 #/ Save
 if save

@@ -12,7 +12,7 @@ function compute(
     df::DataFrame,
     idcolname::Symbol;
     maxfrequency::Float64=1e-2,
-    minoccupancy::Float64=1e-1
+    minoccupancy::Float64=1e-2
 )
 	  #~ Compute the (log) relative frequency of each of the "species"/"component"
     @transform!(df, :frequency = :counts ./ :nreads)
@@ -23,7 +23,10 @@ function compute(
     sdf = @chain df begin
         @by(
             idcolname,
+            :noccurences = length($(idcolname)),
             :occupancy = length($(idcolname)) ./ nsamples,
+            :meanfrequency = mean(:frequency),
+            :varfrequency = var(:frequency, corrected=false),
             :meanlog = mean(:logfrequency),
             :varlog  = var(:logfrequency, corrected=false),
         )
@@ -34,7 +37,7 @@ function compute(
         #~ Select only those with a rel. frequency below the given maximum, and positive variance
         #  note: The first filters out those where, roughly, a Poisson distribution approximates
         #        a Binomial distribution well.
-        @subset(:meanlog .< maxfrequency)
+        @subset(:meanfrequency .< maxfrequency)
         #~ Take the occupation number into account
         #~ this means that μ → o⋅μ and σ² → o⋅[σ²+μ²(1-o)], where o the occupancy
         @transform(:varlog  = :occupancy .* (:varlog .+ :meanlog.^2 .* (1 .- :occupancy)))
