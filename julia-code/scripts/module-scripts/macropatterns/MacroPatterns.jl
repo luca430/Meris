@@ -4,8 +4,7 @@ using DataFrames, JLD2
 using FHist, Statistics
 using NLsolve, SpecialFunctions
 
-include("./DataTools.jl")
-using .DataTools
+using Meris
 
 """
     make_hist(data; nbins=20, normalize=true, all_values=false)
@@ -71,7 +70,7 @@ function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename=
             println(env)
         end
         sub = df[df.env.==env, :]
-        freqs = DataTools.get_frequencies(sub, occ=occ)
+        freqs = Meris.DataTools.get_frequencies(sub, occ=occ)
 
         log_non_zero = [log.(col[col.>0]) for col in eachcol(freqs)]
         μ = mean.(log_non_zero)
@@ -115,7 +114,7 @@ function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="
             println(env)
         end
         sub = df[df.env.==env, :]
-        counts, nreads = DataTools.get_counts(sub, occ=occ)
+        counts, nreads = Meris.DataTools.get_counts(sub, occ=occ)
         T, S = size(counts)
 
         if S < 4
@@ -195,7 +194,7 @@ function compute_MAD(df; c=nothing, bins=30, verbose=false, save=false, filename
         end
 
         sub = df[df.env.==env, :]
-        counts, nreads = DataTools.get_counts(sub, occ=0)
+        counts, nreads = Meris.DataTools.get_counts(sub, occ=0)
         T, S = size(counts)
 
         if S < 4
@@ -277,7 +276,7 @@ function compute_pearson_distribution(df; occ=0.99, bins=30, verbose=false, save
         end
         sub = df[df.env.==env, :]
 
-        counts, nreads = DataTools.get_counts(sub; occ=occ)
+        counts, nreads = Meris.DataTools.get_counts(sub; occ=occ)
         S, T = size(counts, 2), size(counts, 1)
         if S < 4
             continue
