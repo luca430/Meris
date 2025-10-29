@@ -24,7 +24,7 @@ A tuple `(centers, pdf)` where:
 - `pdf`: Vector of (possibly normalized) counts or densities.
 """
 function make_hist(data; nbins=20, normalize=true, all_values=false)
-    bmin, bmax = round(minimum(data)), round(maximum(data))
+    bmin, bmax = minimum(data), maximum(data)
     Δb = (bmax - bmin) / nbins
     fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
     centers = bincenters(fh)
