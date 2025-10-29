@@ -25,6 +25,7 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfreque
             :occupancy = length($(idcolname)) ./ nsamples,
             :meanfrequency = mean(:frequency),
             :varfrequency = var(:frequency, corrected=false),
+            :thirdmomentfrequency = mean((:frequency .- mean(:frequency)).^3)
         )
         #~ Omit those with an occupancy below a specified threshold
         #~ note: if the threshold is zero, then omit hapax legomenas
@@ -36,9 +37,9 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfreque
         @subset(:meanfrequency .< maxfrequency)
         #~ Take the occupation number into account
         #~ this means that μ → o⋅μ and σ² → o⋅[σ²+μ²(1-o)], where o the occupancy
-        @transform(:meanfrequency = :meanfrequency .* :occupancy)
-        @transform(:varfrequency = :varfrequency .+ :meanfrequency.^2 .* (1 .- :occupancy))
-        @transform(:varfrequency = :varfrequency .* :occupancy)
+        @transform(:omeanfrequency = :meanfrequency .* :occupancy)
+        @transform(:ovarfrequency = :varfrequency .+ :meanfrequency.^2 .* (1 .- :occupancy))
+        @transform(:ovarfrequency = :varfrequency .* :occupancy)
         # @transform(:meanlog = :meanlog .* :occupancy)
         # @transform(:varlog = :varlog .+ :meanlog.^2 .* (1 .- :occupancy))
         # @transform(:varlog = :varlog .* :occupancy)

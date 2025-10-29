@@ -77,11 +77,15 @@ function plot_afds(;
         tldf = CSV.read(DIR*DIRECTORIES[i]*BASETLFILENAME, DataFrame)
         #~ Fix a straight line using York's method
         xs = -25:1.0:0.0
+        
+        
         x = log.(tldf[!,:meanfrequency].^2)
         y = log.(tldf[!,:varfrequency])
         wx = tldf[!,:noccurences] .* tldf[!,:meanfrequency].^2 ./ tldf[!,:varfrequency] ./ 4
         wy = (tldf[!,:noccurences] .- 1) ./ 2
-        straightlinefit = SL.weightedyorkfit(x, y, wx, wy)
+        ρ = tldf[!,:thirdmomentfrequency] ./ (tldf[!,:noccurences] .* tldf[!,:meanfrequency] .* tldf[!,:varfrequency])
+        ρ = nothing
+        straightlinefit = SL.weightedyorkfit(x, y, wx, wy, ρ=ρ)
         # @info "fit" straightlinefit
         l = lines!(
             axtl, xs, straightlinefit.a .+ straightlinefit.b .* xs,
