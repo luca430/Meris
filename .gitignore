@@ -3,7 +3,32 @@ Data/
 
 # Exclude Images
 Images/
+**/**.jld2
+**/**.csv
+**/*Manifest.toml
+Manifest.toml
+julia-code/Manifest.toml
+/julia-code/data/datasets/arxiv/raw-data/
+/julia-code/data/datasets/arxiv/raw-text/
+/julia-code/data/datasets/corpus/
+/julia-code/data/datasets/lego/
+/julia-code/data/datasets/otu/
+/julia-code/data/gutenberg/
+/julia-code/figures/
+/poetry.lock
+Manifest.toml
+**/movie-transcripts/**/*.txt
+/julia-code/data/datasets/rfc/raw-text/**
+/julia-code/data/datasets/rfc/**/*.txt
+/julia-code/data/datasets/rfc/**/*.xml
+/julia-code/data/datasets/rfc/**/*.css
+/julia-code/data/datasets/books/**/*.parquet
+/julia-code/data/datasets/movie-transcripts/**
 
 # Exclude temporary files
 tmp/
 tmp.*/
+/.git-old/
+/.ipynb_checkpoints/
+/.dir-locals.el
+/.projectile
