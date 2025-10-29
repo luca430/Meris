@@ -1,7 +1,6 @@
 name: arxive-mining
 channels:
   - conda-forge
-  - bioconda
   - defaults
   - conda
   - https://repo.anaconda.com/pkgs/main

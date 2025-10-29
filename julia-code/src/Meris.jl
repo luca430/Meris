@@ -1,14 +1,14 @@
 module Meris
 
 ## DIRECTORIES
-const DATADIR   = normpath(joinpath(@__DIR__, "..", "data/"))
-const BOOKDIR   = DATADIR * "datasets/books/"
-const LEGODIR   = DATADIR * "datasets/lego/"
-const OTUDIR    = DATADIR * "datasets/otu/"
-const ARXIVDIR  = DATADIR * "datasets/arxiv/"
+const DATADIR = normpath(joinpath(@__DIR__, "..", "data/"))
+const BOOKDIR = DATADIR * "datasets/books/"
+const LEGODIR = DATADIR * "datasets/lego/"
+const OTUDIR = DATADIR * "datasets/otu/"
+const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const CORPUSDIR = DATADIR * "datasets/corpus/"
-const RFCDIR    = DATADIR * "datasets/rfc/"
-const TREEDIR   = DATADIR * "datasets/bci.tree/"
+const RFCDIR = DATADIR * "datasets/rfc/"
+const TREEDIR = DATADIR * "datasets/bci.tree/"
 
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers 
@@ -28,6 +28,8 @@ include("fits/straight-line.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
+include("dataframes/DataTools.jl")
 include("distributions/mle.jl")
+include("distributions/lr_distributions.jl")
 
 end # module Meris

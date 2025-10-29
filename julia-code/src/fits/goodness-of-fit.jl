@@ -125,12 +125,12 @@ Compute the Cramér–von Mises test statistic comparing `data` to CDF `G`.
 # Returns
 The Cramér–von Mises statistic.
 """
-function CvM(data, G)
+function CramervonMises(data, G)
     n = length(data)
     U = G.(sort(data))
     i = 1:n
     W = sum((U .- (2 .* i .- 1) ./ 2n) .^ 2)
-    return W + 1 / (12*n)
+    return W + 1 / (12 * n)
 end
 
 ########################
@@ -142,7 +142,7 @@ Construct the empirical distribution function (eDF/eCDF) from the data given som
 That is, computed F(x,t;n) = 1/n ∑ 1(x ≤ t), with 1(⋅) the indicator function.
 """
 function edf(x::Array{Float64}, t::Array{Float64})
-	  n = length(x)
+    n = length(x)
     F = [sum(sort(x) .<= τ) for τ in t] ./ n
     return F
 end

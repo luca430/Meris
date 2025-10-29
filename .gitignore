@@ -29,6 +29,6 @@ Manifest.toml
 tmp/
 tmp.*/
 /.git-old/
-/.ipynb_checkpoints/
+.ipynb_checkpoints/
 /.dir-locals.el
 /.projectile
