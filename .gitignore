@@ -1,7 +1,3 @@
-# Don't include synthetic data
-Data/
-
-# Exclude Images
 Images/
 **/**.jld2
 **/**.csv
@@ -10,10 +6,15 @@ Manifest.toml
 julia-code/Manifest.toml
 /julia-code/data/datasets/arxiv/raw-data/
 /julia-code/data/datasets/arxiv/raw-text/
+/julia-code/data/datasets/arxiv/clean_text/
 /julia-code/data/datasets/corpus/
 /julia-code/data/datasets/lego/
 /julia-code/data/datasets/otu/
 /julia-code/data/gutenberg/
+/julia-code/data/datasets/books/gutemberg/books.jld2
+/julia-code/data/datasets/books/gutemberg/gutemberg_metadata.csv
+/julia-code/data/datasets/genetic/
+/julia-code/data/datasets/mobility/
 /julia-code/figures/
 /poetry.lock
 Manifest.toml
