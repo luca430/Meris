@@ -19,13 +19,13 @@ import Meris.LEGODIR as LEGODIR
 "Take n samples of sizes Nv=[N1,N2,...] from the full LEGO catalogus and compute vocabulary size"
 function samplevocabsize(
     Nv::Vector{Int};
-    n::Int = 32,
+    n::Int=32,
     bagoflegos::Union{DataFrame,Nothing}=nothing,
-    minquantity::Int = 100,      #~ Min. no of LEGO pieces in a set
-    mindistinctpieces::Int = 30, #~ Min. no of *distinct* LEGO pieces in a set
-    rng = Random.Xoshiro(42*minquantity*mindistinctpieces),
-    DIR = LEGODIR,
-    FILENAME = "inventory_parts.csv"
+    minquantity::Int=100,      #~ Min. no of LEGO pieces in a set
+    mindistinctpieces::Int=30, #~ Min. no of *distinct* LEGO pieces in a set
+    rng=Random.Xoshiro(42 * minquantity * mindistinctpieces),
+    DIR=LEGODIR,
+    FILENAME="inventory_parts.csv"
 )
     if isnothing(bagoflegos)
         ldf = filterlegos(;
@@ -37,7 +37,7 @@ function samplevocabsize(
     #~ For each N in Nv, sample N words n times and compute the vocabulary size V(N)
     V = zeros(Int, length(Nv), n)
     for i in eachindex(Nv), k in 1:n
-        V[i,k] = _samplevocabsize(Nv[i]; bagoflegos=bagoflegos, rng=rng)
+        V[i, k] = _samplevocabsize(Nv[i]; bagoflegos=bagoflegos, rng=rng)
     end
     return V
 end
@@ -49,14 +49,14 @@ end
 Compute vocabulary size of LEGO sets of sufficient size
 """
 function computevocabsize(;
-    minquantity::Int = 50,       #~ Min. no of LEGO pieces in a set
-    mindistinctpieces::Int = 50, #~ Min. no of *distinct* LEGO pieces in a set
-    aggregate = false,
-    returnsummary = true,
-    DIR = LEGODIR,
-    FILENAME = "inventory_parts.csv"
+    minquantity::Int=50,       #~ Min. no of LEGO pieces in a set
+    mindistinctpieces::Int=50, #~ Min. no of *distinct* LEGO pieces in a set
+    aggregate=false,
+    returnsummary=true,
+    DIR=LEGODIR,
+    FILENAME="inventory_parts.csv"
 )
-	  #/ Load into DataFrame
+    #/ Load into DataFrame
     #~ When `returnsummary=true`, return the summarizing statistics
     legodf = filterlegos(;
         minquantity=minquantity, mindistinctpieces=mindistinctpieces,
@@ -80,19 +80,19 @@ Load and filter LEGO data based on theme. Collects theme from metadata files and
 DataFrame where each LEGO piece additionally has a theme so that it can be filtered or selected.
 """
 function parse_themes(;
-    DIR = LEGODIR,
-    SETFILE = "sets.csv",
-    INVENTORYSETFILE = "inventories.csv",
-    INVENTORYPARTSFILE = "inventory_parts.csv",
-    minquantity = 64,
-    mindistinctpieces = 32,
+    DIR=LEGODIR,
+    SETFILE="sets.csv",
+    INVENTORYSETFILE="inventories.csv",
+    INVENTORYPARTSFILE="inventory_parts.csv",
+    minquantity=64,
+    mindistinctpieces=32,
     standardize=true,
     returnthemes=true
 )
     #~ Load the DataFrames
-    setdf = CSV.read(DIR*SETFILE, DataFrame)
-    invdf = CSV.read(DIR*INVENTORYSETFILE, DataFrame)
-    invpartdf = CSV.read(DIR*INVENTORYPARTSFILE, DataFrame)
+    setdf = CSV.read(DIR * SETFILE, DataFrame)
+    invdf = CSV.read(DIR * INVENTORYSETFILE, DataFrame)
+    invpartdf = CSV.read(DIR * INVENTORYPARTSFILE, DataFrame)
 
     #~ Remove some columns that we don't need
     @select!(setdf, :set_num, :num_parts, :theme_id)
@@ -117,7 +117,7 @@ function parse_themes(;
         end
         superdf = innerjoin(superdf, sdf, on=:inventory_id)
         #~ Rename some columns
-        @rename!(superdf, :component_id=:part_num, :counts=:quantity, :sample_id=:inventory_id)
+        @rename!(superdf, :component_id = :part_num, :counts = :quantity, :sample_id = :inventory_id)
         #~ Pieces with the same component_id may have distinct colors, so make here a unique
         #  id that combines the component_id and the color_id
         @transform!(superdf, :component_id = :component_id .* "-" .* string.(:color_id))
@@ -128,8 +128,8 @@ function parse_themes(;
     #/ Construct DataFrame with the no. of sets for each theme
     if returnthemes
         colname = standardize ? :sample_id : :inventory_id
-        themedf = @by(superdf, :theme_id, :nsets = length($(colname)))
-	      return superdf, themedf
+        themedf = @by(superdf, :theme_id, :nsets = length(unique($(colname))))
+        return superdf, themedf
     end
     return superdf
 end
@@ -141,8 +141,8 @@ Select specific theme.
 If no theme is given (`theme_id=nothing`), selects the theme with the largest number of sets.
 """
 function select_theme(df::DataFrame, themedf::DataFrame; theme_id=nothing)
-	  if isnothing(theme_id)
-        mostcommontheme_id = themedf[!,:theme_id][argmax(themedf[!,:nsets])]        
+    if isnothing(theme_id)
+        mostcommontheme_id = themedf[!, :theme_id][argmax(themedf[!, :nsets])]
         return @subset(df, :theme_id .== mostcommontheme_id)
     end
     return @subset(df, :theme_id .== theme_id)
@@ -156,15 +156,15 @@ number of blocks, omitting any information on type of the sets.
 """
 function filterlegos(;
     ldf::Union{DataFrame,Nothing}=nothing,
-    minquantity = 100,
-    mindistinctpieces = 50,
-    renamecols = true,
-    returnsummary = false,
-    DIR = LEGODIR,
-    FILENAME = "inventory_parts.csv"
+    minquantity=100,
+    mindistinctpieces=50,
+    renamecols=true,
+    returnsummary=false,
+    DIR=LEGODIR,
+    FILENAME="inventory_parts.csv"
 )
-	  if isnothing(ldf)
-        ldf = CSV.read(DIR*FILENAME, DataFrame)
+    if isnothing(ldf)
+        ldf = CSV.read(DIR * FILENAME, DataFrame)
     end
     #/ Select only relevant columns
     ldf = @select(ldf, :inventory_id, :part_num, :quantity, :color_id)
@@ -179,7 +179,7 @@ function filterlegos(;
     if returnsummary
         #~ Rename columns for consistency
         sdf = @chain sdf begin
-	          @rename(
+            @rename(
                 :documentsize = :totalquantity,
                 :vocabularysize = :distinctpieces
             )
@@ -187,14 +187,14 @@ function filterlegos(;
         end
         return sdf
     end
-    
+
     fdf = innerjoin(ldf, sdf, on=:inventory_id)
-    
+
     if renamecols
         #~ Rename columns for consistency
         fdf = @chain fdf begin
             @rename(
-	              :sample_id = :inventory_id,
+                :sample_id = :inventory_id,
                 :component_id = :part_num,
                 :counts = :quantity,
                 :nreads = :totalquantity,
@@ -218,11 +218,11 @@ Take sample of size `N` from the full LEGO catalogus and compute vocabulary size
 function _samplevocabsize(
     N::Int;
     bagoflegos::Union{DataFrame,Nothing}=nothing,
-    minquantity::Int = 100,      #~ Min. no of LEGO pieces in a set
-    mindistinctpieces::Int = 30, #~ Min. no of *distinct* LEGO pieces in a set
-    rng = Random.Xoshiro(42*minquantity*mindistinctpieces),
-    DIR = LEGODIR,
-    FILENAME = "inventory_parts.csv"
+    minquantity::Int=100,      #~ Min. no of LEGO pieces in a set
+    mindistinctpieces::Int=30, #~ Min. no of *distinct* LEGO pieces in a set
+    rng=Random.Xoshiro(42 * minquantity * mindistinctpieces),
+    DIR=LEGODIR,
+    FILENAME="inventory_parts.csv"
 )
     if isnothing(bagoflegos)
         ldf = filterlegos(;
@@ -235,7 +235,7 @@ function _samplevocabsize(
     V = length(unique(s))
     return V
 end
- 
+
 """
     _sample
 
@@ -243,11 +243,11 @@ Take a random sample from a DataFrame of LEGO pieces. Use their counts as weight
 """
 function _sample(
     legos::DataFrame, N::Int;
-    rng = Random.Xoshiro(42)
-)    
+    rng=Random.Xoshiro(42)
+)
     #~ Compute weights, and return sample from catalogus
-    w = Weights(legos[!,:counts])
-    s = sample(rng, legos[:,:species_id], w, N, replace=false)
+    w = Weights(legos[!, :counts])
+    s = sample(rng, legos[:, :species_id], w, N, replace=false)
     return s
 end
 
@@ -258,11 +258,11 @@ end
 # @TODO Ensure that the relevant files are of the same (or a specific) version
 # For the relevant files, see `parse_themes`
 function download(;
-    URL = "https://cdn.rebrickable.com/media/downloads/inventory_parts.csv.zip?1758697954.19653",
-    OUTDIR = LEGODIR
+    URL="https://cdn.rebrickable.com/media/downloads/inventory_parts.csv.zip?1758697954.19653",
+    OUTDIR=LEGODIR
 )
     mkpath(OUTDIR)
-	  zpath = joinpath(OUTDIR, "inventory_parts.zip")
+    zpath = joinpath(OUTDIR, "inventory_parts.zip")
     run(`wget -O $(zpath) $(URL)`)
     run(`unzip -o $(zpath) -d $(OUTDIR)`)
     nothing
