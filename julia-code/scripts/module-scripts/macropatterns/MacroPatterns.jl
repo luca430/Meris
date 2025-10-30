@@ -62,14 +62,14 @@ function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename=
     - If `plot=true`, returns a tuple `(afd_out, fig)` where `fig` is a Makie `Figure` displaying the AFD curves for each environment.
     """
 
-    envs = unique(df.env)
+    classes = unique(df.class)
     afd_out = Dict()
 
-    for env in envs
+    for class in classes
         if verbose
-            println(env)
+            println(class)
         end
-        sub = df[df.env.==env, :]
+        sub = df[df.class.==class, :]
         freqs = Meris.DataTools.get_frequencies(sub, occ=occ)
 
         log_non_zero = [log.(col[col.>0]) for col in eachcol(freqs)]
@@ -78,7 +78,7 @@ function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename=
         allz = vcat([(x .- μ[j]) ./ σ[j] for (j, x) in enumerate(log_non_zero)]...)
         allz = allz[.!isnan.(allz)]
 
-        afd_out[env] = make_hist(allz; nbins=bins)
+        afd_out[class] = make_hist(allz; nbins=bins)
     end
 
     if save
@@ -88,6 +88,7 @@ function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename=
     return afd_out
 end
 
+#### DEPRECTATED FUNCTIONS ####
 function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp", interpretation=1)
     """
     This function computes Taylor's Law from a given DataFrame `df`, which contains species count data across different environments. The function performs data processing, aggregation, and optionally plots and saves the results.

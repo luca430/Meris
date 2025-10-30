@@ -19,6 +19,7 @@ julia-code/Manifest.toml
 Manifest.toml
 **/movie-transcripts/**/*.txt
 /julia-code/data/datasets/rfc/raw-text/**
+/julia-code/data/datasets/rfc/*.zip
 /julia-code/data/datasets/rfc/**/*.txt
 /julia-code/data/datasets/rfc/**/*.xml
 /julia-code/data/datasets/rfc/**/*.css

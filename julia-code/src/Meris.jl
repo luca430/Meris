@@ -28,7 +28,7 @@ include("fits/straight-line.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
-include("dataframes/DataTools.jl")
+include("dataframes/datatools.jl")
 include("distributions/mle.jl")
 include("distributions/lr_distributions.jl")
 
