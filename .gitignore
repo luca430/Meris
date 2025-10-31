@@ -25,6 +25,7 @@ Manifest.toml
 /julia-code/data/datasets/rfc/**/*.css
 /julia-code/data/datasets/books/**/*.parquet
 /julia-code/data/datasets/movie-transcripts/**
+/julia-code/data/datasets/bci.tree/
 
 # Exclude temporary files
 tmp/

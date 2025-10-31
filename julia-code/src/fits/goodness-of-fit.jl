@@ -141,7 +141,7 @@ end
 Construct the empirical distribution function (eDF/eCDF) from the data given some thresholds.
 That is, computed F(x,t;n) = 1/n ∑ 1(x ≤ t), with 1(⋅) the indicator function.
 """
-function edf(x::Array{Float64}, t::Array{Float64})
+function edf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
     n = length(x)
     F = [sum(sort(x) .<= τ) for τ in t] ./ n
     return F

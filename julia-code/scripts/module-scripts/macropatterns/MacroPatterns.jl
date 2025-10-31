@@ -6,41 +6,6 @@ using NLsolve, SpecialFunctions
 
 using Meris
 
-"""
-    make_hist(data; nbins=20, normalize=true, all_values=false)
-
-Construct a histogram from `data` using `FHist`.
-
-# Arguments
-- `data`: Vector of numerical data.
-- `nbins`: Number of bins (default = 20).
-- `normalize`: If `true`, normalizes the histogram so that the area under the curve is 1.
-- `all_values`: If `false`, returns only bins with nonzero counts.
-
-# Returns
-A tuple `(centers, pdf)` where:
-- `centers`: Vector of bin centers.
-- `pdf`: Vector of (possibly normalized) counts or densities.
-"""
-function make_hist(data; nbins=20, normalize=true, all_values=false)
-    bmin, bmax = minimum(data), maximum(data)
-    Δb = (bmax - bmin) / nbins
-    fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
-    centers = bincenters(fh)
-    pdf = bincounts(fh)
-
-    if normalize
-        pdf ./= (integral(fh) * Δb)
-    end
-
-    if !all_values
-        mask = pdf .> 0
-        centers = centers[mask]
-        pdf = pdf[mask]
-    end
-    return centers, pdf
-end
-
 function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp")
     """
 

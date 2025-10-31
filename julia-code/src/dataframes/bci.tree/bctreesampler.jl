@@ -22,18 +22,18 @@ const CSVTREEDIR = TREEDIR * "csv/"
 
 #################
 ### FUNCTIONS ###
-function load_treedata(; filename=nothing, mincount=1, joinquadrats=true)
+function load_treedata(; filename=nothing, mincount=1, joinquadrats=true, steps=2)
     treedf = DataFrame()
     census_ids = String[]
     filenames = isnothing(filename) ? readdir(RTREEDIR) : [filename]
     for FILE in filenames
         #~ Check if numeric number in filename, otherwise skip
         (!any(isnumeric, FILE)) && (continue)
-        df = load_rdata(; rdatafilename=FILE, joinquadrats=joinquadrats)
+        df = load_rdata(; rdatafilename=FILE, joinquadrats=joinquadrats, steps=steps)
         #~ Add census_id [note: kept as a String]
         census_id = filter(isnumeric, FILE)
         push!(census_ids, census_id)
-        df[!,:census_id] = fill(census_id, nrow(df))
+        df[!, :census_id] = fill(census_id, nrow(df))
         #~ Filter out those that have an ExactDate
         filter!(:ExactDate => d -> !ismissing(d), df)
         #~ Record the total. no of tree (`nreads`) in that census, as it's needed later        
@@ -42,7 +42,7 @@ function load_treedata(; filename=nothing, mincount=1, joinquadrats=true)
         #~ Add the, to us, relevant columns to the pooled DataFrame        
         append!(
             treedf,
-            @select(df, :census_id,:treeID,:sp,:status,:quadrat,:ExactDate,:date)
+            @select(df, :census_id, :treeID, :sp, :status, :quadrat, :ExactDate, :date)
         )
     end
     #~ Filter out all those that have died in the meantime
@@ -57,15 +57,15 @@ function load_treedata(; filename=nothing, mincount=1, joinquadrats=true)
     #~ Allocate
     countdf = DataFrame(sample_id=String[], component_id=String[], counts=Int[], nreads=Int[])
     #~ Per plot [quadrat], count the no. of trees of each species
-    for quadrat in unique(treedf[!,:quadrat])
+    for quadrat in unique(treedf[!, :quadrat])
         _df = filter(:quadrat => q -> q == quadrat, treedf)
         nreads = nrow(_df)
-        cm = filter(x -> last(x) >= mincount, countmap(_df[!,:sp]))
+        cm = filter(x -> last(x) >= mincount, countmap(_df[!, :sp]))
         #~ Add each entry of the census to the DataFrame
         for (tree, count) in pairs(cm)
             (count > mincount) && (push!(countdf, [quadrat, tree, count, nreads], promote=true))
         end
-    end    
+    end
     return countdf
 end
 
@@ -76,10 +76,10 @@ end
 
 Load RData file into a DataFrame
 """
-function load_rdata(; rdatafilename = "bci.tree1.rdata", joinquadrats=false)
-	  df = RData.load(RTREEDIR*rdatafilename)[splitext(rdatafilename)[begin]]
+function load_rdata(; rdatafilename="bci.tree1.rdata", joinquadrats=false, steps=2)
+    df = RData.load(RTREEDIR * rdatafilename)[splitext(rdatafilename)[begin]]
     df = @transform(df, :treeID = Int.(:treeID))
-    (joinquadrats) && (df = join_quadrats(df))
+    (joinquadrats) && (df = join_quadrats(df; steps=steps))
     return df
 end
 
@@ -88,8 +88,8 @@ end
 
 Load DataFrame from specific document
 """
-function load_data(documentname; csvfilename = "raw-bci.tree-$(documentname).csv")
-	  return CSV.read(CSVTREEDIR*csvfilename, DataFrame, delim=", ")
+function load_data(documentname; csvfilename="raw-bci.tree-$(documentname).csv")
+    return CSV.read(CSVTREEDIR * csvfilename, DataFrame, delim=", ")
 end
 
 """
@@ -97,7 +97,7 @@ end
 
 Coarse grain by joining quadrats
 """
-function join_quadrats(df::DataFrame; steps=2, rng=Random.Xoshiro(42*steps))
+function join_quadrats(df::DataFrame; steps=2, rng=Random.Xoshiro(42 * steps))
     #/ Create summary
     qdf = @chain df begin
         #~ Count no. of trees in quadrat
@@ -108,17 +108,17 @@ function join_quadrats(df::DataFrame; steps=2, rng=Random.Xoshiro(42*steps))
     s = floor(Int, log(nrow(qdf)) / log(2.))
     qdf = qdf[nrow(qdf)-2^s:end, :]
     #/ For each step, join two quadrats into a single one
-    quadratpairs = qdf[!,:quadrat]
+    quadratpairs = qdf[!, :quadrat]
     for n in 1:steps
         quadrats = randperm(rng, length(quadratpairs))
         offset = length(quadrats) ÷ 2
-        quadratpairs = [[quadratpairs[i], quadratpairs[i+offset]] for i in 1:offset]
+        quadratpairs = [[quadratpairs[quadrats[i]], quadratpairs[quadrats[i+offset]]] for i in 1:offset]
     end
     #~ Flatten the pairs (of pairs (...)) of quadrats
     quadratgroups = map(q -> vcat(q...), quadratpairs)
-    quadratlabels = Dict(q => i for (i,group) in enumerate(quadratgroups) for q in group)
+    quadratlabels = Dict(q => i for (i, group) in enumerate(quadratgroups) for q in group)
     #/ Relabel all quadrats in the original DataFrame
-    df[!,:quadrat] = map(quadrat -> get(quadratlabels, quadrat, missing), df[!,:quadrat])
+    df[!, :quadrat] = map(quadrat -> get(quadratlabels, quadrat, missing), df[!, :quadrat])
     filter!(:quadrat => label -> !ismissing(label), df)
     return df
 end
