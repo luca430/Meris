@@ -121,14 +121,14 @@ function parse_themes(;
         #~ Pieces with the same component_id may have distinct colors, so make here a unique
         #  id that combines the component_id and the color_id
         @transform!(superdf, :component_id = :component_id .* "-" .* string.(:color_id))
-        #~ Omit unnecessary columns
+        #~ Select only necessary columns
         @select!(superdf, :sample_id, :component_id, :counts, :nreads, :theme_id)
     end
 
     #/ Construct DataFrame with the no. of sets for each theme
     if returnthemes
         colname = standardize ? :sample_id : :inventory_id
-        themedf = @by(superdf, :theme_id, :nsets = length($(colname)))
+        themedf = @by(superdf, :theme_id, :nsets = length(unique($(colname))))
 	      return superdf, themedf
     end
     return superdf

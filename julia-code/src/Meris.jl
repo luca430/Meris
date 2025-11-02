@@ -28,6 +28,7 @@ include("fits/straight-line.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
+include("distributions/pareto.jl")
 include("distributions/mle.jl")
 
 end # module Meris
