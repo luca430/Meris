@@ -32,3 +32,6 @@ tmp.*/
 /.ipynb_checkpoints/
 /.dir-locals.el
 /.projectile
+*.ipynb
+**/*ipynb
+**/*.ipynb

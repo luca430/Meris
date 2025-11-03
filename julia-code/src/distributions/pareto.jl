@@ -21,7 +21,7 @@ function Paretopdf(x::Array{T}, α::Float64; xmin=1.0) where T<:Real
 end
 
 function Paretopdf(x::Float64, α::Float64; xmin=1.0)
-    (x <= xmin) && (return 0.0)
+    (x < xmin) && (return 0.0)
     return α*xmin^α * x^(-α-1)
 end
 

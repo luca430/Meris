@@ -20,7 +20,7 @@ Uses methods from Clauset et al. (2009)
 """
 function fitpowerlaw(x::Array{T}; xmins=nothing) where T<:Real
     xs = sort(x)
-    xmins = isnothing(xmins) ? copy(xs) : xmins
+    xmins = isnothing(xmins) ? unique(xs) : xmins
     γ = nothing
     xmin = 0.
     D = Inf
@@ -30,21 +30,21 @@ function fitpowerlaw(x::Array{T}; xmins=nothing) where T<:Real
     #  - compute the Kolmogorov-Smirnov distance
     #  - extract the xmin for which the MLE γ gives the smallest KS distance
     for i in eachindex(xmins)
-        n = count(xs .> xmins[i])
+        _xmin = xmins[i]
+        n = count(xs .>= _xmin)
         (n < 50) && (break)        # If less than 50 samples >xmin, break
         #~ Filter data
-        _xmin = xmins[i]
         _idx = searchsortedfirst(xs, _xmin)
-        _x = xs[_idx+1:end]
-        #~ Compute MLE of power-law exponent γ        
+        _x = xs[_idx:end]        
+        #~ Compute MLE of power-law exponent γ
         S = sum(log.(_x / _xmin))
         γhat = 1 + n / S
         #~ Compute Kolmogorov-Smirnov distance
-        Fv = _ecdf(_x, _x).F                               # Values of empirical CDF
+        Fv = _ecdf(_x, _x, sorted=true).F                  # Values of empirical CDF
         Ft = Meris.ParetoLike.Paretocdf(γhat, xmin=_xmin)  # Function of theoretical CDF
         Ftv = Ft.(_x)                                      # Values of the theoretical CDF
         Z = sqrt.(Ftv .* (1 .- Ftv))                       # Weighted KS distance
-        distances = abs.(Fv .- Ftv) ./ Z
+        distances = abs.(Fv .- Ftv) #./ Z
         Dhat = maximum(distances)
         #~ If smaller than the current best, update
         if Dhat < D
@@ -156,9 +156,9 @@ end
 """
 Compute empirical CDF at points t where F[t] = (no. elements ≤ t) / n
 """
-function _ecdf(x::Array{T}, t::Array{T}; sorted=false) where T<:Real
-    (!sorted) && (xs = sort(x))
-    n = length(x)
+function _ecdf(xs::Array{T}, t::Array{T}; sorted=false) where T<:Real
+    (!sorted) && (xs = sort(xs))
+    n = length(xs)
     F = similar(t, Float64)
     k = 1
     for i in eachindex(t)
@@ -176,7 +176,6 @@ Compute empirical CDF at equally distributed points t
 """
 function _ecdf(x::Array{T}, t::Int; sorted=false) where T<:Real
     (!sorted) && (xs = sort(x))
-    n = length(x)
     edges = range(xs[begin], xs[end], length=t) |> collect
     return _ecdf(x, edges, sorted=true)
 end
