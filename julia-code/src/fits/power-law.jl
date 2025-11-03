@@ -7,8 +7,10 @@ using Distributions
 using Random
 using StatsBase
 
+using FHist
+
 #/ Local modules
-import Meris.ParetoLike as ParetoLike
+using Meris
 
 #################
 ### FUNCTIONS ###
@@ -16,27 +18,35 @@ import Meris.ParetoLike as ParetoLike
 Fit a power law on the heavy-tail of the data above some xmin
 Uses methods from Clauset et al. (2009)
 """
-function fitpowerlaw(x::Array{T}) where T<:Real
+function fitpowerlaw(x::Array{T}; xmins=nothing) where T<:Real
     xs = sort(x)
+    xmins = isnothing(xmins) ? copy(xs) : xmins
     γ = nothing
     xmin = 0.
     D = Inf
     n = 0
-    for i in eachindex(xs)
-        #~ Compute estimate of power-law exponent γ
-        n = count(xs .> xs[i])
+    #/ For each possible xmin in xmins;
+    #  - compute the max.-likelihood estimate of the power law exponent γ
+    #  - compute the Kolmogorov-Smirnov distance
+    #  - extract the xmin for which the MLE γ gives the smallest KS distance
+    for i in eachindex(xmins)
+        n = count(xs .> xmins[i])
         (n < 50) && (break)        # If less than 50 samples >xmin, break
-        _x = xs[i+1:end]
-        _xmin = xs[i]
+        #~ Filter data
+        _xmin = xmins[i]
+        _idx = searchsortedfirst(xs, _xmin)
+        _x = xs[_idx+1:end]
+        #~ Compute MLE of power-law exponent γ        
         S = sum(log.(_x / _xmin))
         γhat = 1 + n / S
         #~ Compute Kolmogorov-Smirnov distance
-        Fv = _ecdf(_x, _x).F                    # Values of empirical CDF
-        Ft = ParetoLike.Paretocdf(γhat, xmin=_xmin)  # Function of theoretical CDF
-        Ftv = Ft.(_x)
-        Z = sqrt.(Ftv .* (1 .- Ftv))
+        Fv = _ecdf(_x, _x).F                               # Values of empirical CDF
+        Ft = Meris.ParetoLike.Paretocdf(γhat, xmin=_xmin)  # Function of theoretical CDF
+        Ftv = Ft.(_x)                                      # Values of the theoretical CDF
+        Z = sqrt.(Ftv .* (1 .- Ftv))                       # Weighted KS distance
         distances = abs.(Fv .- Ftv) ./ Z
         Dhat = maximum(distances)
+        #~ If smaller than the current best, update
         if Dhat < D
             xmin = _xmin
             D = Dhat
@@ -92,7 +102,7 @@ end
 Compute the Kolmogorov-Smirnov distance between the current best empirical CDF and theoretical CDF
 """
 function KolmogorovSmirnov()
-	  
+	  nothing
 end
 
 ### SAMPLERS
@@ -127,8 +137,8 @@ function sampleburr(
     λ::Float64=1.0,
     rng = Random.Xoshiro(42*nsamples)
     )
-    u = rand(rng, nsamples) .^ (1 / α)
-    return λ .* (1 ./ u .- 1) .^ (1 / c)    
+    u = rand(rng, nsamples)
+    return λ .* ((1 .- u).^(-1/α) .- 1) .^ (1 / c)
 end
 
 """
@@ -193,6 +203,21 @@ function evaluate_powerlawfit(nsamples, nsims; γ=2.5, xmin=1.0)
         push!(ps, p)
     end
     return ps
+end
+
+function checkburr(nsamples; c::Float64=1.5, α::Float64=0.5, λ::Float64=2.0)
+    xmin = -5
+    xmax = 5
+	  #~ Sample from Burr
+    xs = sampleburr(nsamples; c=c, α=α, λ=λ)
+    bins = exp10.(range(xmin,xmax,32))
+    fh = FHist.Hist1D(xs; binedges=bins) |> FHist.normalize
+
+    xburr = exp10.(range(xmin,xmax,256)) |> collect
+    F = Meris.ParetoLike.Burrcdf(c, α, λ)
+    yburr = Meris.ParetoLike.Burrpdf(xburr, c, α, λ) .* (1 - F(xmax))
+    
+    return (; x=bincenters(fh), y=fh.bincounts), (; x=xburr, y=yburr)
 end
 
 end # module Powerlaw
