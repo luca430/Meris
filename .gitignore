@@ -26,6 +26,7 @@ Manifest.toml
 /julia-code/data/datasets/books/**/*.parquet
 /julia-code/data/datasets/movie-transcripts/**
 /julia-code/data/datasets/bci.tree/
+/julia-code/data/datasets/gaia/
 
 # Exclude temporary files
 tmp/
