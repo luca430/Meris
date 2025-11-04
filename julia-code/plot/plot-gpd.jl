@@ -1,6 +1,6 @@
-#= Simple module to check pure Pareto tails of a Burr distribution =#
+#= Simple module to check (generalized) Pareto tails of a generalized Pareto distribution =#
 #/ Start module
-module BurrPlotter
+module GPDPlotter
 
 #/ Packages
 using CairoMakie
@@ -16,7 +16,7 @@ using Meris
 ### FUNCTIONS ###
 function plot(;
     DATADIR = Meris.DATADIR * "heavy-tails/",
-    FILENAME = "burr-power-law.jld2",
+    FILENAME = "gpd-power-law.jld2",
     plottail = false
 )
     sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
@@ -28,8 +28,13 @@ function plot(;
     params = d["params"]
     fh = d["fh"]
     paretofit = d["paretofit"]
-    generalizedparetofit = d["genparetofit"]
-    tpdf = d["pdf"]
+    generalizedparetofit = d["generalizedparetofit"]
+    γ = round(1 / params.ξ, digits=2)
+    γhat = round(1 / generalizedparetofit.ξ, digits=2)
+    println("True exponent, γ=$(γ), estimated exponent, γhat=$(γhat)")
+    #~ PDFs
+    tpdf = d["pdf"]  # theoretical
+    epdf = d["epdf"] # estimated   [closed-form, but with estimated parameters]
 
     logxmin, logxmax = log10(tpdf.x[begin]), log10(tpdf.x[end])
 
@@ -41,13 +46,17 @@ function plot(;
         fig[1,1],
         xlabel=L"\log_{10}(x)", xlabelsize=11,
         ylabel=L"\textrm{rescaled}\;\log_{10}(p)", ylabelsize=11,
-        limits=(logxmin,logxmax,-6,1)
+        limits=(logxmin,logxmax,-4,1)
     )
 
-    #/ Plot    
+    #/ Plot
     lines!(
         ax, log10.(tpdf.x), log10.(log(10) .* tpdf.x .* tpdf.y),
-        linewidth=1., label=L"\textrm{Burr}"
+        linewidth=1., label=L"\textrm{GPD}"
+    )
+    lines!(
+        ax, log10.(epdf.x), log10.(log(10) .* epdf.x .* epdf.y),
+        linewidth=1., label=L"\textrm{eGPD}"
     )
     scatter!(ax, fh.x, log10.(fh.y), label=L"\textrm{histogram}")
 
@@ -67,7 +76,7 @@ function plot(;
     FPareto = Meris.ParetoLike.Paretocdf(γ; xmin=paretofit.xmin)
     ZPareto = FPareto(exp10(logxmax)) - FPareto(paretofit.xmin)
     #~ Scale it appropriately
-    scale = Meris.ParetoLike.Burrpdf(paretofit.xmin, params.c, params.α, params.λ)
+    scale = Meris.ParetoLike.generalizedParetopdf(paretofit.xmin, params.σ, params.ξ)
     scale = scale / Meris.ParetoLike.Paretopdf(paretofit.xmin, γ; xmin=paretofit.xmin)
     ypareto = Meris.ParetoLike.Paretopdf(exp10.(xpareto), γ; xmin=paretofit.xmin) ./ ZPareto
     ypareto = ypareto .* scale
@@ -78,56 +87,21 @@ function plot(;
         label=L"\textrm{Pareto}"
     )
     vlines!(
-        ax, [log10(paretofit.xmin)], ymin=-6, ymax=1,
-        color=:black, linewidth=.8, linestyle=(:dash,:dense)
-    )
-    # add some text
-    γstr = round(γ, digits=2)
-    xtext = xpareto[27]
-    ytext = ypareto[searchsortedfirst(xpareto, xtext)]
-    tx = text!(
-        xtext, ytext + 1.5,
-        text=L"\propto x^{%$(γstr)}", fontsize=10,
-        rotation = -π/4, align=(:center,:top)
-    )
-
-
-    #~ Plot generalized Pareto fitted on the tail
-    #  note: γ ← γ - 1, due to different conventions
-    xgpareto = collect(range(log10.(generalizedparetofit.xmin), logxmax, 32))
-    σ, ξ = generalizedparetofit.σ, generalizedparetofit.ξ
-    FGPareto = Meris.ParetoLike.generalizedParetocdf(σ, ξ; xmin=generalizedparetofit.xmin)
-    ZGPareto = FGPareto(exp10(logxmax)) - FGPareto(generalizedparetofit.xmin)
-    #~ Scale it appropriately
-    sBurr = Meris.ParetoLike.Burrpdf(generalizedparetofit.xmin, params.c, params.α, params.λ)
-    sgenPareto = Meris.ParetoLike.generalizedParetopdf(generalizedparetofit.xmin, σ, ξ; xmin=generalizedparetofit.xmin)
-    scale = sBurr / sgenPareto
-    ygpareto = Meris.ParetoLike.generalizedParetopdf(exp10.(xgpareto), σ, ξ; xmin=generalizedparetofit.xmin) ./ ZGPareto
-    ygpareto = ygpareto .* scale
-    ygpareto = log10.(log(10) .* exp10.(xgpareto) .* ygpareto)
-    lines!(
-        ax, xgpareto, ygpareto,
-        color=:black, linewidth=1., linestyle=(:dot,:dense),
-        label=L"\textrm{GPD}"
-    )
-    vlines!(
-        ax, [log10(generalizedparetofit.xmin)], ymin=-6, ymax=1,
+        ax, [log10(paretofit.xmin), log10(generalizedparetofit.xmin)], ymin=-6, ymax=1,
         color=:black, linewidth=.8, linestyle=(:dot,:dense)
     )
     # add some text
-    γstr = round(1 / ξ, digits=2)
-    xtext = xgpareto[27]
-    ytext = ygpareto[searchsortedfirst(xgpareto, xtext)]
+    γstr = round(γ, digits=2)
+    xtext = xpareto[24]
+    ytext = ypareto[searchsortedfirst(xpareto, xtext)]
     tx = text!(
         xtext, ytext - 0.5,
         text=L"\propto x^{%$(γstr)}", fontsize=10,
-        rotation = -π/4, align=(:center,:top)
+        rotation = -π/8, align=(:center,:top)
     )
-    
-    
 
     #/ Add legend
-    axislegend(ax, position=:lt, patchsize=(8,8), rowgap=0., labelsize=10, padding=0)
+    axislegend(ax, position=:rt, patchsize=(8,8), rowgap=0., labelsize=10, padding=0)
     
     return fig
 end

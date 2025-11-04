@@ -26,10 +26,10 @@ include("processes/pitman-yor.jl")
 include("fits/goodness-of-fit.jl")
 include("fits/straight-line.jl")
 include("fits/power-law.jl")
+include("fits/mle.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
 include("distributions/pareto.jl")
 include("distributions/mle.jl")
-
 end # module Meris
