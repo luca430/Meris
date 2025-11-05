@@ -133,7 +133,6 @@ end
 function plot_exponents(;
     DATADIR = Meris.DATADIR * "heavy-tails/",
     FILENAME = "burr-power-law.jld2",
-    plottail = false
 )
     sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])

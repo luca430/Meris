@@ -32,7 +32,7 @@ function samplevocabsize(
             minquantity=minquantity, mindistinctpieces=mindistinctpieces,
             DIR=DIR, FILENAME=FILENAME
         )
-        bagoflegos = @select(ldf, :species_id, :counts)
+        bagoflegos = @select(ldf, :component_id, :counts)
     end
     #~ For each N in Nv, sample N words n times and compute the vocabulary size V(N)
     V = zeros(Int, length(Nv), n)
@@ -229,7 +229,7 @@ function _samplevocabsize(
             minquantity=minquantity, mindistinctpieces=mindistinctpieces,
             DIR=DIR, FILENAME=FILENAME
         )
-        bagoflegos = @select(ldf, :species_id, :counts)
+        bagoflegos = @select(ldf, :component_id, :counts)
     end
     s = _sample(bagoflegos, N, rng=rng)
     V = length(unique(s))

@@ -53,7 +53,7 @@ function fitPareto(x::Array{T}; xmins=nothing) where T<:Real
         # S = sum((2 .* s .- 1) ./ n .* (log.(Ftv) .+ log.(1 .- reverse(Ftv))))
         # Dhat = -(n+S)        
         
-        distances = abs.(Fv .- Ftv) #./ Z
+        distances = abs.(Fv .- Ftv) ./ Z
         Dhat = maximum(distances)
         #~ If smaller than the current best, update
         if Dhat < D

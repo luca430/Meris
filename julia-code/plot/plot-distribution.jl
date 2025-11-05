@@ -8,6 +8,7 @@ using MakiePublication
 using LaTeXStrings
 
 using Distributions
+using SpecialFunctions
 
 #################
 ### FUNCTIONS ###
@@ -89,6 +90,40 @@ function plot_TruncatedPareto4(;
     )
     
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
+    return fig
+end
+
+"""Compare Gamma and tempered Pareto distribution"""
+function plotcompare()
+    width = .95 * 246
+    height = 3*width / 4.67
+    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    ax = Axis(
+        fig[1,1],
+        xlabel=L"x", xlabelsize=11,
+        ylabel=L"p(x)", ylabelsize=11,
+        limits=(0,5,-30,2)
+    )
+    
+	  TPf(x,α,β,ε) = ε^α * exp(β*ε) * x^(-α-1) * exp(-β*x) * (α + β*x)
+    Gf(x,α,θ) = x^(α-1) * exp(-x/θ) / SpecialFunctions.gamma(α) / θ^α
+
+    α = 1.0
+    β = 1 / 1e4
+    ε = 1e0
+    
+    x = exp10.(range(log10(ε),log10(1e5),64))
+    tpy = TPf.(x, Ref(α), Ref(β), Ref(ε))
+
+    #~ Sample and fit Gamma, as normalization constants are way off
+    gy = Gf.(x, Ref(α), Ref(1/β))
+    Δy = abs.(tpy .- gy)
+
+    lines!(ax, log10.(x), log.(tpy), label=L"\textrm{tPareto}")
+    lines!(ax, log10.(x), log.(gy), label=L"\textrm{Gamma}")
+    lines!(ax, log10.(x), log.(Δy), label=L"\Delta", linewidth=.8, linestyle=:dash, color=:black)
+
+    axislegend(ax, position=:lb, patchsize=(8,8), rowgap=0., labelsize=10, padding=0)
     return fig
 end
 
