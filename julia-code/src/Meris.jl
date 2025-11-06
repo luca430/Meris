@@ -9,6 +9,7 @@ const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const CORPUSDIR = DATADIR * "datasets/corpus/"
 const RFCDIR = DATADIR * "datasets/rfc/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"
+const GAIADIR = DATADIR * "datasets/gaia/"
 
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers 
@@ -19,6 +20,7 @@ include("dataframes/otu/otusampler.jl")
 include("dataframes/arxiv/arxivsampler.jl")
 include("dataframes/rfc/rfcsampler.jl")
 include("dataframes/bci.tree/bctreesampler.jl")
+include("dataframes/gaia/gaiasampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")

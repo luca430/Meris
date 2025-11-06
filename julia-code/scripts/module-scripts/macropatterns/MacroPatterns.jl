@@ -43,7 +43,7 @@ function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename=
         allz = vcat([(x .- μ[j]) ./ σ[j] for (j, x) in enumerate(log_non_zero)]...)
         allz = allz[.!isnan.(allz)]
 
-        afd_out[class] = make_hist(allz; nbins=bins)
+        afd_out[class] = Meris.DataTools.make_hist(allz; nbins=bins)
     end
 
     if save
