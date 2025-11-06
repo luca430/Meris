@@ -27,6 +27,8 @@ include("processes/pitman-yor.jl")
 #~ Fitting
 include("fits/goodness-of-fit.jl")
 include("fits/straight-line.jl")
+include("fits/power-law.jl")
+include("fits/mle.jl")
 #~ Utilities
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")

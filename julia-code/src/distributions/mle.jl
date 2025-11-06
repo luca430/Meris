@@ -7,44 +7,7 @@
 module MLEstimator
 
 #/ Packages
-using Optim
 using SpecialFunctions
-
-#################
-### FUNCTIONS ###
-function fit(f::Function, data, initial_guess; lower=nothing, upper=nothing, method=Optim.BFGS())
-    if isnothing(lower) || isnothing(upper)
-        #~ Unconstrained optimization
-	      res = Optim.optimize(θ -> negloglikelihood(f,θ,data), initial_guess, method=method)
-    else
-        #~ Box-constrained optimization
-        res = optimize(
-            θ -> negloglikelihood(f,θ,data),
-            lower, upper,
-            initial_guess,
-            Fminbox(method)
-        )
-    end
-    θstar = Optim.minimizer(res)
-    return θstar
-end
-
-########################
-### HELPER FUNCTIONS ###
-"Define the log-likelihood of a pdf f(x,θ)
-
- note: assumes that f(x,Ref(θ)) returns density at x for parameter(s) θ
-"
-function loglikelihood(f::Function, θ, data; eps=1e-32)
-    #~ Ensure no infinities appear
-    L = log.(clamp.(f.(data, Ref(θ)), eps, 1/eps))
-    return sum(L)
-end
-
-"Define the negative log-likelihood"
-function negloglikelihood(f::Function, θ, data)
-    return -loglikelihood(f, θ, data)
-end
 
 ##########################
 ### SOME DISTRIBUTIONS ###
