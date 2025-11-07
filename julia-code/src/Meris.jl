@@ -9,6 +9,7 @@ const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const CORPUSDIR = DATADIR * "datasets/corpus/"
 const RFCDIR = DATADIR * "datasets/rfc/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"
+const PATENTDIR = DATADIR * "datasets/patents/"
 const GAIADIR = DATADIR * "datasets/gaia/"
 
 ## SUBMODULES

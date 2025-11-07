@@ -124,10 +124,62 @@ function plot(;
         rotation = -π/4, align=(:center,:top)
     )
     
-    
-
     #/ Add legend
     axislegend(ax, position=:lt, patchsize=(8,8), rowgap=0., labelsize=10, padding=0)
+    
+    return fig
+end
+
+function plot_exponents(;
+    DATADIR = Meris.DATADIR * "heavy-tails/",
+    FILENAME = "burr-power-law.jld2",
+)
+    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
+    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
+    set_theme!(__theme)
+
+    #/ Load data
+    d = JLD2.load(DATADIR*FILENAME)
+    params = d["params"]
+    ξtrue = 1 / (params.α * params.c)
+    ξHill = d["ξHill"]
+    ξLV = d["ξLV"]
+
+    #/ Make figure
+    width = .9 * 246
+    height = 3*width / 4.37
+    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    axHill = Axis(
+        fig[1,1],
+        ylabel=L"\hat{\xi}_k", ylabelsize=11,
+        limits=(1,4, nothing, 3)
+    )
+    axLV = Axis(
+        fig[2,1],
+        xlabel=L"\log_{10} k", xlabelsize=11,
+        ylabel=L"\hat{\xi}_k", ylabelsize=11,
+        limits=(1,4, nothing, 2)
+    )
+    linkxaxes!(axHill, axLV)
+
+    #/ Plot
+    lines!(
+        axHill, log10.(1:length(ξHill)), ξHill,
+        linewidth=.8, color=:black, label=L"\textrm{Hill}"
+    )
+    lines!(
+        axLV, log10.(1:length(ξLV)), ξLV,
+        linewidth=.8, color=:black, label=L"\textrm{log variance}"
+    )
+    
+    #/ Add legend
+    for ax in [axHill, axLV]
+        hlines!(ax, [ξtrue], color=:black, linestyle=(:dash,:dense), linewidth=.5)
+        axislegend(
+            ax, position=:lt, patchsize=(4,8), rowgap=0.,
+            labelsize=10, padding=0, patchlabelgap=1., margin=(4,0,0,2)
+        )
+    end
     
     return fig
 end

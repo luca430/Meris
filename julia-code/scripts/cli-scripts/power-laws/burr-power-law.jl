@@ -41,6 +41,13 @@ paretofit = Meris.Powerlaw.fitPareto(xs, xmins=exp10.(possiblexmins))
 println("Fitting generalized Pareto distribution to the tail...")
 genparetofit = Meris.Powerlaw.fitGeneralizedPareto(xs, xmins=exp10.(possiblexmins))
 
+#~ Compute the Hill's estimators for ξ from the data
+println("Computing Hill's and log-variance estimators for ξ...")
+xs_sorted = sort(xs, rev=true)
+ξHill = Meris.Powerlaw.hills_estimator(xs_sorted, sorted=true)
+#~ Compute the log-variance estimator for ξ from the data
+ξLV = Meris.Powerlaw.log_variances(xs_sorted, sorted=true)
+
 #~ Compute another histogram that considers only the tail
 tailbins = range(log10(paretofit.xmin), logxmax, 19)
 zstail = zs[zs .> log10(paretofit.xmin)]
@@ -59,5 +66,7 @@ jldsave(
     fhtail=(; x=bincenters(fhtail), y=fhtail.bincounts),
     pdf=(; x=xburr, y=yburr),
     paretofit=paretofit,
-    genparetofit=genparetofit
+    genparetofit=genparetofit,
+    ξHill = ξHill,
+    ξLV = ξLV
 )

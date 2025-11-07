@@ -25,8 +25,11 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfreque
             :occupancy = length($(idcolname)) ./ nsamples,
             :meanfrequency = mean(:frequency),
             :varfrequency = var(:frequency, corrected=false),
-            :thirdmomentfrequency = mean((:frequency .- mean(:frequency)).^3)
+            :thirdmomentfrequency = mean((:frequency .- mean(:frequency)).^3),
+            :fourthmomentfrequency = mean((:frequency .- mean(:frequency)).^4)
         )
+        @transform(:rho = sqrt.(:varfrequency .* (:fourthmomentfrequency .- :varfrequency.^2)))
+        @transform(:rho = :thirdmomentfrequency ./ :rho)                                       
         #~ Omit those with an occupancy below a specified threshold
         #~ note: if the threshold is zero, then omit hapax legomenas
         #        (those that occur only a single time within the entire document)

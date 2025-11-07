@@ -6,6 +6,7 @@ module Powerlaw
 using Distributions
 using Random
 using StatsBase
+using SpecialFunctions
 
 using FHist
 
@@ -52,7 +53,7 @@ function fitPareto(x::Array{T}; xmins=nothing) where T<:Real
         # S = sum((2 .* s .- 1) ./ n .* (log.(Ftv) .+ log.(1 .- reverse(Ftv))))
         # Dhat = -(n+S)        
         
-        distances = abs.(Fv .- Ftv) #./ Z
+        distances = abs.(Fv .- Ftv) ./ Z
         Dhat = maximum(distances)
         #~ If smaller than the current best, update
         if Dhat < D
@@ -113,6 +114,50 @@ function fitGeneralizedPareto(x::Array{T}; xmins=nothing) where T<:Real
     return (; σ=σ, ξ=ξ, xmin=xmin, KS=D)
 end
 
+"""
+    hills_estimator
+
+Naive Hill's estimator for data
+When `sorted=true`, expects the data to be sorted [from large to small!]
+"""
+function hills_estimator(x::Array{T}; sorted=false) where T<:Real
+	  xs = sorted ? x : reverse(sort(x))
+    S = log.(xs)
+    C = cumsum(S)
+    ξ = similar(xs, Float64)
+    for k in eachindex(xs)
+        (k == 1) && (continue)
+        ξ[k] = (C[k-1] - (k-1)*S[k]) / (k - 1)
+    end
+    return ξ
+end
+
+"""
+    log_variance(x::Array{T})
+
+Compute the log-variance using methods from Lee & Kim (2018) to estimate ξ = 1 / α
+[for details, see: https://doi.org/10.1080/03610926.2018.1441418]
+"""
+function log_variances(x::Array{T}; nmin::Int=32, sorted=false) where T<:Real
+    n = length(x)
+	  xs = sorted ? x : reverse(sort(x))          #~ Sort descending
+    ξ = zeros(Float64, n - nmin)
+
+    for i in 1:(n-nmin)
+        #~ Gather exceedences xs > xs[i]
+        idx = searchsortedfirst(xs, xs[i], lt = >)
+        (idx < nmin) && (continue)
+        #~ Compute log-exceedences
+        logx = log.(xs[begin:idx-1] .- xs[i])
+        #~ Estimate ξ
+        #  note: The inversetrigamma is estimated here with a few Newton steps
+        #        as SpecialFunctions does not have this implemented directly.
+        s = var(logx)
+        ξ[i] = 1 / invtrigamma(s - trigamma(1))
+    end
+    return ξ
+end
+
 
 """
 Bootstrap to compute p-values
@@ -136,13 +181,15 @@ function bootstrapPareto(
         xsynth = similar(x, Float64)
         for k in 1:n
             utail, u = rand(rng, 2)
+            #~ With prob. ptail, generate Pareto samples,
+            #  otherwise take a sample from the data with x<xmin
             if utail < ptail
                 xsynth[k] = _samplepareto(u, γ, xmin)
             else
                 xsynth[k] = StatsBase.sample(xnonpowerlaw)
             end
         end
-        paretofit = fitpowerlaw(xsynth)
+        paretofit = fitPareto(xsynth)
         if paretofit.KS > KS
             pcounts += 1
         end
@@ -154,12 +201,29 @@ end
 ########################
 ### HELPER FUNCTIONS ###
 ########################
-### DISTANCE FUNCTIONS
+### SPECIAL FUNCTIONS
 """
-Compute the Kolmogorov-Smirnov distance between the current best empirical CDF and theoretical CDF
+    invtrigamma(x::Float64)
+
+Gives inverse trigamma, x = (ψ')^{-1}(y), where y = ψ'(x)
+As the trigamma function is strictly decreasing for x>0, it is invertable and we can use a
+simple/naive root-finding method, such as Newton-Raphson, to get a good estimate of its inverse.
+Typically needs only a handful of iterations for the required tolerance.
 """
-function KolmogorovSmirnov()
-	  nothing
+function invtrigamma(y; tol=1e-12, maxiter=32)
+    #~ Make a good initial guess [from Taylor expansion]
+    x = 1 ./ y .- 0.5
+    #~ Allocate
+    iter = 0
+    τ = Inf
+    #~ Iterate simple Newton-Raphson until convergence or max iterations
+    while τ > tol && iter < maxiter
+        dx = (trigamma.(x) .- y) ./ polygamma.(2, x)
+        τ = abs(dx)
+        x -= dx
+        iter += 1
+    end
+    return x
 end
 
 ### SAMPLERS

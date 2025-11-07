@@ -48,7 +48,7 @@ function plot(;
         ylabel=L"\textrm{rescaled}\;\log_{10}(p)", ylabelsize=11,
         limits=(logxmin,logxmax,-4,1)
     )
-
+    
     #/ Plot
     lines!(
         ax, log10.(tpdf.x), log10.(log(10) .* tpdf.x .* tpdf.y),
