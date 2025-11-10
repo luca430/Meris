@@ -19,13 +19,12 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfreque
     nsamples = length(unique(df.sample_id))
     minoccupancy = minoccupancy < 1 ./ nsamples ? 1 ./ nsamples : minoccupancy
     sdf = @chain df begin
-        @by(
-            idcolname,
-            :noccurences = length($idcolname),
+        @by(df, $(idcolname),
+            :noccurences = length(:$(idcolname)),
             :meanfrequency = mean(:frequency),
             :varfrequency = var(:frequency, corrected=false),
             :thirdmomentfrequency = mean(:frequency .^ 3),
-            :fourthmomentfrequency = mean(:frequency  .^ 4)
+            :fourthmomentfrequency = mean(:frequency .^ 4)
         )
         @transform(:occupancy = :noccurences ./ nsamples)
         @transform(:rho = sqrt.(:varfrequency .* (:fourthmomentfrequency .- :varfrequency .^ 2)))
