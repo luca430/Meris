@@ -20,8 +20,8 @@ maxrows   = 2^21
 rfcdf = Meris.RFCSampler.collect_rfcs(; mintokens=mintokens, maxfiles=maxfiles, maxrows=maxrows)
 #/ Compute AFD and mean-variance
 #~ note: here, :component_id is the relevant column
-afddf = Meris.AFD.compute(rfcdf, :component_id; maxfrequency=1e-2)
-tldf  = Meris.Taylor.compute(rfcdf, :component_id)
+afddf = Meris.AFD.compute(rfcdf, :component_id; maxfrequency=1.)
+tldf  = Meris.Taylor.compute(rfcdf, :component_id; maxfrequency=1.)
 
 #/ Save
 if save

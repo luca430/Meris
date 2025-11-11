@@ -10,12 +10,11 @@ using Random
 ### FUNCTIONS ###
 """
 Fit straight line using the methods from York
-Assumes
 """
 function weightedyorkfit(X, Y, XWEIGHTS, YWEIGHTS;
     ρ=nothing,
-    tol=1e-6,
-    maxiterations::Int = 100
+    tol=1e-3,
+    maxiterations::Int = 512
 )
     #~ Initial guess of the parameters
     #  note: while one can use OLS, or any other regression, a simple estimation works as well

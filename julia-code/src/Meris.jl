@@ -10,6 +10,7 @@ const CORPUSDIR = DATADIR * "datasets/corpus/"
 const RFCDIR    = DATADIR * "datasets/rfc/"
 const TREEDIR   = DATADIR * "datasets/bci.tree/"
 const PATENTDIR = DATADIR * "datasets/patents/"
+const WIKIDIR   = DATADIR * "datasets/wikitext-2/"
 
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers 

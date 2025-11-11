@@ -9,6 +9,7 @@ using LaTeXStrings
 
 using Distributions
 using SpecialFunctions
+using LsqFit
 
 #################
 ### FUNCTIONS ###
@@ -94,7 +95,10 @@ function plot_TruncatedPareto4(;
 end
 
 """Compare Gamma and tempered Pareto distribution"""
-function plotcompare()
+function plot_compare(; fitgamma=false)
+    __theme = MakiePublication.theme_acs(; ishollowmarkers=[true,true])
+    set_theme!(__theme)
+    
     width = .95 * 246
     height = 3*width / 4.67
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
@@ -104,24 +108,36 @@ function plotcompare()
         ylabel=L"p(x)", ylabelsize=11,
         limits=(0,5,-30,2)
     )
-    
+
+    Pf(x,α,ε) = α*ε^α * x^(-α-1)
 	  TPf(x,α,β,ε) = ε^α * exp(β*ε) * x^(-α-1) * exp(-β*x) * (α + β*x)
     Gf(x,α,θ) = x^(α-1) * exp(-x/θ) / SpecialFunctions.gamma(α) / θ^α
 
-    α = 1.0
-    β = 1 / 1e4
+    α = 0.5
+    β = 1 / 1e2
     ε = 1e0
     
-    x = exp10.(range(log10(ε),log10(1e5),64))
+    x = exp10.(range(log10(ε),log10(1e5),128))
+    py = Pf.(x, Ref(α), Ref(ε))
     tpy = TPf.(x, Ref(α), Ref(β), Ref(ε))
 
     #~ Sample and fit Gamma, as normalization constants are way off
-    gy = Gf.(x, Ref(α), Ref(1/β))
-    Δy = abs.(tpy .- gy)
+    gy = Gf.(x, Ref(1-α), Ref(1/β))
 
+    #~ Curve fit a Gamma
+    lb = [0.0, 0.0]
+    ub = [Inf, Inf]
+
+
+    lines!(ax, log10.(x), log.(py), label=L"\textrm{Pareto}")
     lines!(ax, log10.(x), log.(tpy), label=L"\textrm{tPareto}")
     lines!(ax, log10.(x), log.(gy), label=L"\textrm{Gamma}")
-    lines!(ax, log10.(x), log.(Δy), label=L"\Delta", linewidth=.8, linestyle=:dash, color=:black)
+    if fitgamma
+        fGamma(x,p) = Gf.(x, Ref(p[1]), Ref(p[2]))
+        gfit = LsqFit.curve_fit(fGamma, x, tpy, [1-α, 1/β], lower=lb, upper=ub)
+        gfity = fGamma(x, gfit.param)
+        lines!(ax, log10.(x), log.(gfity), label=L"\textrm{fitted Gamma}")
+    end
 
     axislegend(ax, position=:lb, patchsize=(8,8), rowgap=0., labelsize=10, padding=0)
     return fig
