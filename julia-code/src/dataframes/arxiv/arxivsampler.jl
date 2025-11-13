@@ -13,10 +13,10 @@ import Meris.ARXIVDIR as ARXIVDIR
 
 #/ STOPWORDS
 const STOPWORDS = Set([
-                        "me", "my", "myself", "we", "our", "ourselve", "you", "your", "yourself", "yourselve", "he", "him", "hi", "himself",
-                        "she", "her", "herself", "it", "itself", "hey", "them", "their", "themselve", "what", "which", "who", "whom",
-                        "thi", "that", "these", "those", "am", "are", "wa", "were", "be", "been", "being", "have", "ha", "had", "having", "do", "does", "did",
-                        "doing", "an", "the", "and", "but", "if", "or", "because", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between",
+                        "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself",
+                        "she", "her", "hers", "herself", "it", "its", "itself", "hey", "them", "their", "theirs", "themselves", "what", "which", "who", "whom",
+                        "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did",
+                        "doing", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between",
                         "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again",
                         "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some",
                         "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "can", "will", "just", "don", "should", "now",
@@ -87,7 +87,8 @@ end
 "Load all papers, put them into a single DataFrame"
 function collect_arXive(;
     DIR=ARXIVDIR * "clean_text/",
-    stopwords=false
+    stopwords=false,
+    tokenize=false
 )
 
     # Make a dictionary with a structure that reflects the filesystem as in Luca's laptop:
@@ -128,7 +129,11 @@ function collect_arXive(;
         for (topic, samples) in topics
             for (i, sample) in enumerate(samples)
                 # Clean each word: keep only letters/numbers
-                clean_sample = [replace(w, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") |> x -> replace(x, r"s$" => "") for w in sample]
+                if tokenize
+                    clean_sample = [replace(w, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") |> x -> replace(x, r"s$" => "") for w in sample]
+                else
+                    clean_sample = [replace(w, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") for w in sample]
+                end
 
                 # Remove empty or short words
                 clean_sample = filter(!isempty, clean_sample)
