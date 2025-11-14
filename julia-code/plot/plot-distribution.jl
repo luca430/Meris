@@ -110,16 +110,18 @@ function plot_compare(; fitgamma=false)
     )
 
     Pf(x,α,ε) = α*ε^α * x^(-α-1)
-	  TPf(x,α,β,ε) = ε^α * exp(β*ε) * x^(-α-1) * exp(-β*x) * (α + β*x)
-    Gf(x,α,θ) = x^(α-1) * exp(-x/θ) / SpecialFunctions.gamma(α) / θ^α
+	  TePf(x,α,β,ε) = (x >= ε) ? ε^α * exp(β*ε) * x^(-α-1) * exp(-β*x) * (α + β*x) : 0.0
+    TrPf(x,α,ε,κ) = (ε <= x <= κ) ? α*ε^α * x^(-α-1) / (1 - (ε/κ)^α) : 0.0
+    Gf(x,α,θ) = (x > 0.0) ? x^(α-1) * exp(-x/θ) / SpecialFunctions.gamma(α) / θ^α : 0.0
 
     α = 0.5
-    β = 1 / 1e2
+    β = 1 / 1e3
     ε = 1e0
     
     x = exp10.(range(log10(ε),log10(1e5),128))
     py = Pf.(x, Ref(α), Ref(ε))
-    tpy = TPf.(x, Ref(α), Ref(β), Ref(ε))
+    tepy = TePf.(x, Ref(α), Ref(β), Ref(ε))
+    trpy = TrPf.(x, Ref(α), Ref(ε), Ref(1e4))
 
     #~ Sample and fit Gamma, as normalization constants are way off
     gy = Gf.(x, Ref(1-α), Ref(1/β))
@@ -130,7 +132,8 @@ function plot_compare(; fitgamma=false)
 
 
     lines!(ax, log10.(x), log.(py), label=L"\textrm{Pareto}")
-    lines!(ax, log10.(x), log.(tpy), label=L"\textrm{tPareto}")
+    lines!(ax, log10.(x), log.(tepy), label=L"\textrm{tempPareto}")
+    lines!(ax, log10.(x), log.(trpy), label=L"\textrm{truncPareto}")
     lines!(ax, log10.(x), log.(gy), label=L"\textrm{Gamma}")
     if fitgamma
         fGamma(x,p) = Gf.(x, Ref(p[1]), Ref(p[2]))

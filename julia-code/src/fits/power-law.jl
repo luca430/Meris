@@ -7,6 +7,7 @@ using Distributions
 using Random
 using StatsBase
 using SpecialFunctions
+using RootSolvers
 
 using FHist
 
@@ -184,7 +185,7 @@ function bootstrapPareto(
             #~ With prob. ptail, generate Pareto samples,
             #  otherwise take a sample from the data with x<xmin
             if utail < ptail
-                xsynth[k] = _samplepareto(u, γ, xmin)
+                xsynth[k] = _samplePareto(u, γ, xmin)
             else
                 xsynth[k] = StatsBase.sample(xnonpowerlaw)
             end
@@ -229,19 +230,53 @@ end
 ### SAMPLERS
 """
 Sample from Pareto distribution
+
+A Pareto distribution has survival function S(x) = c x⁻ᵅ
+Uses inverse transform sampling as the inverse has a simple closed form
 """
-function samplepareto(
+function samplePareto(
     nsamples::Int;
-    γ::Float64 = 2.0,
+    α::Float64 = 2.0,
     xmin::Float64 = 1e-4,
     rng = Random.Xoshiro(42*nsamples)
     )
 	  u = rand(rng, nsamples)
-    return _samplepareto.(u, γ, xmin)
+    return _samplePareto.(u, α, xmin)
 end
 
-function _samplepareto(u, γ, xmin)
-	  return xmin .* (1 .- u).^(-1 / (γ .- 1.0))
+function _samplePareto(u, α, xmin)
+	  return xmin .* (1 .- u).^(-1 / (α .- 1.0))
+end
+
+"""
+Sample from tempered Pareto distribution
+
+A tempered Pareto distribution has survival function S(x) = c x⁻ᵅ e⁻ᵝˣ
+"""
+function sampletemperedPareto(
+    nsamples::Int;
+    α::Float64 = 2.0,
+    β::Float64 = 0.0,
+    xmin::Float64 = 1e0,
+    rng = Random.Xoshiro(42*nsamples)
+)
+    (iszero(β)) && (return samplePareto(nsamples, α=α, xmin=xmin, rng=rng))
+    u = rand(rng, nsamples)
+    return map(r -> _sampletemperedPareto(r, α, β, xmin), u)
+end
+
+function _sampletemperedPareto(u, α, β, xmin)
+    z = log(xmin^α * exp(β*xmin) / (1 - u))
+    #~ Define (function, deriviative) for NewtonsMethod
+    #! note: we do y = log(x) to avoid Newton's method to have x < 0 [see below]
+    fdf(x) = (α*x + β*exp(x) - z, α + β*exp(x))
+    #~ Solve with good initial guess
+    #! note: as x>0, we need the initial guess to be "close", as otherwise the method may
+    #        overshoot into x<0 territory, so the guess must depend on `u`.
+    guess = log(max(xmin, z / β))
+    sol = RootSolvers.find_zero(fdf, RootSolvers.NewtonsMethod{Float64}(guess))
+    #~ As we solved for y = log(x), exponentiate
+    return exp(sol.root)
 end
 
 """
@@ -318,7 +353,7 @@ Do the same analysis on a bunch of synthetic data set, and compute p-value stati
 function evaluate_powerlawfit(nsamples, nsims; γ=2.5, xmin=1.0)
     ps = Float64[]
     for i in 1:nsims
-        x = samplepareto(nsamples; γ=γ, xmin=xmin, rng=Random.Xoshiro(42 + i))
+        x = samplePareto(nsamples; γ=γ, xmin=xmin, rng=Random.Xoshiro(42 + i))
         fit = fitpowerlaw(x)
         p = bootstrap(x, fit.γ, fit.xmin, fit.KS; rng=Random.Xoshiro(12 + i))
         push!(ps, p)
