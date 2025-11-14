@@ -72,23 +72,72 @@ series expansion, and also the maximum likelihood estimate, becomes worse as `p`
 Poisson limit at p=1.
 """
 
-function pdf(d::Tweedie, x::Real; ε::Float64 = 1e-16)
-    (1 < d.p < 2) && (return _pdfpoissongamma(d::Tweedie, x::Real; ε=ε))
-    (d.p > 2) && (return _pdfpoissonstable(d::Tweedie, x::Real; ε=ε))
+function pdf(d::Tweedie, x::Real; ε::Float64 = 1e-16, maxiterations::Int=8192)
+	  if iszero(x)
+        return exp(-(d.μ^(2 - d.p)) / (d.ϕ * (2 - d.p)))
+    end
+    if d.p > 2
+        return _pdfpoissonstable(d::Tweedie, x::Real; ε=ε, maxiterations=maxiterations)
+    end
+    return _pdfpoissongamma(d::Tweedie, x::Real; ε=ε, maxiterations=maxiterations)
 end
 
 """
 Approximate the infinite series W(x;ϕ,p) = ∑ₖ Wₖ using methods from Dunn & Smyth (2005)
 """
-function _pdfpoissongamma(d::Tweedie, x::Real; ε::Float64=1e-16)
-	  if iszero(x)
-        return exp(-(d.μ^(2 - d.p)) / (d.ϕ * (2 - d.p)))
-    end
+function _pdfpoissongamma(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations::Int=4096)
     #~ Compute estimates of kmax and Wmax
-    kmax = round(Int, x^(2 - d.p) / (d.ϕ * (2 - d.p)))
+    kmax = x^(2 - d.p) / (d.ϕ * (2 - d.p))
     α = -shape(d)
-    logWmax = kmax*(α-1) - log(2π) - log(kmax) - log(-α) / 2
-    #~ Walk left and right until Wₖ is less than log(Wmax) - log(ε)
+    Wtol = log(ε)
+    z = x^(-α) * (d.p - 1)^α / (d.ϕ^(1 - α) * (2 - d.p))
+
+    logWk(k) = k > 32 ?
+               log(z^k / SpecialFunctions.gamma(-k*α) / SpecialFunctions.gamma(1+k)) :
+               k*(log(z) + (1-α) + α*log(-α) - (1-α)*log(k)) - log(2π) - 0.5*log(-α) - log(k)
+    logWmax = logWk(kmax)
+
+    #~ Instantiate and allocate
+    iterations = 0
+    logWs = []
+    ks = []
+    k = floor(Int, kmax)
+    
+    if k > 0
+        push!(ks, k)
+        push!(logWs, logWk(k))
+    
+        #~ to the left        
+        while true
+            k = ks[end] - 1
+            if k < 1 break end
+            iterations += 1
+            if (logWmax + Wtol > logWs[end]) || (iterations > maxiterations) break end
+            push!(ks, k)
+            push!(logWs, logWk(k))
+        end
+    end
+
+    #~ to the right
+    k = ceil(Int, kmax)
+    push!(ks, k)
+    push!(logWs, logWk(k))
+    while true
+        k = ks[end] + 1
+        iterations += 1
+        if (logWmax + Wtol > logWs[end]) || (iterations > maxiterations) break end
+        push!(ks, k)
+        push!(logWs, logWk(k))
+    end
+
+    (iterations > maxiterations) && (@warn("Sum did not converge, consider raising iterations."))
+
+    #~ Compute the Wₖ
+    Wk = exp.(logWs)
+
+    #~ Compute the value of the pdf
+    a = sum(Wk) / x
+    return a * exp((x*θ(d) - κ(d)) / d.ϕ)
 end
 
 function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
@@ -112,10 +161,11 @@ function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations
     push!(logVs, logVenv(k))
     
     #~ to the left
-    iterations = 1
+    iterations = 0
     while true
         k = ks[end] - 1
         if k < 1 break end
+        iterations += 1
         if (logVmax + Vtol > logVs[end]) || (iterations > maxiterations) break end
         push!(ks, k)
         push!(logVs, logVenv(k))        
@@ -126,11 +176,14 @@ function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations
     push!(logVs, logVenv(k))
     while true
         k = ks[end] + 1
+        iterations += 1
         if (logVmax + Vtol > logVs[end]) || (iterations > maxiterations) break end
         push!(ks, k)
         push!(logVs, logVenv(k))
-    end    
-
+    end
+    
+    (iterations > maxiterations) && (@warn("Sum did not converge, consider raising iterations."))
+    
     #~ Compute the Vₖ
     Venv = exp.(logVs)
     signs = [(-1)^(ks[i])*sin(-ks[i]*α*π) for i in eachindex(ks)]
@@ -138,8 +191,7 @@ function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations
 
     #~ Compute the value of the pdf
     a = sum(Vk) / x / π
-    P = a * exp((x*θ(d) - κ(d))/d.ϕ)
-    return P
+    return a * exp((x*θ(d) - κ(d))/d.ϕ)
 end
 
 ### Sampling
