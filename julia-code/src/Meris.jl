@@ -38,5 +38,6 @@ include("dataframes/datatools.jl")
 include("distributions/pareto.jl")
 include("distributions/mle.jl")
 include("distributions/lr_distributions.jl")
+include("distributions/zipf-heaps.jl")
 
 end # module Meris

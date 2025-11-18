@@ -85,7 +85,7 @@ function load_papers(;
 end
 
 "Load all papers, put them into a single DataFrame"
-function collect_arXive(;
+function load(;
     DIR=ARXIVDIR * "clean_text/",
     stopwords=false,
     tokenize=false
@@ -120,7 +120,7 @@ function collect_arXive(;
         domain=String[],
         topic=String[],
         component_id=String[],
-        sample_id=Int[],
+        sample_id=String[],
         counts=Int[],
         nreads=Int[]
     )
@@ -141,7 +141,7 @@ function collect_arXive(;
                 # Count words
                 cnt_map = countmap(clean_sample)
                 for (k, v) in cnt_map
-                    push!(big_df, (domain, topic, k, i, v, sum(values(cnt_map))))
+                    push!(big_df, (domain, topic, k, domain[1:3] * topic * string(i), v, sum(values(cnt_map))))
                 end
             end
         end

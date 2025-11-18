@@ -160,5 +160,21 @@ function filter_data(df::DataFrame;
     return nothing
 end
 
+"Convert raw DataFrame to the standardized version"
+function standardized(df)
+    df = @chain df begin
+        @transform(:environment = :classification .* "." .* :project_id)
+        @rename(:counts = :count, :component_id = :otu_id)
+        @select(:environment, :component_id, :counts, :nreads, :run_id)
+        @rename(:sample_id = :run_id)
+    end
+    return df
+end
+
+function load(; datafilename = ROTUDIR*"crosssecdata.RData")
+    df = load_rdata(; rdatafilename = datafilename)
+    return standardized(df)
+end
+
 end # module OTUSampler
 #/ End module
