@@ -11,6 +11,8 @@ using Distributions
 using SpecialFunctions
 using LsqFit
 
+import Meris.TweedieDistribution as Tw
+
 #################
 ### FUNCTIONS ###
 function plot_pareto(;
@@ -143,6 +145,78 @@ function plot_compare(; fitgamma=false)
     end
 
     axislegend(ax, position=:lb, patchsize=(8,8), rowgap=0., labelsize=10, padding=0)
+    return fig
+end
+
+"Plot Tweedie distribution"
+function plot_tweedie(;
+    μ::Float64 = 2.5,
+    ϕ::Float64 = .75,
+    b::Array{Float64} = [1.9, 2.6]
+)
+    __theme = MakiePublication.theme_acs(; ishollowmarkers=[true,true])
+    set_theme!(__theme)
+    
+    width = .95 * 246
+    height = 3*width / 4.67
+    fig = Figure(; size=(1.8 .* width,height), figure_padding=(2,4,2,14))
+    ax = Axis(
+        fig[1,1],
+        xlabel=L"x", xlabelsize=14,
+        ylabel=L"\log_{10}\;p(x)", ylabelsize=14,
+        limits=(0,20,-6,0)        
+    )
+    logax = Axis(
+        fig[1,2],
+        xlabel=L"\log_{10}\;x", xlabelsize=14,
+        ylabel=L"\log_{10}\;p(x)", ylabelsize=14,
+        limits=(-2,2,-5,0)
+    )
+    x = collect(range(0.0,20.0,128))
+    expx = collect(exp10.(range(-2,2,128)))
+    
+    #~ Gamma
+    gm = Distributions.Gamma(1/ϕ, ϕ*μ)
+    ygm = Distributions.pdf.(gm, x)
+    logygm = expx .* Distributions.pdf.(gm, expx)
+    lines!(
+        ax, x, log10.(ygm), label=L"\textrm{gamma}",
+        linewidth=.8, linestyle=(:dash,:dense), color=:black
+    )
+    lines!(
+        logax, log10.(expx), log10.(logygm),
+        linewidth=.8, linestyle=(:dash,:dense), color=:black
+    )
+    #~ Inv Gaussian
+    invg = Distributions.InverseGaussian(μ, 1/ϕ)
+    yig = Distributions.pdf.(invg, x)
+    logyig = expx .* Distributions.pdf.(invg, expx)
+    lines!(
+        ax, x, log10.(yig), label=L"\textrm{inverse Gaussian}",
+        linewidth=.8, linestyle=(:dash,:dense), color=:gray
+    )
+    lines!(
+        logax, log10.(expx), log10.(logyig),
+        linewidth=.8, linestyle=(:dash,:dense), color=:gray
+    )
+    #~ Poisson
+    # ps = Distributions.Poisson(μ)
+    # xps = 0:15
+    # yps = Distributions.pdf.(ps, xps)
+    # scatterlines!(
+    #     ax, xps, log10.(yps), label=L"\textrm{Poisson}", color=:black,
+    #     linestyle=(:dash,:dense), linewidth=.7, markersize=5
+    # )
+
+    for i in eachindex(b)
+        tw = Tw.Tweedie(b[i], μ, ϕ)        
+        ytw = Tw.pdf.(tw, x)
+        logytw = expx .* Tw.pdf.(tw, expx)
+        lines!(ax, x, log10.(ytw), label=L"\textrm{Tweedie}(b=%$(b[i]))")
+        lines!(logax, log10.(expx), log10.(logytw))
+    end
+
+    axislegend(ax, position=:lb, patchsize=(12,5), rowgap=0., labelsize=12, padding=0)
     return fig
 end
 
