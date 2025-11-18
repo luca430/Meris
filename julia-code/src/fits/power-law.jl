@@ -54,7 +54,7 @@ function fitPareto(x::Array{T}; xmins=nothing) where T<:Real
         # Dhat = -(n+S)        
         
         distances = abs.(Fv .- Ftv) ./ Z
-        Dhat = maximum(distances)
+        Dhat = maximum(distances[.!isinf.(distances)])
         #~ If smaller than the current best, update
         if Dhat < D
             xmin = _xmin
@@ -101,7 +101,7 @@ function fitGeneralizedPareto(x::Array{T}; xmins=nothing) where T<:Real
         Z = sqrt.(Ftv .* (1 .- Ftv))                       # Weighted KS distance
         
         distances = abs.(Fv .- Ftv) ./ Z
-        Dhat = maximum(distances)
+        Dhat = maximum(distances[.!isinf.(distances)])
         
         #~ If smaller than the current best, update
         if Dhat < D

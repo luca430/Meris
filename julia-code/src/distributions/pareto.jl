@@ -28,7 +28,7 @@ end
 ############
 ### CDFs ###
 function generalizedParetocdf(σ::Float64, ξ::Float64; xmin=0.0)
-    function F(x::Float64)
+    function F(x)
         (x < xmin) && (return 0.0)
         z = (x - xmin) / σ
         if iszero(ξ)
