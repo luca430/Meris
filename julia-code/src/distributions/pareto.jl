@@ -25,6 +25,15 @@ function loggeneralizedPareto(x::T, μ::T, σ, ξ) where T<:Real
     return expn - log(σ)
 end
 
+"""
+    logtemperedPareto(x, α, β)
+
+Log density function of the tempered Pareto distribution
+"""
+function logtemperedPareto(x::T, α, β, xmin) where {T<:Real}
+    return α*log(xmin) + β*xmin - β*x - (1+α)*log(x) + log(α + β*x)
+end
+
 ############
 ### CDFs ###
 function generalizedParetocdf(σ::Float64, ξ::Float64; xmin=0.0)
@@ -37,6 +46,10 @@ function generalizedParetocdf(σ::Float64, ξ::Float64; xmin=0.0)
         return 1 - (1 + ξ*z)^(-1/ξ)
     end
     return F
+end
+
+function temperedParetocdf(α::Float64, β::Float64; xmin=1.0)
+    F(x) = x < xmin ? 0.0 : 1 - xmin^α*exp(β*xmin)*x^(-α)*exp(-β*x)
 end
 
 function Paretocdf(α::Float64; xmin=0.0)

@@ -255,9 +255,9 @@ A tempered Pareto distribution has survival function S(x) = c x⁻ᵅ e⁻ᵝˣ
 """
 function sampletemperedPareto(
     nsamples::Int;
-    α::Float64 = 2.0,
-    β::Float64 = 0.0,
-    xmin::Float64 = 1e0,
+    α::Float64 = 1.5,
+    β::Float64 = 1e-2,
+    xmin::Float64 = 1.0,
     rng = Random.Xoshiro(42*nsamples)
 )
     (iszero(β)) && (return samplePareto(nsamples, α=α, xmin=xmin, rng=rng))
