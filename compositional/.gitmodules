@@ -1,0 +1,3 @@
+[submodule "julia-code/data/gutenberg"]
+	path = julia-code/data/gutenberg
+	url = https://github.com/pgcorpus/gutenberg
