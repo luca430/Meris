@@ -42,8 +42,8 @@ function Tweedie(p::T, μ::T, ϕ::T; check_args::Bool=true) where {T<:Real}
     #~ Special cases
     (p == 0) && (return Normal(μ, sqrt(ϕ)))
     (p == 1) && (return Poisson(μ))
-    (p == 2) && (return Gamma(1/ϕ,ϕ*μ))
-    (p == 3) && (return InverseGaussian(μ,1/ϕ))
+    # (p == 2) && (return Gamma(1/ϕ,ϕ*μ))
+    # (p == 3) && (return InverseGaussian(μ,1/ϕ))
 	  Distributions.@check_args Tweedie (p, !(zero(p) < p < one(p))) (μ, μ >= zero(μ)) (ϕ, ϕ > zero(ϕ))
     return Tweedie{T}(p, μ, ϕ)
 end

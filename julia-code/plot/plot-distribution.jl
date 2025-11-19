@@ -132,7 +132,6 @@ function plot_compare(; fitgamma=false)
     lb = [0.0, 0.0]
     ub = [Inf, Inf]
 
-
     lines!(ax, log10.(x), log.(py), label=L"\textrm{Pareto}")
     lines!(ax, log10.(x), log.(tepy), label=L"\textrm{tempPareto}")
     lines!(ax, log10.(x), log.(trpy), label=L"\textrm{truncPareto}")
@@ -173,7 +172,7 @@ function plot_tweedie(;
         limits=(-2,2,-5,0)
     )
     x = collect(range(0.0,20.0,128))
-    expx = collect(exp10.(range(-2,2,128)))
+    expx = collect(exp10.(range(-1.5,2,128)))
     
     #~ Gamma
     gm = Distributions.Gamma(1/ϕ, ϕ*μ)

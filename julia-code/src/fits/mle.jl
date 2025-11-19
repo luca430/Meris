@@ -23,7 +23,7 @@ Uses method of moments as the initial guess for the parameters σ and ξ
 function fitgeneralizedPareto(x::Array{T}; μ=0.0) where T<:Real
     function negloglikelihood(x, θ)
         logσ, ξ = θ
-        σ = exp(logσ)   # ensures σ > 0
+        σ = exp(logσ)    # ensures σ > 0
         if any(1 .+ ξ .* (x .- μ) ./ σ .<= 0)
             # invalid region
             return Inf
@@ -55,7 +55,7 @@ Fit a tempered Pareto distribution to data x≥xmin
 function fittemperedPareto(x::Array{T}; xmin=1.0) where {T <: Real}
 	  function negloglikelihood(x, θ)
         logα, logβ = θ
-        α, β = exp(logα), exp(logβ)
+        α, β = exp(logα), exp(logβ)    #~ ensures α,β > 0
         return -sum(Meris.ParetoLike.logtemperedPareto.(x, Ref(α), Ref(β), Ref(xmin)))
     end
     #~ Initial estimates
