@@ -16,7 +16,6 @@ julia-code/Manifest.toml
 /julia-code/data/datasets/mobility/
 /julia-code/figures/
 /poetry.lock
-Manifest.toml
 **/movie-transcripts/**/*.txt
 /julia-code/data/datasets/rfc/raw-text/**
 /julia-code/data/datasets/rfc/*.zip

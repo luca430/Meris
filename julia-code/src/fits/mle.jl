@@ -15,7 +15,7 @@ using Meris
 ### SPECIALIZED FUNCTIONS ###
 
 """
-    fitgeneralizedpareto(x::Array{T}; μ=0.0)
+    fitgeneralizedPareto(x::Array{T}; μ=0.0)
 
 Fit a generalized Pareto distribution to data x>=μ [i.e., μ=xmin]
 Uses method of moments as the initial guess for the parameters σ and ξ
@@ -23,7 +23,7 @@ Uses method of moments as the initial guess for the parameters σ and ξ
 function fitgeneralizedPareto(x::Array{T}; μ=0.0) where T<:Real
     function negloglikelihood(x, θ)
         logσ, ξ = θ
-        σ = exp(logσ)   # ensures σ > 0
+        σ = exp(logσ)    # ensures σ > 0
         if any(1 .+ ξ .* (x .- μ) ./ σ .<= 0)
             # invalid region
             return Inf
@@ -45,6 +45,33 @@ function fitgeneralizedPareto(x::Array{T}; μ=0.0) where T<:Real
     end
     println("Optimizer not converged, returning initial guesses [method of moments]")
     return (; μ=μ, σ=σinit, ξ=ξinit)
+end
+
+"""
+    fittemperedPareto(x::Array{T}; xmin=1.0)
+
+Fit a tempered Pareto distribution to data x≥xmin
+"""
+function fittemperedPareto(x::Array{T}; xmin=1.0) where {T <: Real}
+	  function negloglikelihood(x, θ)
+        logα, logβ = θ
+        α, β = exp(logα), exp(logβ)    #~ ensures α,β > 0
+        return -sum(Meris.ParetoLike.logtemperedPareto.(x, Ref(α), Ref(β), Ref(xmin)))
+    end
+    #~ Initial estimates
+    Ex = mean(x)
+    αinit = 1 / Ex
+    βinit = 1 / (Ex - xmin)
+    θinit = [log(αinit), log(βinit)]
+
+    f(θ) = negloglikelihood(x, θ)
+    optimres = Optim.optimize(f, θinit, LBFGS(); autodiff=:forward)
+    if Optim.converged(optimres)        
+        αhat, βhat = optimres.minimizer
+        return (; α=exp(αhat), β=exp(βhat))
+    end
+    println("Optimizer not converged, return initial guesses")
+    return (; α=αinit, β=βinit)
 end
 
 ########################
