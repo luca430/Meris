@@ -420,7 +420,7 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
     return GeneralizedPareto(αinit, θinit, ε)
 end
 
-function fit(::Type{DoublePareto}, x::Array{T}; ε=nothing) where {T<:Real}
+function fit(::Type{DoublePareto}, x::Array{T}, p0::Vector{Float64}; ε=nothing) where {T<:Real}
     (isnothing(ε)) && (ε = 1.0)
 
     function negloglikelihood(x, params)
@@ -432,9 +432,9 @@ function fit(::Type{DoublePareto}, x::Array{T}; ε=nothing) where {T<:Real}
         return -sum(logpdf.(d, x))
     end
     
-    αinit = 0.5
-    βinit = 2.0
-    τinit = StatsBase.median(x)
+    αinit = p0[1]
+    βinit = p0[2]
+    τinit = p0[3]
     params = [log(αinit), log(βinit), log(τinit)]
 
     optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), params, LBFGS(); autodiff=:forward)
@@ -443,7 +443,7 @@ function fit(::Type{DoublePareto}, x::Array{T}; ε=nothing) where {T<:Real}
         return DoublePareto(exp(αhat), exp(αhat)*(1 + exp(βhat)), exp(τhat), ε)
     end
     @warn("Optimizer not converged, returning initial guesses")
-    return GeneralizedPareto(αinit, βinit, τinit, ε)
+    return DoublePareto(αinit, βinit, τinit, ε)
 end
 
 
