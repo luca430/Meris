@@ -83,8 +83,35 @@ struct TemperedPareto{T<:Real} <: ContinuousUnivariateDistribution
 end
 
 function TemperedPareto(α::T, β::T, ε::T; check_args::Bool=true) where {T<:Real}
-	  Distributions.@check_args TemperedPareto (α, α > zero(α)) (β, β > zero(β)) (ε, ε > zero(ε))
+	  Distributions.@check_args TemperedPareto (α, α>zero(α)) (β, β>zero(β)) (ε, ε>zero(ε))
     return TemperedPareto{T}(α, β, ε)
+end
+
+"""
+    DoublePareto
+
+Continuous double Pareto distribution with switch around typical scale τ, with density function
+obtained from the survival function. The density reads
+
+```math
+f(x) = [FIX THIS]
+```
+
+or, in a more readible format, the density of some random variate `X ~ DoublePareto(α,β,θ,ε)`
+[ADD THIS]
+"""
+struct DoublePareto{T<:Real} <: ContinuousUnivariateDistribution
+    α::T
+    β::T
+    τ::T
+    ε::T
+
+    DoublePareto{T}(α,β,τ,ε) where {T<:Real} = new{T}(α,β,τ,ε)
+end
+
+function DoublePareto(α::T, β::T, τ::T, ε::T; check_args::Bool=true) where {T<:Real}
+	  Distributions.@check_args DoublePareto (ε, ε>zero(ε)) (α, α>zero(α)) (β, β>α) (τ,τ>zero(τ))
+    return DoublePareto{T}(α,β,τ,ε)
 end
 
 """
@@ -132,6 +159,8 @@ ParetoIV(α::Real, γ::Real, ε::Real, θ::Real; check_args::Bool=true) = Pareto
 TemperedPareto(α::Real, β::Real, ε::Real; check_args::Bool=true) = TemperedPareto(promote(α,β,ε)..., check_args=check_args)
 GeneralizedPareto(; check_args::Bool=true) = GeneralizedPareto(promote(1.,1.,1.)...; check_args=check_args)
 GeneralizedPareto(α::Real, θ::Real, ε::Real; check_args::Bool=true) = GeneralizedPareto(promote(α,θ,ε)...; check_args=check_args)
+DoublePareto(α::Real, τ::Real; check_args::Bool=true) = DoublePareto(promote(α,1.,τ,1.)...; check_args=check_args)
+DoublePareto(α::Real, β::Real, τ::Real, ε::Real; check_args::Bool=true) = DoublePareto(promote(α,β,τ,ε)...; check_args=check_args)
 
 #~ Burr distribution
 Burr(c::Real, α::Real, ε::Real; check_args::Bool=true) = Burr(promote(c,α,ε)...; check_args=check_args)
@@ -176,6 +205,16 @@ function pdf(d::GeneralizedPareto, x::Real)
     return (1 + d.α*z)^(-1 - 1 / d.α) / d.θ
 end
 
+function pdf(d::DoublePareto, x::Real)
+    if x <= d.ε
+        return 0.0
+    end
+	  εv = (d.ε/d.τ)^(1/d.α) + (d.ε/d.τ)^(1/d.β)
+    numer = εv * (d.α*(x/d.τ)^(1/d.β) + d.β*(x/d.τ)^(1/d.α))
+    denum = d.α*d.β*x*((x/d.τ)^(1/d.β) + (x/d.τ)^(1/d.α))^2
+    return numer / denum
+end
+
 ##########################
 ### SURVIVAL FUNCTIONS ###
 function ccdf(d::ParetoI, x::Real)
@@ -207,6 +246,10 @@ function ccdf(d::GeneralizedPareto, x::Real)
     return (1 + d.α*z)^(-1 / d.α)
 end
 
+function ccdf(d::DoublePareto, x::Real)
+	  return ((d.ε/d.τ)^(1/d.α) + (d.ε/d.τ)^(1/d.β)) / ((x/d.τ)^(1/d.α) + (x/d.τ)^(1/d.β))
+end
+
 ##########################
 ### SAMPLING FUNCTIONS ###
 "Burr distribution"
@@ -226,7 +269,7 @@ end
 "Tempered Pareto distribution"
 function xval(d::TemperedPareto, u::Real)
     z = log(d.ε^d.α * exp(d.β*d.ε) / (1 - u))
-    #~ Define (function, deriviative) for NewtonsMethod
+    #~ Define (function, deriviative) for Newton's method
     #! note: we do y = log(x) to avoid Newton's method to have x < 0 [see below]
     fdf(x::Real) = (d.α*x + d.β*exp(x) - z, d.α + d.β*exp(x))
     #~ Solve with good initial guess
@@ -249,6 +292,34 @@ function rand!(rng::AbstractRNG, d::TemperedPareto{T}, U::AbstractArray{T}) wher
     return U
 end
 
+"Double Pareto distribution"
+function xval(d::DoublePareto, u::Real)
+	  Z = (d.ε/d.τ)^(1/d.α) + (d.ε/d.τ)^(1/d.β)
+    #~ Define (function, derivative) for Newton's method
+    function fdf(x::Real)
+        x = exp(x)
+        S = (x / d.τ)^(1/d.α) + (x / d.τ)^(1/d.β)
+        f = Z/S - u
+        df = -x * (Z / S^2) * ((1/d.α)*(x/d.τ)^(1/d.α) + (1/d.β)*(x/d.τ)^(1/d.β))
+        return (f, df)
+    end
+
+    guess = log(d.τ * (Z / u)^(d.α))
+    sol = RootSolvers.find_zero(fdf, RootSolvers.NewtonsMethod{Float64}(guess))
+    return exp(sol.root)
+end
+rand(rng::AbstractRNG, d::DoublePareto{T}) where {T<:Real} = xval(d, Random.rand(rng,float(T)))
+function rand(rng::AbstractRNG, d::DoublePareto{T}, n::Int) where {T<:Real}
+	  U = Array{Float64}(undef, n)
+    rand!(rng, d, U)
+    return U
+end
+function rand!(rng::AbstractRNG, d::DoublePareto{T}, U::AbstractArray{T}) where {T<:Real}
+	  Random.rand!(rng, U)
+    map!(Base.Fix1(xval, d), U, U)
+    return U
+end
+
 #######################
 ### LOG LIKELIHOODS ###
 
@@ -258,13 +329,20 @@ function logpdf(d::TemperedPareto, x::T) where {T<:Real}
 end
 
 
-"Log density function of the generalized Pareto distribution, with an expansion near zero."
-function logpdf(d::GeneralizedPareto, x::T) where T<:Real
+"Log density function of the generalized Pareto distribution"
+function logpdf(d::GeneralizedPareto, x::T) where {T<:Real}
     z = (x - d.ε) / d.θ
     (1 + d.α*z <= zero(z)) && (return -Inf)
     #~ Compute logarithm using `log1p` for accuracy
     expn = (-(1 + d.α) / d.α) * log1p(z * d.α)
     return expn - log(d.θ)
+end
+
+"Log density function of the double Pareto distribution"
+function logpdf(d::DoublePareto, x::T) where {T<:Real}
+    (x <= d.ε) && (return -Inf)
+    #~ No nice analytic form, so just return log of the pdf
+    return log(pdf(d, x))
 end
 
 ###############
@@ -338,6 +416,32 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
     end
     @warn("Optimizer not converged, returning initial guesses [method of moments]")
     return GeneralizedPareto(αinit, θinit, ε)
+end
+
+function fit(::Type{DoublePareto}, x::Array{T}; ε=nothing) where {T<:Real}
+    (isnothing(ε)) && (ε = 1.0)
+
+    function negloglikelihood(x, params)
+	      logα, logβ, logτ = params
+        α = exp(logα)
+        β = α * (1 + exp(logβ))
+        τ = exp(logτ)
+        d = DoublePareto(α, β, τ, ε)
+        return -sum(logpdf.(d, x))
+    end
+    
+    αinit = 0.5
+    βinit = 2.0
+    τinit = StatsBase.median(x)
+    params = [log(αinit), log(βinit), log(τinit)]
+
+    optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), params, LBFGS(); autodiff=:forward)
+    if Optim.converged(optimres)
+        αhat, βhat, τhat = optimres.minimizer
+        return DoublePareto(exp(αhat), exp(αhat)*(1 + exp(βhat)), exp(τhat), ε)
+    end
+    @warn("Optimizer not converged, returning initial guesses")
+    return GeneralizedPareto(αinit, βinit, τinit, ε)
 end
 
 

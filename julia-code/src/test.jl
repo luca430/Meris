@@ -34,17 +34,24 @@ function _ecdf(xs::Array{T}; sorted=false) where T<:Real
     return (; F=F, x=xs)
 end
 
-function doublepowerlaw(; α::Float64 = 1.5, τ::Float64 = 1e4, ε::Float64 = 1.0)
-    function f(x,α,τ,ε)
-        numer = (x + α*τ*(x/τ)^α) * (ε + τ*(ε/τ)^α)
-        denum = x*(x + τ*(x/τ)^α)^2
+function doublepowerlaw(; α::Float64=.5, β::Float64=1., τ::Float64=1e3, ε::Float64=1.0)
+    function F(x,α,β,τ,ε)
+        numer = (ε/τ)^(1/α) + (ε/τ)^(1/β)
+        denum = (x/τ)^(1/α) + (x/τ)^(1/β)
+        return numer / denum
+    end
+    function f(x,α,β,τ,ε)
+        εv = (ε/τ)^(1/α) + (ε/τ)^(1/β)
+        numer = εv * (α*(x/τ)^(1/β) + β*(x/τ)^(1/α))
+        denum = α*β*x*((x/τ)^(1/β) + β*(x/τ)^(1/α))^2
         return numer / denum
     end
     xmin = log10(ε)
     xmax = xmin + 8
     x = exp10.(range(xmin, xmax, 128))
-    y = x.^2 .* f.(x, Ref(α), Ref(τ), Ref(ε))
-    return (; x=x, y=y)
+    Fy = F.(x, Ref(α), Ref(β), Ref(τ), Ref(ε))
+    fy = x.^(4α) .* f.(x, Ref(α), Ref(β), Ref(τ), Ref(ε))
+    return (; x=x, Fy=Fy, fy=fy)
 end
 
 end # module Test
