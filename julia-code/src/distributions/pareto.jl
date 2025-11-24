@@ -174,6 +174,8 @@ scale(d::ParetoI) = d.ε
 shape(d::ParetoI) = d.α
 params(d::ParetoI) = (d.α, d.ε)
 
+params(d::DoublePareto) = (d.α, d.β, d.τ, d.ε)
+
 #########################
 ### DENSITY FUNCTIONS ###
 function pdf(d::ParetoI, x::Real)

@@ -5,6 +5,29 @@ using Distributions
 using Random
 using StatsBase
 
+#################
+### FUNCTIONS ###
+import Meris.ParetoDistribution as MPareto
+
+function sampleandfit(; α=0.5, β=2.0, τ=1e3, ε=1.0, n::Int=10^5)
+    #~ Notes
+    #  Zipf's scaling with exponent -1 implies β=2
+    #  We typically should have β>α
+    #  τ is the "inflection" point, or the typical scale at which another scaling "takes over"
+    #  x > ε, so ε == xmin
+    dPareto = MPareto.DoublePareto(α, β, τ, ε)
+    rng = Random.Xoshiro(42)
+    X = MPareto.rand(rng, dPareto, n)
+    #~ Fit using MLE
+    #  note: fitting assumes some fixed ε
+    dPareto_mle = MPareto.fit(MPareto.DoublePareto, X; ε=ε)
+    @info "params" MPareto.params(dPareto) MPareto.params(dPareto_mle)
+    return nothing
+end
+
+
+########################
+### HELPER FUNCTIONS ###
 function f(; α::Float64 = 1.5, n::Int = 1000)
 	  rng = Random.Xoshiro(42)
     p = Distributions.Pareto(α)
