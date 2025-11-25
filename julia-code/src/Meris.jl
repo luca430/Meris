@@ -16,6 +16,7 @@ const WIKIDIR   = DATADIR * "datasets/wikitext-2/"
 #~ Data handlers, loaders, and samplers 
 include("dataframes/books/booksampler.jl")
 include("dataframes/books/wordsampler.jl")
+include("dataframes/wikitext/wikitextsampler.jl")
 include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
 include("dataframes/arxiv/arxivsampler.jl")

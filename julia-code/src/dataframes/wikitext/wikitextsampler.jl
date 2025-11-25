@@ -6,7 +6,7 @@
    in `Julia` is not super well-supported.
 =#
 #/ Start module
-module WikiSampler
+module WikitextSampler
 
 #/ Packages
 using CSV
@@ -68,5 +68,5 @@ function load_bagofwords(;
     return bagofwords
 end
 
-end # module WikiSampler
+end # module WikitextSampler
 #/ End module
