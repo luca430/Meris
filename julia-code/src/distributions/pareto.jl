@@ -201,6 +201,14 @@ function pdf(d::ParetoI, x::Real)
     return d.α*d.ε^d.α * x^(-(d.α+1))
 end
 
+function pdf(d::ParetoIV, x::Real)
+    if x < d.ε
+        return 0.0
+    end
+    z = (x - d.ε) / d.θ
+    return (d.α*d.γ/d.θ) * z^(d.γ-1) * (1 + z^d.γ)^(-1-d.α)
+end
+
 function pdf(d::Burr, x::Real)
 	  if x <= 0.0
         return 0.0
@@ -250,6 +258,13 @@ function ccdf(d::ParetoI, x::Real)
         return 1.0
     end
     return (d.ε / x)^d.α
+end
+
+function ccdf(d::ParetoIV, x::Real)
+    if x < d.ε
+        return 1.0
+    end
+    return (1 + ((x - d.ε)/d.θ)^d.γ)^(-d.α)
 end
 
 function ccdf(d::Burr, x::Real)
@@ -373,6 +388,11 @@ end
 #######################
 ### LOG LIKELIHOODS ###
 
+function logpdf(d::ParetoIV, x::T) where {T<:Real}
+    z = (x - d.ε)/d.θ
+	  return log(d.α) + log(d.γ) - log(d.θ) + (d.γ-1)*log(z) - (1+d.α)*log(1 + z^d.γ)
+end
+
 "Log density function of the tempered Pareto distribution"
 function logpdf(d::TemperedPareto, x::T) where {T<:Real}
     return d.α*log(d.ε) + d.β*d.ε - d.β*x - (1+d.α)*log(x) + log(d.α + d.β*x)
@@ -418,6 +438,27 @@ function fit(::Type{ParetoI}, x::Array{T}; ε=nothing) where {T<:Real}
     S = sum(log.(xfit / ε))
     αhat = n / S
     return ParetoI(αhat, ε)
+end
+
+function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
+	  (isnothing(ε)) && (ε = minimum(x))
+
+    function negloglikelihood(x, params)
+        logα, logγ, logθ = params
+	      α = exp(logα)
+        γ = exp(logγ)
+        θ = exp(logθ)
+        d = ParetoIV(α, γ, ε, θ)
+        return -sum(logpdf.(d, x))
+    end
+
+    #~ Init. estimates
+    αinit = 1.0
+    γinit = 1.0
+    θinit = 1.0
+    params = [log(αinit), log(γinit), log(θinit)]
+    
+    optimres = Optim.optimize(...)
 end
 
 function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}

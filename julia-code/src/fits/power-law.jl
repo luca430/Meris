@@ -169,6 +169,10 @@ function fitGeneralizedPareto(x::Array{T}; xmins=nothing) where T<:Real
     return (; GeneralizedPareto=gPareto, KS=D)
 end
 
+function fitpiecewisePareto()
+	  
+end
+
 """
     hills_estimator
 
