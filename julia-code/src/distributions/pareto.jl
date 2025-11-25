@@ -266,6 +266,12 @@ function ccdf(d::TemperedPareto, x::Real)
     return d.ε^d.α*exp(d.β*d.ε) * x^(-d.α)*exp(-d.β*x)
 end
 
+function ccdf(d::BoundedPareto, x::Real)
+	  (x < d.ε) && (return 1.0)
+    (x > d.εmax) && (return 0.0)
+    return 1 - (1 - d.ε^d.α*x^(-d.α)) / (1 - (d.ε/d.εmax)^d.α)
+end
+
 function ccdf(d::GeneralizedPareto, x::Real)
 	  if x < d.ε
         return 1.0
@@ -410,7 +416,7 @@ function fit(::Type{ParetoI}, x::Array{T}; ε=nothing) where {T<:Real}
     xfit = xs[idx:end]
     #/ Compute maximum-likelihood estimate of the ParetoI exponent α
     S = sum(log.(xfit / ε))
-    αhat = 1 + n / S
+    αhat = n / S
     return ParetoI(αhat, ε)
 end
 
@@ -431,7 +437,14 @@ function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
     βinit = 1 / (Ex - ε)
     params = [log(αinit), log(βinit)]
 
-    optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), params, LBFGS(); autodiff=:forward)
+    optimres = Optim.optimize(
+        Base.Fix1(negloglikelihood, x),
+        [log(1e-3), log(1e-3)],
+        [log(150), log(150)],
+        params,
+        Fminbox(LBFGS());
+        autodiff=:forward
+    )
     if Optim.converged(optimres)
         αhat, βhat = optimres.minimizer
         return TemperedPareto(exp(αhat), exp(βhat), ε)
@@ -458,14 +471,17 @@ function fit(::Type{BoundedPareto}, x::Array{T}; ε=nothing, εmax=nothing) wher
 
     #~ Initial estimates as pure Pareto MLE
     S = sum(log.(xfit ./ ε))
-    αinit = 1 + length(xfit) / S
-    params = [log(αinit)]
+    αinit = length(xfit) / S
+    if αinit > exp(5)
+        return BoundedPareto(αinit, ε, εmax)
+    end
+    params = [log(αinit)]    
 
     #~ Use Fminbox as for α→0 the likelihood is extremely flat and infinities will happen
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, xfit),
-        [log(1e-3)],      #~ αmin
-        [log(10.0)],      #~ αmax
+        [log(1e-3)],  #~ αmin
+        [log(150)],   #~ αmax
         params,
         Fminbox(LBFGS());
         autodiff=:forward
