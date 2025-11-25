@@ -26,7 +26,8 @@ function wikifit(; nbins=31)
     
     #~ Fit some pure Pareto on the right-tail
     pfit = Meris.Powerlaw.fitPareto(x; xmins=xmins)
-    Pareto = pfit.Pareto
+    Pareto = pfit.Pareto    
+    #~ Compute proper transformation of p(x) from the fit
     xpdf = exp10.(range(log10(Pareto.ε), exp10(bmax), 256))
     ypdf = (10 .^ log10.(xpdf)) .* Meris.ParetoDistribution.pdf.(Pareto, xpdf)
     ztail = sum(x .> Pareto.ε) / length(x)
@@ -36,7 +37,8 @@ function wikifit(; nbins=31)
     #~ Using this fit, fit a bounded Pareto on the left-part
     #  note: in the Wikitext example it may not make the most sense
     bx = x[x .< Pareto.ε]
-    bxmins = exp10.(range(bmin, log10(Pareto.ε), 64))
+    bxmins = exp10.(range(bmin, log10(Pareto.ε), 64))    
+    #~ Compute proper transformation of p(x) from the fit
     bpfit = Meris.Powerlaw.fitBoundedPareto(bx; xmins=bxmins, εmax=Pareto.ε)
     bPareto = bpfit.BoundedPareto
     xpdf = exp10.(range(log10(bPareto.ε), exp10(bPareto.εmax), 256))
