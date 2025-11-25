@@ -208,12 +208,15 @@ function pdf(d::GeneralizedPareto, x::Real)
 end
 
 function pdf(d::DoublePareto, x::Real)
-    if x <= d.ε
+    if x < d.ε
         return 0.0
     end
 	  εv = (d.ε/d.τ)^(1/d.α) + (d.ε/d.τ)^(1/d.β)
-    numer = εv * (d.α*(x/d.τ)^(1/d.β) + d.β*(x/d.τ)^(1/d.α))
-    denum = d.α*d.β*x*((x/d.τ)^(1/d.β) + (x/d.τ)^(1/d.α))^2
+    xα = (x/d.τ)^(1/d.α - 1) / (d.α * d.τ)
+    xβ = (x/d.τ)^(1/d.β - 1) / (d.β * d.τ)
+    numer = εv * (xα + xβ)
+    denum = ((x/d.τ)^(1/d.α) + (x/d.τ)^(1/d.β))^2
+    # @info "hm" numer denum
     return numer / denum
 end
 
@@ -342,7 +345,7 @@ end
 
 "Log density function of the double Pareto distribution"
 function logpdf(d::DoublePareto, x::T) where {T<:Real}
-    (x <= d.ε) && (return -Inf)
+    (x < d.ε) && (return -Inf)
     #~ No nice analytic form, so just return log of the pdf
     return log(pdf(d, x))
 end
@@ -421,29 +424,29 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
 end
 
 function fit(::Type{DoublePareto}, x::Array{T}; ε=nothing) where {T<:Real}
-    (isnothing(ε)) && (ε = 1.0)
+    (isnothing(ε)) && (ε = minimum(x))
 
     function negloglikelihood(x, params)
 	      logα, logβ, logτ = params
-        α = exp(logα)
-        β = α * (1 + exp(logβ))
+        α = exp(logα) + 1e-9            #~ Ensures α > 0
+        β = α * (1 + exp(logβ) + 1e-9)  #~ Ensures β > α
         τ = exp(logτ)
         d = DoublePareto(α, β, τ, ε)
         return -sum(logpdf.(d, x))
     end
     
-    αinit = 0.5
-    βinit = 2.0
+    αinit = 1.5
+    βinit = 2.5
     τinit = StatsBase.median(x)
-    params = [log(αinit), log(βinit), log(τinit)]
+    params = [log(αinit), log(βinit/αinit - 1), log(τinit)]
 
-    optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), params, LBFGS(); autodiff=:forward)
+    optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), params, LBFGS())
     if Optim.converged(optimres)
         αhat, βhat, τhat = optimres.minimizer
         return DoublePareto(exp(αhat), exp(αhat)*(1 + exp(βhat)), exp(τhat), ε)
     end
     @warn("Optimizer not converged, returning initial guesses")
-    return GeneralizedPareto(αinit, βinit, τinit, ε)
+    return DoublePareto(αinit, βinit, τinit, ε)
 end
 
 
