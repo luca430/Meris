@@ -19,11 +19,15 @@ using Meris
 """
 Fit a power law on the heavy-tail of the data above some xmin
 Uses methods from Clauset et al. (2009)
+
+@TODO Rewrite
 """
 function fitPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
     xs = sort(x)
     xmins = isnothing(xmins) ? unique(xs) : xmins
-    γ = nothing
+    Pareto = Meris.ParetoDistribution.ParetoI
+    
+    P = nothing    
     xmin = 0.
     D = Inf
     n = 0
@@ -37,14 +41,11 @@ function fitPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
         (n < minsamples) && (break)        # If less than 50 samples >xmin, break
         #~ Filter data
         _idx = searchsortedfirst(xs, _xmin)
-        _x = xs[_idx:end]        
-        #~ Compute MLE of power-law exponent γ
-        S = sum(log.(_x / _xmin))
-        γhat = 1 + n / S
+        _x = xs[_idx:end]
+        _P = Meris.ParetoDistribution.fit(Pareto, _x; ε=_xmin)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         Fv = _ecdf(_x, _x, sorted=true).F                  # Values of empirical CDF
-        Ft = Meris.ParetoLike.Paretocdf(γhat, xmin=_xmin)  # Function of theoretical CDF
-        Ftv = Ft.(_x)                                      # Values of the theoretical CDF
+        Ftv = 1.0 .- Meris.ParetoDistribution.ccdf.(_P, _x)
         Z = sqrt.(Ftv .* (1 .- Ftv))                       # Weighted KS distance
 
         #~ @TODO Anderson-Darling test statistic
@@ -60,21 +61,25 @@ function fitPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
         if Dhat < D
             xmin = _xmin
             D = Dhat
-            γ = γhat
+            P = _P
         end
     end
-    return (; γ=γ, xmin=xmin, KS=D)
+    return (; Pareto=P, KS=D)
 end
 
 """
-Fit a power law on the heavy-tail of the data above some xmin
-Uses methods from Clauset et al. (2009)
+Fit a bounded Pareto on data between some ε≤x≤εmax. Essentially acts as a wrapper around
+`Meris.ParetoDistribution.fit(BoundedPareto, ε, εmax)`, but estimates ε simply by comparing the
+MLE fits for different ε using the KS test statistic, as described Clauset et al. (2009) for
+a pure Pareto without truncation.
 """
-function fitGeneralizedPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
+function fitBoundedPareto(x::Array{T}; xmins=nothing, εmax=nothing) where T<:Real
     xs = sort(x)
     xmins = isnothing(xmins) ? unique(xs) : xmins
-    σ = nothing
-    ξ = nothing
+    (isnothing(εmax)) && (εmax = xs[end])
+    BoundedPareto = Meris.ParetoDistribution.BoundedPareto
+    
+    bPareto = nothing
     xmin = 0.
     D = Inf
     n = 0
@@ -85,21 +90,72 @@ function fitGeneralizedPareto(x::Array{T}; xmins=nothing, minsamples=50) where T
     for i in eachindex(xmins)
         _xmin = xmins[i]
         n = count(xs .>= _xmin)
-        (n < minsamples) && (break)        # If less than 50 samples >xmin, break
+        (n < 64) && (break)        # If less than 50 samples >xmin, break
+        #~ Filter data
+        _idx = searchsortedfirst(xs, _xmin)
+        _x = xs[_idx:end]
+        _bPareto = Meris.ParetoDistribution.fit(BoundedPareto, _x; ε=_xmin, εmax=εmax)
+        # #~ Compute MLE of power-law exponent γ
+        # S = sum(log.(_x / _xmin))
+        # γhat = 1 + n / S
+        #~ Compute Kolmogorov-Smirnov distance as the test statistic
+        Fv = _ecdf(_x, _x, sorted=true).F
+        Ftv = 1.0 .- Meris.ParetoDistribution.ccdf.(_bPareto, _x)
+        Z = sqrt.(Ftv .* (1 .- Ftv))
+
+        #~ @TODO Anderson-Darling test statistic
+        #  Clauset et al. note that this test statistic may be 'too' conservative, especially
+        #  where there are not 'enough' samples in the tail.
+        # s = 1:n
+        # S = sum((2 .* s .- 1) ./ n .* (log.(Ftv) .+ log.(1 .- reverse(Ftv))))
+        # Dhat = -(n+S)        
+        
+        distances = abs.(Fv .- Ftv) ./ Z
+        Dhat = maximum(distances)
+        #~ If smaller than the current best, update
+        if Dhat < D
+            xmin = _xmin
+            D = Dhat
+            bPareto = _bPareto
+        end
+    end
+    return (; BoundedPareto=bPareto, KS=D)
+end
+
+"""
+Fit a power law on the heavy-tail of the data above some xmin
+Uses methods from Clauset et al. (2009)
+"""
+function fitGeneralizedPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
+    xs = sort(x)
+    xmins = isnothing(xmins) ? unique(xs) : xmins
+    GeneralizedPareto = Meris.ParetoDistribution.GeneralizedPareto
+    
+    gPareto = nothing
+    xmin = 0.
+    D = Inf
+    n = 0
+    #/ For each possible xmin in xmins;
+    #  - compute the max.-likelihood estimate of the power law exponent γ
+    #  - compute the Kolmogorov-Smirnov distance
+    #  - extract the xmin for which the MLE γ gives the smallest KS distance
+    for i in eachindex(xmins)
+        _xmin = xmins[i]
+        n = count(xs .>= _xmin)
+        (n < 32) && (break)        # If less than 50 samples >xmin, break
         #~ Filter data
         _idx = searchsortedfirst(xs, _xmin)
         _x = xs[_idx:end]        
         #~ Compute MLE of generalized Pareto distribution with μ=xmin
-        gpdparams = Meris.MLEFit.fitgeneralizedPareto(_x; μ=_xmin)
-        #  note: assumes convergence of Optim, otherwise good results cannot be guaranteed
-        σhat = gpdparams.σ
-        ξhat = gpdparams.ξ
+        _gPareto = Meris.ParetoDistribution.fit(GeneralizedPareto, _x; ε=_xmin)
         
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F                  # Values of empirical CDF
-        Ft = Meris.ParetoLike.generalizedParetocdf(σhat, ξhat, xmin=_xmin)
-        Ftv = Ft.(_x)                                      # Values of the theoretical CDF
-        Z = sqrt.(Ftv .* (1 .- Ftv))                       # Weighted KS distance
+        # Values of empirical CDF
+        Fv = _ecdf(_x, _x, sorted=true).F         
+        # Values of the theoretical CDF
+        Ftv = 1.0 .- Meris.ParetoDistribution.ccdf.(_gPareto, _x)
+        # Weighted KS distance
+        Z = sqrt.(Ftv .* (1 .- Ftv))
         
         distances = abs.(Fv .- Ftv) ./ Z
         Dhat = maximum(distances[.!isinf.(distances)])
@@ -108,11 +164,10 @@ function fitGeneralizedPareto(x::Array{T}; xmins=nothing, minsamples=50) where T
         if Dhat < D
             xmin = _xmin
             D = Dhat
-            σ = σhat
-            ξ = ξhat
+            gPareto = _gPareto
         end
     end
-    return (; σ=σ, ξ=ξ, xmin=xmin, KS=D)
+    return (; GeneralizedPareto=gPareto, KS=D)
 end
 
 """
