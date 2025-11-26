@@ -61,6 +61,11 @@ struct ParetoIV{T<:Real} <: ContinuousUnivariateDistribution
     ParetoIV{T}(α, γ, ε, θ) where {T<:Real} = new{T}(α, γ, ε, θ)
 end
 
+function ParetoIV(α::T, γ::T, ε::T, θ::T; check_args::Bool = true) where {T<:Real}
+	  Distributions.@check_args ParetoIV (α, α>zero(α)) (γ, γ>zero(γ)) (θ, θ>zero(θ)) (ε,ε>zero(ε))
+    return ParetoIV{T}(α,γ,ε,θ)
+end
+
 struct Burr{T<:Real} <: ContinuousUnivariateDistribution
     c::T
     α::T
@@ -164,7 +169,7 @@ end
 
 ####################
 ### CONSTRUCTORS ###
-#~  Pareto distributions
+
 ParetoI(α::Real, ε::Real; check_args::Bool=true) = ParetoI(promote(α,ε)...; check_args=check_args)
 ParetoII(α::Real, ε::Real, θ::Real; check_args::Bool=true) = ParetoII(promote(α,ε,θ)...; check_args=check_args)
 ParetoIII(γ::Real, ε::Real, θ::Real; check_args::Bool=true) = ParetoIII(promote(γ,ε,θ)...; check_args=check_args)
@@ -458,7 +463,18 @@ function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
     θinit = 1.0
     params = [log(αinit), log(γinit), log(θinit)]
     
-    optimres = Optim.optimize(...)
+    optimres = Optim.optimize(
+        Base.Fix1(negloglikelihood, x),
+        params,
+        LBFGS(),
+        autodiff=:forward
+    )
+    if Optim.converged(optimres)
+        αhat, γhat, θhat = optimres.minimizer
+        return ParetoIV(exp(αhat), exp(γhat), ε, exp(θhat))
+    end
+    @warn("Optimizer not converged, returning initial guesses")
+    return ParetoIV(αinit, γinit, ε, θinit)
 end
 
 function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
