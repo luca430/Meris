@@ -5,6 +5,7 @@
 module arXivSampler
 
 #/ Packages
+using Glob
 using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
 
@@ -70,6 +71,25 @@ function load_papers(;
         append!(df, paperdf)
     end
     return df
+end
+
+"Load *all* available papers of *all* categories"
+function load_all(
+    DIR = ARXIVDIR * "lemmatized-text/"
+)
+    df = DataFrame(sample_id=String[], component_id=String[])
+
+    for (root, dirs, files) in walkdir(DIR)
+        filenames = joinpath.(root, files)
+        for (filename, paperid) in zip(filenames, files)
+            if endswith(filename, ".txt")
+                paperdf = CSV.read(filename, DataFrame, header=["component_id"])
+                paperdf.sample_id = fill(paperid, nrow(paperdf))
+                append!(df, paperdf)
+            end
+        end        
+    end
+    return df	  
 end
 
 end # module arXivSampler

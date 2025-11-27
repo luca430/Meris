@@ -11,6 +11,8 @@ using StatsBase
 
 #~ Include distributions
 include("paretoI.jl")
+include("paretoIV.jl")
+
 include("doublepareto.jl")
 
 end # module Distributions

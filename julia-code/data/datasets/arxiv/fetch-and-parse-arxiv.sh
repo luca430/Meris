@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 # Specify no. of papers [default=10]
-NUM_PAPERS=${1:-10}
+NUM_PAPERS=${1:-100}
 # Fetch NUM_PAPERS papers from the categories defined in `categories.txt`
 # note: assumes `poetry`
 # note: if not using `poetry`, change here (e.g., `uv`, or regular `python`)
@@ -63,27 +63,3 @@ while IFS= read -r line; do
         fi
     done
 done < categories.txt
-
-# SRC_DIR="./raw-data/arx_sources/astro-ph/CO/sources"
-# TXT_DIR="./raw-data/arx_sources/astro-ph/raw-text"
-# TMP_DIR="./tmp"
-
-# mkdir -p "$TXT_DIR" "$TMP_DIR"
-# shopt -s nullglob
-
-# for f in "$SRC_DIR"/*.tar.gz "$SRC_DIR"/*.tgz; do
-#   name="$(basename "$f" .tar.gz)"; name="${name%.tgz}"
-#   final="$TXT_DIR/$name.txt"
-
-#   rm -rf "$TMP_DIR"/*; mkdir -p "$TMP_DIR"
-#   if ! tar -xzf "$f" -C "$TMP_DIR"; then
-#     echo "[warn] cannot extract $f"; continue
-#   fi
-
-#   if ! find "$TMP_DIR" -type f -name "*.tex" | grep -q .; then
-#     : > "$final"; echo "[warn] no .tex in $f"; continue
-#   fi
-#   # Use `detex` to strip all LaTeX
-#   find "$TMP_DIR" -type f -name "*.tex" | sort | xargs cat | awk '/\\begin{document}/, /\\end{document}/' {} | detex -w -n >> "$final"
-#   echo "✔ wrote $final"
-# done

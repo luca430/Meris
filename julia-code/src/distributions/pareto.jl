@@ -412,6 +412,7 @@ function logpdf(d::BoundedPareto, x::T) where {T<:Real}
 end
 
 
+
 "Log density function of the generalized Pareto distribution"
 function logpdf(d::GeneralizedPareto, x::T) where {T<:Real}
     z = (x - d.ε) / d.θ

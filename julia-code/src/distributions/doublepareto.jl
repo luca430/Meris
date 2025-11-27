@@ -27,6 +27,9 @@ DoublePareto(α::Real,β::Real,τ::Real,ε::Real; check_args::Bool=true) =
 
 params(d::DoublePareto) = (d.α, d.β, d.τ, d.ε)
 
+################
+### SAMPLING ###
+
 ########################
 ### DENSITY FUNCTION ###
 
@@ -37,7 +40,7 @@ function pdf(d::DoublePareto, x::Real)
     
     A = T / Z
     B = 1 / Z
-    return ifelse(x <= d.τ, A*x^(-1-d.β), B*x^(-1-d.α))
+    return ifelse(x < d.τ, A*x^(-1-d.β), B*x^(-1-d.α))
 end
 
 ############################
@@ -49,7 +52,7 @@ function logpdf(d::DoublePareto, x::Real)
     
     A = T / Z
     B = 1 / Z
-    return ifelse(x <= d.τ, log.(A) - (1 + d.β)*log(x), log(B) - (1 + d.α)*log(x))
+    return ifelse(x < d.τ, log.(A) - (1 + d.β)*log(x), log(B) - (1 + d.α)*log(x))
 end
 
 function logpdf(d::DoublePareto, x::Vector)
@@ -62,7 +65,7 @@ function logpdf(d::DoublePareto, x::Vector)
     return ifelse.(
         x .< d.ε, -Inf,
         ifelse.(
-            x .<= d.τ,
+            x .< d.τ,
             logA .- (1 + d.β).*log.(x),
             logB .- (1 + d.α).*log.(x)
         )
@@ -79,9 +82,26 @@ function ccdf(d::DoublePareto, x::Real)
     
     A = T / Z
     B = 1 / Z
-    return 1 - ifelse(x <= d.τ,
+    return 1 - ifelse(x < d.τ,
         (A / d.β) * (d.ε^(-d.β) - x^(-d.β)),
         (A / d.β) * (d.ε^(-d.β) - d.τ^(-d.β)) + (B / d.α)*(d.τ^(-d.α) - x^(-d.α))
+    )
+end
+
+function ccdf(d::DoublePareto, x::Vector{Re}) where {Re<:Real}
+    T = d.τ^(-1-d.α) / d.τ^(-1-d.β)
+    Z = d.τ^(-d.α) / d.α + T * (d.ε^(-d.β) - d.τ^(-d.β)) / d.β
+    
+    A = T / Z
+    B = 1 / Z
+
+    return 1 .- ifelse.(
+        x .< d.ε, 0.0,
+        ifelse.(
+            x .< d.τ,
+            (A / d.β) .* (d.ε^(-d.β) .- x.^(-d.β)),
+            (A / d.β) * (d.ε^(-d.β) - d.τ^(-d.β)) .+ (B / d.α) .* (d.τ^(-d.α) .- x.^(-d.α))
+        )
     )
 end
 
