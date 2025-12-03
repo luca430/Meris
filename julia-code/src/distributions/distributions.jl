@@ -6,7 +6,9 @@ using Distributions: @check_args
 
 using Optim
 using Random
+using RootSolvers
 using StatsBase
+using SpecialFunctions
 
 #~ Pareto distributions
 include("paretoI.jl")      #!note: special case, acts as wrapper that can be called as `Pareto`
