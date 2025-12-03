@@ -8,12 +8,13 @@ using Optim
 using Random
 using StatsBase
 
-
-#~ Include distributions
-include("paretoI.jl")
-include("paretoIV.jl")
-
+#~ Pareto distributions
+include("paretoI.jl")      #!note: special case, acts as wrapper that can be called as `Pareto`
+include("paretoIV.jl")     #!note: also includes Pareto II and III as special cases
 include("doublepareto.jl")
+
+#~ Tweedie distributions
+include("tweedie.jl")
 
 end # module Distributions
 #/ End module

@@ -34,7 +34,6 @@ include("fits/mle.jl")
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
 include("distributions/pareto.jl")
-include("distributions/tweedie.jl")
 
 include("distributions/distributions.jl")
 

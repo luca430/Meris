@@ -1,9 +1,5 @@
-#= Tweedie distributions =#
-module TweedieDistribution
-
-using Distributions
-using Random
-using SpecialFunctions
+###############
+### STRUCTS ###
 
 """
     Tweedie(p,μ,ϕ)
@@ -31,38 +27,40 @@ External links
 * [Series evaluation of Tweedie exponential dispersion model densities](https://doi.org/10.1007/s11222-005-4070-y)
 """
 struct Tweedie{T<:Real} <: ContinuousUnivariateDistribution
-    p::T
+    b::T
     μ::T
     ϕ::T
 
-    Tweedie{T}(p::T, μ::T, ϕ::T) where {T<:Real} = new{T}(p, μ, ϕ)
+    Tweedie{T}(b::T, μ::T, ϕ::T) where {T<:Real} = new{T}(b, μ, ϕ)
 end
 
-function Tweedie(p::T, μ::T, ϕ::T; check_args::Bool=true) where {T<:Real}
+function Tweedie(b::T, μ::T, ϕ::T; check_args::Bool=true) where {T<:Real}
     #~ Special cases
-    (p == 0) && (return Normal(μ, sqrt(ϕ)))
-    (p == 1) && (return Poisson(μ))
-    # (p == 2) && (return Gamma(1/ϕ,ϕ*μ))
-    # (p == 3) && (return InverseGaussian(μ,1/ϕ))
-	  Distributions.@check_args Tweedie (p, !(zero(p) < p < one(p))) (μ, μ >= zero(μ)) (ϕ, ϕ > zero(ϕ))
-    return Tweedie{T}(p, μ, ϕ)
+    (b == 0) && (return Normal(μ, sqrt(ϕ)))
+    (b == 1) && (return Poisson(μ))
+    # (b == 2) && (return Gamma(1/ϕ,ϕ*μ))
+    (b == 3) && (return InverseGaussian(μ,1/ϕ))
+	  Distributions.@check_args Tweedie (b, !(zero(b)<b<one(b))) (μ, μ>=zero(μ)) (ϕ, ϕ>zero(ϕ))
+    return Tweedie{T}(b, μ, ϕ)
 end
 
 ### Constructors
-Tweedie(p::Real; check_args::Bool=true) = Tweedie(p, one(p), one(p); check_args=check_args)
-Tweedie(p::Real, μ::Real, ϕ::Real; check_args::Bool=true) = Tweedie(promote(p, μ, ϕ)...; check_args=check_args)
+Tweedie(b::Real; check_args::Bool=true) = Tweedie(b, one(b), one(b); check_args=check_args)
+Tweedie(b::Real, μ::Real, ϕ::Real; check_args::Bool=true) = Tweedie(promote(b, μ, ϕ)...; check_args=check_args)
 
 ### Parameters
-params(d::Tweedie) = (d.p, d.μ, d.ϕ)
+params(d::Tweedie) = (d.b, d.μ, d.ϕ)
 
 ### Statistics
 mean(d::Tweedie) = d.μ
-var(d::Tweedie) = d.μ^d.p
-shape(d::Tweedie) = (2 - d.p) / (d.p - 1)
-θ(d::Tweedie) = isone(d.p) ? log(d.μ) : d.μ^(1 - d.p) / (1 - d.p)
-κ(d::Tweedie) = isone(d.p - 1) ? log(d.μ) : d.μ^(2 - d.p) / (2 - d.p)
+var(d::Tweedie) = d.μ^d.b
+shape(d::Tweedie) = (2 - d.b) / (d.b - 1)
+θ(d::Tweedie) = isone(d.b) ? log(d.μ) : d.μ^(1 - d.b) / (1 - d.b)
+κ(d::Tweedie) = isone(d.b - 1) ? log(d.μ) : d.μ^(2 - d.b) / (2 - d.b)
 
-### Evaluation
+#########################
+### DENSITY FUNCTIONS ###
+
 """
     pdf(d::Tweedie, x::Real)
 
@@ -76,23 +74,47 @@ Poisson limit at p=1.
 
 function pdf(d::Tweedie, x::Real; ε::Float64 = 1e-16, maxiterations::Int=8192)
 	  if iszero(x)
-        return exp(-(d.μ^(2 - d.p)) / (d.ϕ * (2 - d.p)))
+        return exp(-(d.μ^(2 - d.b)) / (d.ϕ * (2 - d.b)))
     end
-    if d.p > 2
+    if d.b > 2
         return _pdfpoissonstable(d::Tweedie, x::Real; ε=ε, maxiterations=maxiterations)
     end
     return _pdfpoissongamma(d::Tweedie, x::Real; ε=ε, maxiterations=maxiterations)
 end
 
 """
-Approximate the infinite series W(x;ϕ,p) = ∑ₖ Wₖ using methods from Dunn & Smyth (2005)
+Approximate the density for a Tweedie distribution evaluated at `x`
 """
 function _pdfpoissongamma(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations::Int=4096)
+    _, logWs = _seriesexpansion1b2(d, x; ε=ε, maxiterations=maxiterations)
+    #~ Compute the Wₖ
+    Wk = exp.(logWs)
+    #~ Compute the value of the pdf
+    a = sum(Wk) / x
+    return a * exp((x*θ(d) - κ(d)) / d.ϕ)
+end
+
+function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations::Int=4096)
+    ks, logVs = _seriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
+    #~ Compute the Vₖ
+    Venv = exp.(logVs)
+    signs = [(-1)^(ks[i])*sin(-ks[i]*(-shape(d))*π) for i in eachindex(ks)]
+    Vk = Venv .* signs
+    #~ Compute the value of the pdf
+    a = sum(Vk) / x / π
+    return a * exp((x*θ(d) - κ(d))/d.ϕ)
+end
+
+"""
+Approximate the infinite series W(x;ϕ,p) = ∑ₖ Wₖ using methods from Dunn & Smyth (2005)
+Specialized version for 1<b<2
+"""
+function _seriesexpansion1b2(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations::Int=4096)
     #~ Compute estimates of kmax and Wmax
-    kmax = x^(2 - d.p) / (d.ϕ * (2 - d.p))
+    kmax = x^(2 - d.b) / (d.ϕ * (2 - d.b))
     α = -shape(d)
     Wtol = log(ε)
-    z = x^(-α) * (d.p - 1)^α / (d.ϕ^(1 - α) * (2 - d.p))
+    z = x^(-α) * (d.b - 1)^α / (d.ϕ^(1 - α) * (2 - d.b))
 
     logWk(k) = k > 32 ?
                log(z^k / SpecialFunctions.gamma(-k*α) / SpecialFunctions.gamma(1+k)) :
@@ -134,20 +156,19 @@ function _pdfpoissongamma(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations:
 
     (iterations > maxiterations) && (@warn("Sum did not converge, consider raising iterations."))
 
-    #~ Compute the Wₖ
-    Wk = exp.(logWs)
-
-    #~ Compute the value of the pdf
-    a = sum(Wk) / x
-    return a * exp((x*θ(d) - κ(d)) / d.ϕ)
+    return (ks, logWs)
 end
 
-function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+"""
+Approximate the infinite series W(x;ϕ,p) = ∑ₖ Wₖ using methods from Dunn & Smyth (2005)
+Specialized version for b>2
+"""
+function _seriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
     #~ Compute estimates of kmax and Wmax
-	  kmax = x^(2 - d.p) / (d.ϕ * (d.p - 2))
+	  kmax = x^(2 - d.b) / (d.ϕ * (d.b - 2))
     α = -shape(d)
     Vtol = log(ε)
-    z = (d.p - 1)^α * d.ϕ^(α-1) / (x^α * (d.p - 2))
+    z = (d.b - 1)^α * d.ϕ^(α-1) / (x^α * (d.b - 2))
 
     #! note: Somehow the approximation does not work at all
     # logVenv(k) = k*(log(z) + (1 - α) - log(k) + α*log(α*k)) + 0.5*log(α)
@@ -186,35 +207,81 @@ function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations
     
     (iterations > maxiterations) && (@warn("Sum did not converge, consider raising iterations."))
     
-    #~ Compute the Vₖ
-    Venv = exp.(logVs)
-    signs = [(-1)^(ks[i])*sin(-ks[i]*α*π) for i in eachindex(ks)]
-    Vk = Venv .* signs
-
-    #~ Compute the value of the pdf
-    a = sum(Vk) / x / π
-    return a * exp((x*θ(d) - κ(d))/d.ϕ)
+    return (ks, logVs)
 end
+
+logpdf(d::Tweedie, x) = log(pdf(d, x))
 
 ### Sampling
 rand(rng::AbstractRNG, d::Tweedie) = nothing
 
+
 ### Fit model
 
 """
-    fit_mle(::Type{<:Tweedie}, x::AbstractArray{<:Real};
+    fit_mle(::Tweedie, x::AbstractArray{<:Real};
             ϕ0::Real = 1, maxiter::Int = 1000, tol::Real = 1e-16)
 
 Compute the maximum likelihood estimate of the [`Tweedie`](@ref) distribution given fixed
-exponent parameter `p` and mean `μ`. Note that estimation of `p` is difficult and a grid search
+exponent parameter `b` and mean `μ`. Note that estimation of `b` is difficult and a grid search
 with error minimization is easier and more stable [see, Dunn & Smyth (2005)]. Additionally, the
-mean `μ` can be easily estimated with the sample mean.
+exponent `b` can be obtained more robustly from Taylor's law itself. That is, if Taylor's law is
+not been established, then fitting a Tweedie distribution is probably not a good idea. However,
+if it is observed and the exponent `b` has been obtained, the MLE for ϕ can be obtained.
+Finally note that the mean `μ` can of course be easily estimated with the sample mean.
 """
-function _fit_mle(::Type{<:Tweedie}, x::AbstractArray{<:Real};
-    ϕ0::Real = 1, maxiter::Int = 1000, tol::Real = 1e-16)
+function fit(
+    d::Tweedie, x::AbstractArray{<:Real};
+    ϕ0::Real = 1.42,
+    maxiterations::Int = 4096,
+    ε::Real = 1e-16
+)
+    function negloglikelihood(x, params)
+        logϕ = params[begin]
+        d = Tweedie(d.b,d.μ,exp(logϕ))
+        return -sum(logpdf.(d, x))
+    end
 
-    N = 0
-    nothing
+    function grad!(g, ϕ, d, x)
+        g[1] = -_dlogpdf(Tweedie(d.b,d.μ,exp(ϕ[begin])), x; ε=ε, maxiterations=maxiterations)
+    end
+
+    gr!(g,ϕ) = grad!(g,ϕ,d,x)
+    optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), gr!, [log(ϕ0)], LBFGS())
+    if Optim.converged(optimres)
+        ϕhat = optimres.minimizer
+        return Tweedie(d.b, d.μ, exp(ϕhat))
+    end
+    @warn("Optimizer not converged, returning initial distribution")
+    return d
 end
 
+function _dlogpdf(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+    if iszero(x)
+        return d.μ^(2-d.b) / (d.ϕ^2 * (2 - d.b))
+    end
+    if d.b > 2
+        return _dseriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
+    end
+    return _dseriesexpansion1b2(d, x; ε=ε, maxiterations=maxiterations)
+end
+
+function _dseriesexpansion1b2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+	  ks, logWs = _seriesexpansion1b2(d, x; ε=ε, maxiterations=maxiterations)
+    #~ Compute the Wk
+    Wk = exp.(logWs)
+    #~ Compute the value of the derivative of the log pdf
+    W = (-1 - shape(d)) / d.ϕ
+    W = W * sum(ks .* Wk) / sum(Wk)
+    return (x * d.μ^(1-d.b)) / (d.ϕ^2 * (d.b - 1)) + d.μ^(2 - d.b) / (d.ϕ^2 * (2 - d.b)) + W
+end
+
+function _dseriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+	  ks, logVs = _seriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
+    #~ Compute the Vk
+    Vk = exp.(logVs)
+    #~ Compute the value of the derivative of the log pdf
+    V = (-1 - shape(d)) / d.ϕ
+    V = V * sum(ks .* Vk) / sum(Vk)
+    return (x * d.μ^(1-d.b)) / (d.ϕ^2 * (d.b - 1)) + d.μ^(2 - d.b) / (d.ϕ^2 * (2 - d.b)) + V
 end
