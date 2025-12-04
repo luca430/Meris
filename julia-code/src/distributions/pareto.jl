@@ -432,20 +432,24 @@ function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
         logα, logβ = params
         α = exp(logα)    #~ ensures α>0
         β = exp(logβ)    #~ ensures β>0
-        d = TemperedPareto(α, β, ε)
+        d = TemperedPareto(α,β,ε)
         return -sum(logpdf.(d, x))
     end
 
     #~ Initial estimates
     Ex = StatsBase.mean(x)
-    αinit = 1 / Ex
+    xs = sort(x)
+    idx = searchsortedfirst(xs, ε)
+    xfit = xs[idx:end]
+    S = sum(log.(xfit / ε))
+    αinit = length(x) / S
     βinit = 1 / (Ex - ε)
     params = [log(αinit), log(βinit)]
 
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
-        [log(1e-3), log(1e-3)],
-        [log(150), log(150)],
+        [-3.0, log(1/maximum(x))],
+        [3.0, 0.0],
         params,
         Fminbox(LBFGS());
         autodiff=:forward

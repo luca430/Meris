@@ -152,11 +152,10 @@ Compute the Kolmogorov–Smirnov test statistic comparing empirical data to CDF 
 # Returns
 The Kolmogorov–Smirnov statistic `√n * max|Fₙ(x) - G(x)|`.
 """
-function KolmogorovSmirnov(data, CDF; m=1e-2)
+function KolmogorovSmirnov(data, CDF)
     n = length(data)
-    supp = collect(minimum(data):m:maximum(data))
-    Fn = edf(data, supp)
-    D = abs.(Fn .- CDF.(supp))
+    _x, Fn = ecdf(data, data)
+    D = abs.(Fn .- CDF.(data))
     return sqrt(n) * maximum(D)
 end
 
@@ -210,8 +209,13 @@ That is, computed F(x,t;n) = 1/n ∑ 1(x ≤ t), with 1(⋅) the indicator funct
 """
 function ecdf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
     n = length(x)
-    F = [sum(sort(x) .<= τ) for τ in t] ./ n
-    return F
+    _x = sort(x)
+    F = [sum(_x .<= τ) for τ in sort(t)] ./ n
+
+    # mask = F .> 0
+    # F = F[mask]
+    # _x = _x[mask]
+    return _x, F
 end
 
 """
@@ -222,8 +226,13 @@ That is, computed F(x,t;n) = 1/n ∑ 1(x > t), with 1(⋅) the indicator functio
 """
 function eccdf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
     n = length(x)
-    F = [sum(sort(x) .> τ) for τ in t] ./ n
-    return F
+    _x = sort(x)
+    F = [sum(_x .> τ) for τ in sort(t)] ./ n
+    
+    # mask = F .> 0
+    # F = F[mask]
+    # _x = _x[mask]
+    return _x, F
 end
 
 end # module GOF

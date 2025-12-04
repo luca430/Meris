@@ -26,6 +26,10 @@ julia-code/Manifest.toml
 /julia-code/data/datasets/movie-transcripts/**
 /julia-code/data/datasets/bci.tree/
 /julia-code/data/datasets/gaia/
+/julia-code/data/datasets/arxiv/lemmatized_data/
+/julia-code/data/datasets/arxiv/lemmatized_noun_adj_data/
+/julia-code/data/datasets/arxiv/lemmatized_noun_data/
+/julia-code/data/datasets/books/gutemberg/corpus.csv.gz
 
 # Exclude temporary files
 tmp/
