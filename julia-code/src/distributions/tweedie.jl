@@ -38,8 +38,8 @@ function Tweedie(b::T, μ::T, ϕ::T; check_args::Bool=true) where {T<:Real}
     #~ Special cases
     (b == 0) && (return Normal(μ, sqrt(ϕ)))
     (b == 1) && (return Poisson(μ))
-    # (b == 2) && (return Gamma(1/ϕ,ϕ*μ))
-    (b == 3) && (return InverseGaussian(μ,1/ϕ))
+    (b == 2) && (return Gamma(1/ϕ,ϕ*μ))
+    # (b == 3) && (return InverseGaussian(μ,1/ϕ))
 	  Distributions.@check_args Tweedie (b, !(zero(b)<b<one(b))) (μ, μ>=zero(μ)) (ϕ, ϕ>zero(ϕ))
     return Tweedie{T}(b, μ, ϕ)
 end
@@ -95,11 +95,11 @@ function _pdfpoissongamma(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations:
 end
 
 function _pdfpoissonstable(d::Tweedie, x::Real; ε::Float64=1e-16, maxiterations::Int=4096)
-    ks, logVs = _seriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
+    ks, Vs = _seriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
     #~ Compute the Vₖ
-    Venv = exp.(logVs)
-    signs = [(-1)^(ks[i])*sin(-ks[i]*(-shape(d))*π) for i in eachindex(ks)]
-    Vk = Venv .* signs
+    angles = mod.(ks*shape(d)*π, 2π)
+    signs = [(-1)^ks[i] * sin(angles[i]) for i in eachindex(ks)]
+    Vk = Vs .* signs
     #~ Compute the value of the pdf
     a = sum(Vk) / x / π
     return a * exp((x*θ(d) - κ(d))/d.ϕ)
@@ -170,9 +170,11 @@ function _seriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiteration
     Vtol = log(ε)
     z = (d.b - 1)^α * d.ϕ^(α-1) / (x^α * (d.b - 2))
 
-    #! note: Somehow the approximation does not work at all
-    # logVenv(k) = k*(log(z) + (1 - α) - log(k) + α*log(α*k)) + 0.5*log(α)
-    logVenv(k) = log(z^k * SpecialFunctions.gamma(1 + α*k) / SpecialFunctions.gamma(1 + k))
+    #~ Define the envelope function
+    #! note: for large k, use the approximation instead, yet for small k use the true value
+    logVenv(k) = k > 32 ?
+                 k*(log(z) + (1 - α) - log(k) + α*log(α*k)) + 0.5*log(α) :
+                 log(z^k * SpecialFunctions.gamma(1 + α*k) / SpecialFunctions.gamma(1 + k))
     logVmax = logVenv(kmax)
     
     #~ As the terms Vₖ contain a (-1)ᵏ and sinusoidal terms, we work here with the "envelope"
@@ -181,7 +183,7 @@ function _seriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiteration
     ks = []
     k = floor(Int, kmax)
     push!(ks, k)
-    push!(logVs, logVenv(k))
+    push!(logVs, logVenv(k) - logVmax)
     
     #~ to the left
     iterations = 0
@@ -189,28 +191,31 @@ function _seriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiteration
         k = ks[end] - 1
         if k < 1 break end
         iterations += 1
-        if (logVmax + Vtol > logVs[end]) || (iterations > maxiterations) break end
+        if (logVs[end] < Vtol) || (iterations > maxiterations) break end
         push!(ks, k)
-        push!(logVs, logVenv(k))        
+        push!(logVs, logVenv(k) - logVmax)
     end
     #~ to the right
     k = ceil(Int, kmax)
     push!(ks, k)
-    push!(logVs, logVenv(k))
+    push!(logVs, logVenv(k) - logVmax)
     while true
         k = ks[end] + 1
         iterations += 1
-        if (logVmax + Vtol > logVs[end]) || (iterations > maxiterations) break end
+        if (logVs[end] < Vtol) || (iterations > maxiterations) break end
         push!(ks, k)
-        push!(logVs, logVenv(k))
+        push!(logVs, logVenv(k) - logVmax)
     end
     
     (iterations > maxiterations) && (@warn("Sum did not converge, consider raising iterations."))
-    
-    return (ks, logVs)
+    #~ Compute logV
+    Vs = exp.(logVs) * exp(logVmax)
+    return (ks, Vs)
 end
 
-logpdf(d::Tweedie, x) = log(pdf(d, x))
+function logpdf(d::Tweedie, x; ε::Float64=1e-18, maxiterations::Int=4096)
+    return log(pdf(d, x; ε=ε, maxiterations=maxiterations))
+end
 
 ### Sampling
 rand(rng::AbstractRNG, d::Tweedie) = nothing
@@ -232,56 +237,98 @@ Finally note that the mean `μ` can of course be easily estimated with the sampl
 """
 function fit(
     d::Tweedie, x::AbstractArray{<:Real};
-    ϕ0::Real = 1.42,
+    ϕ0::Float64 = StatsBase.var(x) / (StatsBase.mean(x)^d.b),
     maxiterations::Int = 4096,
     ε::Real = 1e-16
 )
-    function negloglikelihood(x, params)
-        logϕ = params[begin]
-        d = Tweedie(d.b,d.μ,exp(logϕ))
-        return -sum(logpdf.(d, x))
+    _f(d,x) = logpdf(d, x; ε=ε, maxiterations=maxiterations)
+    _df(d,x) = _difflogpdf(d, x; ε=ε, maxiterations=maxiterations)
+    uf = similar(x)
+    udf = similar(x)
+    function f(logϕ)
+        Tw = Tweedie(d.b, d.μ, exp(logϕ))
+        return sum(map!(Base.Fix1(_f, Tw), uf, x)) * exp(logϕ)
     end
-
-    function grad!(g, ϕ, d, x)
-        g[1] = -_dlogpdf(Tweedie(d.b,d.μ,exp(ϕ[begin])), x; ε=ε, maxiterations=maxiterations)
+    function df(logϕ)
+        Tw = Tweedie(d.b, d.μ, exp(logϕ))
+        return sum(map!(Base.Fix1(_df, Tw), udf, x)) * exp(logϕ)
     end
-
-    gr!(g,ϕ) = grad!(g,ϕ,d,x)
-    optimres = Optim.optimize(Base.Fix1(negloglikelihood, x), gr!, [log(ϕ0)], LBFGS())
-    if Optim.converged(optimres)
-        ϕhat = optimres.minimizer
-        return Tweedie(d.b, d.μ, exp(ϕhat))
-    end
-    @warn("Optimizer not converged, returning initial distribution")
-    return d
+    sol = RootSolvers.find_zero(logϕ -> (f(logϕ), df(logϕ)), NewtonsMethod{Float64}(log(ϕ0)))
+    return sol
 end
 
-function _dlogpdf(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+"[private] Derivative of the log density of a Tweedie distribution"
+function _difflogpdf(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
     if iszero(x)
         return d.μ^(2-d.b) / (d.ϕ^2 * (2 - d.b))
     end
     if d.b > 2
-        return _dseriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
+        return _difflogb2(d, x; ε=ε, maxiterations=maxiterations)
     end
-    return _dseriesexpansion1b2(d, x; ε=ε, maxiterations=maxiterations)
+    return nothing
+    # return _diffseriesexpansion1b2(d, x; ε=ε, maxiterations=maxiterations)
 end
 
-function _dseriesexpansion1b2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
-	  ks, logWs = _seriesexpansion1b2(d, x; ε=ε, maxiterations=maxiterations)
-    #~ Compute the Wk
-    Wk = exp.(logWs)
-    #~ Compute the value of the derivative of the log pdf
-    W = (-1 - shape(d)) / d.ϕ
-    W = W * sum(ks .* Wk) / sum(Wk)
-    return (x * d.μ^(1-d.b)) / (d.ϕ^2 * (d.b - 1)) + d.μ^(2 - d.b) / (d.ϕ^2 * (2 - d.b)) + W
-end
-
-function _dseriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
-	  ks, logVs = _seriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
-    #~ Compute the Vk
-    Vk = exp.(logVs)
+function _difflogb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+	  ks, Vs = _seriesexpansionb2(d, x; ε=ε, maxiterations=maxiterations)
+    #~ Compute the Vₖ
+    angles = mod.(ks*shape(d)*π, 2π)
+    signs = [(-1)^ks[i] * sin(angles[i]) for i in eachindex(ks)]
+    Vk = Vs .* signs
     #~ Compute the value of the derivative of the log pdf
     V = (-1 - shape(d)) / d.ϕ
     V = V * sum(ks .* Vk) / sum(Vk)
     return (x * d.μ^(1-d.b)) / (d.ϕ^2 * (d.b - 1)) + d.μ^(2 - d.b) / (d.ϕ^2 * (2 - d.b)) + V
+end
+
+"Series expansion for the derivative of the density w.r.t. ϕ"
+function _diffseriesexpansionb2(d::Tweedie, x::Real; ε::Float64=1e-18, maxiterations::Int=4096)
+    #~ Compute estimates of kmax and Wmax
+	  kmax = x^(2 - d.b) / (d.ϕ * (d.b - 2))
+    α = -shape(d)
+    Vtol = log(ε)
+    z = (d.b - 1)^α * d.ϕ^(α-1) / (x^α * (d.b - 2))
+
+    #~ Define the envelope function
+    #! note: for large k, use the approximation instead, yet for small k use the true value
+    logVenv(k) = k > 24 ?
+                 k*(log(z) + (1 - α) - log(k) + α*log(α*k)) + 0.5*log(α) :
+                 log(z^k * SpecialFunctions.gamma(1 + α*k) / SpecialFunctions.gamma(1 + k))
+    logkVmax = logVenv(kmax) + log(kmax)
+    
+    #~ As the terms Vₖ contain a (-1)ᵏ and sinusoidal terms, we work here with the "envelope"
+    #  At the end we will re-convert to take the alternating signs into account
+    logVs = []
+    ks = []
+    k = floor(Int, kmax)
+    k = k < 1 ? 1 : k    #~ check if kmax<1, then start at 1
+    push!(ks, k)
+    push!(logVs, logVenv(k) + log(k) - logkVmax)
+    #~ to the left
+    iterations = 0
+    while k > 1
+        k = ks[end] - 1
+        # if k < 1 break end
+        iterations += 1
+        if (logVs[end] < Vtol) || (iterations > maxiterations) break end
+        push!(ks, k)
+        push!(logVs, logVenv(k) + log(k) - logkVmax)
+    end
+    #~ to the right
+    k = ceil(Int, kmax)
+    k = (k in ks) ? k + 1 : k    #~ if kmax < 1, start at kmax+1
+    push!(ks, k)
+    push!(logVs, logVenv(k) + log(k) - logkVmax)
+    while true
+        k = ks[end] + 1
+        iterations += 1
+        if (logVs[end] < Vtol) || (iterations > maxiterations) break end
+        push!(ks, k)
+        push!(logVs, logVenv(k) + log(k) - logkVmax)
+    end
+    
+    (iterations > maxiterations) && (@warn("Sum did not converge, consider raising iterations."))
+    #~ Compute logV
+    Vs = exp.(logVs) * exp(logkVmax)
+    return (ks, Vs)
 end

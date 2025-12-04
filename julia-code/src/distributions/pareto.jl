@@ -92,19 +92,6 @@ function BoundedPareto(α::T, ε::T, εmax::T; check_args::Bool = true) where {T
     return BoundedPareto{T}(α,ε,εmax)
 end
 
-struct TemperedPareto{T<:Real} <: ContinuousUnivariateDistribution
-    α::T
-    β::T
-    ε::T
-
-    TemperedPareto{T}(α,β,ε) where {T<:Real} = new{T}(α,β,ε)
-end
-
-function TemperedPareto(α::T, β::T, ε::T; check_args::Bool=true) where {T<:Real}
-	  Distributions.@check_args TemperedPareto (α, α>zero(α)) (β, β>zero(β)) (ε, ε>zero(ε))
-    return TemperedPareto{T}(α, β, ε)
-end
-
 """
     DoublePareto
 
@@ -174,7 +161,6 @@ ParetoI(α::Real, ε::Real; check_args::Bool=true) = ParetoI(promote(α,ε)...; 
 ParetoII(α::Real, ε::Real, θ::Real; check_args::Bool=true) = ParetoII(promote(α,ε,θ)...; check_args=check_args)
 ParetoIII(γ::Real, ε::Real, θ::Real; check_args::Bool=true) = ParetoIII(promote(γ,ε,θ)...; check_args=check_args)
 ParetoIV(α::Real, γ::Real, ε::Real, θ::Real; check_args::Bool=true) = ParetoIV(promote(α,γ,ε,θ)...; check_args=check_args)
-TemperedPareto(α::Real, β::Real, ε::Real; check_args::Bool=true) = TemperedPareto(promote(α,β,ε)...; check_args=check_args)
 BoundedPareto(α::Real, ε::Real, εmax::Real; check_args::Bool=true) = BoundedPareto(promote(α,ε,εmax)...; check_args=check_args)
 GeneralizedPareto(; check_args::Bool=true) = GeneralizedPareto(promote(1.,1.,1.)...; check_args=check_args)
 GeneralizedPareto(α::Real, θ::Real, ε::Real; check_args::Bool=true) = GeneralizedPareto(promote(α,θ,ε)...; check_args=check_args)
@@ -219,13 +205,6 @@ function pdf(d::Burr, x::Real)
         return 0.0
     end
     return (d.c*d.α / d.ε) * (x / d.ε)^(d.c-1) * (1 + (x / d.ε)^d.c)^(-d.α-1)
-end
-
-function pdf(d::TemperedPareto, x::Real)
-    if x < d.ε
-        return 0.0
-    end
-	  return d.ε^d.α*exp(d.β*d.ε) * x^(-d.α-1)*exp(-d.β*x) * (d.α + d.β*x)
 end
 
 function pdf(d::BoundedPareto, x::Real)
@@ -279,13 +258,6 @@ function ccdf(d::Burr, x::Real)
     return (1 + (x / d.ε)^d.c)^(-d.α)
 end
 
-function ccdf(d::TemperedPareto, x::Real)
-	  if x < d.ε
-        return 1.0
-    end
-    return d.ε^d.α*exp(d.β*d.ε) * x^(-d.α)*exp(-d.β*x)
-end
-
 function ccdf(d::BoundedPareto, x::Real)
 	  (x < d.ε) && (return 1.0)
     (x > d.εmax) && (return 0.0)
@@ -316,32 +288,6 @@ function rand(rng::AbstractRNG, d::Burr{T}, n::Int) where {T<:Real}
 end
 function rand!(rng::AbstractRNG, d::Burr, U::AbstractArray{<:Real})
     Random.rand!(rng, U)
-    map!(Base.Fix1(xval, d), U, U)
-    return U
-end
-
-"Tempered Pareto distribution"
-function xval(d::TemperedPareto, u::Real)
-    z = log(d.ε^d.α * exp(d.β*d.ε) / (1 - u))
-    #~ Define (function, deriviative) for Newton's method
-    #! note: we do y = log(x) to avoid Newton's method to have x < 0 [see below]
-    fdf(x::Real) = (d.α*x + d.β*exp(x) - z, d.α + d.β*exp(x))
-    #~ Solve with good initial guess
-    #! note: as x>0, we need the initial guess to be "close", as otherwise the method may
-    #        overshoot into x<0 territory, so the guess must depend on `u`.
-    guess = log(max(d.ε, z / d.β))
-    sol = RootSolvers.find_zero(fdf, RootSolvers.NewtonsMethod{Float64}(guess))
-    #~ As we solved for y = log(x), exponentiate
-    return exp(sol.root)
-end
-rand(rng::AbstractRNG, d::TemperedPareto{T}) where {T<:Real} = xval(d, Random.rand(rng,float(T)))
-function rand(rng::AbstractRNG, d::TemperedPareto{T}, n::Int) where {T<:Real}
-	  U = Array{Float64}(undef, n)
-    rand!(rng, d, U)
-    return U
-end
-function rand!(rng::AbstractRNG, d::TemperedPareto{T}, U::AbstractArray{T}) where {T<:Real}
-	  Random.rand!(rng, U)
     map!(Base.Fix1(xval, d), U, U)
     return U
 end
@@ -396,11 +342,6 @@ end
 function logpdf(d::ParetoIV, x::T) where {T<:Real}
     z = (x - d.ε)/d.θ
 	  return log(d.α) + log(d.γ) - log(d.θ) + (d.γ-1)*log(z) - (1+d.α)*log(1 + z^d.γ)
-end
-
-"Log density function of the tempered Pareto distribution"
-function logpdf(d::TemperedPareto, x::T) where {T<:Real}
-    return d.α*log(d.ε) + d.β*d.ε - d.β*x - (1+d.α)*log(x) + log(d.α + d.β*x)
 end
 
 "Log density function of the bounded Pareto distribution"
@@ -476,39 +417,6 @@ function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
     end
     @warn("Optimizer not converged, returning initial guesses")
     return ParetoIV(αinit, γinit, ε, θinit)
-end
-
-function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
-    (isnothing(ε)) && (ε = 1.0)
-
-    function negloglikelihood(x, params)
-        logα, logβ = params
-        α = exp(logα)    #~ ensures α>0
-        β = exp(logβ)    #~ ensures β>0
-        d = TemperedPareto(α,β,ε)
-        return -sum(logpdf.(d, x))
-    end
-
-    #~ Initial estimates
-    Ex = StatsBase.mean(x)
-    αinit = 1 / Ex
-    βinit = 1 / (Ex - ε)
-    params = [log(αinit), log(βinit)]
-
-    optimres = Optim.optimize(
-        Base.Fix1(negloglikelihood, x),
-        [log(1e-3), log(1e-3)],
-        [log(150), log(150)],
-        params,
-        Fminbox(LBFGS());
-        autodiff=:forward
-    )
-    if Optim.converged(optimres)
-        αhat, βhat = optimres.minimizer
-        return TemperedPareto(exp(αhat), exp(βhat), ε)
-    end
-    @warn("Optimizer not converged, returning initial guesses [method of moments]")
-    return TemperedPareto(αinit, βinit, ε)
 end
 
 function fit(::Type{BoundedPareto}, x::Array{T}; ε=nothing, εmax=nothing) where {T<:Real}

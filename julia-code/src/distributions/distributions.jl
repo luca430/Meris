@@ -14,6 +14,7 @@ using SpecialFunctions
 include("paretoI.jl")      #!note: special case, acts as wrapper that can be called as `Pareto`
 include("paretoIV.jl")     #!note: also includes Pareto II and III as special cases
 include("doublepareto.jl")
+include("temperedpareto.jl")
 
 #~ Tweedie distributions
 include("tweedie.jl")
