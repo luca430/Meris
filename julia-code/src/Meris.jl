@@ -41,5 +41,6 @@ include("distributions/pareto.jl")
 include("distributions/tweedie.jl")
 include("distributions/lr_distributions.jl")
 include("distributions/zipf-heaps.jl")
+include("distributions/core.jl")
 
 end # module Meris

@@ -46,7 +46,7 @@ function compute(
     df = innerjoin(df, sdf, on=idcolname)
     df = @chain df begin
 	      @transform(:z = (:logfrequency .- :meanlog) ./ sqrt.(:varlog))
-        @select(:sample_id,$(idcolname),:z)
+        @select(:sample_id, $(idcolname),:z)
     end
     return df
 end
