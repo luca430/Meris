@@ -35,7 +35,7 @@ include("fits/double-power-law.jl")
 include("fits/mle.jl")
 #~ Utilities
 include("dataframes/afd.jl")
-# include("dataframes/taylor.jl")
+include("dataframes/taylor.jl")
 include("dataframes/datatools.jl")
 include("distributions/pareto.jl")
 include("distributions/tweedie.jl")

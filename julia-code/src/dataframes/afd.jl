@@ -12,7 +12,8 @@ function compute(
     df::DataFrame,
     idcolname::Symbol;
     maxfrequency::Float64=1e-2,
-    minoccupancy::Float64=1e-2
+    minoccupancy::Float64=1e-2,
+    occ::Bool=true
 )
 	  #~ Compute the (log) relative frequency of each of the "species"/"component"
     @transform!(df, :frequency = :counts ./ :nreads)
@@ -40,8 +41,8 @@ function compute(
         @subset(:meanfrequency .< maxfrequency)
         #~ Take the occupation number into account
         #~ this means that μ → o⋅μ and σ² → o⋅[σ²+μ²(1-o)], where o the occupancy
-        @transform(:varlog  = :occupancy .* (:varlog .+ :meanlog.^2 .* (1 .- :occupancy)))
-        @transform(:meanlog = :meanlog .* :occupancy)
+        @transform(:varlog  = occ ? :occupancy .* (:varlog .+ :meanlog.^2 .* (1 .- :occupancy)) : :varlog)
+        @transform(:meanlog = occ ? :meanlog .* :occupancy : :meanlog)
     end
     df = innerjoin(df, sdf, on=idcolname)
     df = @chain df begin

@@ -2,7 +2,8 @@ module MacroPatterns
 
 using DataFrames, JLD2
 using FHist, Statistics
-using NLsolve, SpecialFunctions
+using SpecialFunctions
+# using NLsolve
 
 using Meris
 
@@ -54,7 +55,7 @@ function compute_AFD(df; occ=0.99, bins=30, verbose=false, save=false, filename=
 end
 
 #### DEPRECTATED FUNCTIONS ####
-function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp", interpretation=1)
+function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="temp")
     """
     This function computes Taylor's Law from a given DataFrame `df`, which contains species count data across different environments. The function performs data processing, aggregation, and optionally plots and saves the results.
 
@@ -72,14 +73,14 @@ function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="
     - If `plot=true`: Returns both the dictionary `taylor_out` and the figure object `fig` for plotting the results.
     """
 
-    envs = unique(df.env)
+    classes = unique(df.class)
     taylor_out = Dict()
 
-    for env in envs
+    for class in classes
         if verbose
-            println(env)
+            println(class)
         end
-        sub = df[df.env.==env, :]
+        sub = df[df.class .== class, :]
         counts, nreads = Meris.DataTools.get_counts(sub, occ=occ)
         T, S = size(counts)
 
@@ -88,19 +89,9 @@ function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="
         end
 
         # Compute mean and var for each species
-        if interpretation == 1
-            mean_data = sum(counts ./ nreads, dims=1) ./ T
-            var_data = sum(counts .* (counts .- 1) ./ (nreads .* (nreads .- 1)), dims=1) ./ T .- (sum(counts ./ nreads, dims=1) ./ T) .^ 2
-            mask = var_data .> 0
-
-            if length(var_data[mask]) < 2
-                continue
-            end
-        elseif interpretation == 2
-            mean_data = [mean(x) for x in eachcol(counts ./ nreads)]
-            var_data = [var(x) for x in eachcol(counts ./ nreads)]
-            mask = var_data .> 0
-        end
+        mean_data = [mean(x) for x in eachcol(counts ./ nreads)]
+        var_data = [var(x) for x in eachcol(counts ./ nreads)]
+        mask = var_data .> 0
 
         # Log transform: it's easier to fit power laws in log-space
         log_mean = log.(mean_data[mask])
@@ -114,7 +105,7 @@ function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="
         xx = 0.5 .* (binedges[2:end] .+ binedges[1:end-1])
         yy = [mean(log_var[(log_mean.>=binedges[i]).&(log_mean.<binedges[i+1])]) for i in 1:length(binedges)-1]
 
-        taylor_out[env] = (xx, yy)
+        taylor_out[class] = (xx, yy)
     end
 
     if save
