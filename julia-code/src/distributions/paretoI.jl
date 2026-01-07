@@ -50,6 +50,19 @@ end
 ################
 ### SAMPLING ###
 
+function xval(d::ParetoI, u::Real)
+    return d.ε / u^(1/(1-d.α))
+end
+rand(rng::AbstractRNG, d::ParetoI{T}) where {T<:Real} = xval(d, Random.rand(rng,float(T)))
+function rand(rng::AbstractRNG, d::ParetoI{T}, n::Int) where {T<:Real}
+    return map(Base.Fix1(xval, d), Random.rand(rng,float(T),n))
+end
+function rand!(rng::AbstractRNG, d::ParetoI, U::AbstractArray{<:Real})
+    Random.rand!(rng, U)
+    map!(Base.Fix1(xval, d), U, U)
+    return U
+end
+
 ###############
 ### FITTING ###
 
