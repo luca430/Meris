@@ -23,12 +23,6 @@ function compute_latentvariables(α::Array{Float64})
     return α ./ φ
 end
 
-# function compute_latentvariables(γ::Float64; S::Int = 256)
-#     α = compute_pseudocounts(γ; S=S)
-# 	  φ = sum(α)
-#     return α ./ φ
-# end
-
 function generate_observation(N::Int, p::Array{Float64}; rng=Random.Xoshiro(42*N))
     S = length(p)
 	  n = StatsBase.sample(rng, 1:S, N; replace=true)
@@ -45,9 +39,6 @@ end
 function compute_heaps(φ::Float64, γ::Float64; nobservations::Int = 50, s::Int = 23)
     #~ Pre-compute pseudo-counts and relative frequencies
     α, p = compute_pseudocounts(φ, γ)
-    φ = sum(α)
-    # p = compute_latentvariables(α)
-    # idx = findlast(x -> x < 1, φ.*p)
     
 	  #~ Distribution observation lengths N logarithmically around φ
     Nmin = 10
