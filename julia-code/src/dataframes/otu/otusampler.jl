@@ -42,17 +42,9 @@ end
 
 ########################
 ### HELPER FUNCTIONS ###
-function filterotu(;
-    df::Union{DataFrame,Nothing}=nothing,
-    minreads = 10_000,
-    minsamples = 30,
-    minspecies = 50,
-    renamecols = true,
-    returnsummary = false,
-    DIR = OTUDIR,
-    FILENAME = "crosssecdata."
-)
-    nothing
+function rename(
+    
+    )
 end
 
 """
