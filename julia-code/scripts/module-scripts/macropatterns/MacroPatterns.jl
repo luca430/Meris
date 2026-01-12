@@ -89,8 +89,10 @@ function compute_TL(df; occ=0.99, bins=30, verbose=false, save=false, filename="
         end
 
         # Compute mean and var for each species
-        mean_data = [mean(x) for x in eachcol(counts ./ nreads)]
-        var_data = [var(x) for x in eachcol(counts ./ nreads)]
+        # mean_data = [mean(x) for x in eachcol(counts ./ nreads)]
+        # var_data = [var(x) for x in eachcol(counts ./ nreads)]
+        mean_data = [mean(x) for x in eachcol(counts)]
+        var_data = [var(x) for x in eachcol(counts)]
         mask = var_data .> 0
 
         # Log transform: it's easier to fit power laws in log-space

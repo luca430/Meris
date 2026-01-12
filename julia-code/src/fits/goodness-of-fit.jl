@@ -229,9 +229,9 @@ function eccdf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
     _x = sort(x)
     F = [sum(_x .> τ) for τ in sort(t)] ./ n
     
-    # mask = F .> 0
-    # F = F[mask]
-    # _x = _x[mask]
+    mask = F .> 0
+    F = F[mask]
+    _x = _x[mask]
     return _x, F
 end
 

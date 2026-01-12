@@ -7,6 +7,7 @@ module Taylor
 #/ Packages
 using DataFrames, DataFramesMeta
 using StatsBase
+using LsqFit
 
 #################
 ### FUNCTIONS ###
@@ -62,6 +63,47 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfreque
                 )
         end
         return sdf
+end
+
+### Alternative function to compute TL from a count matrix
+### Note: it requires to first convert a df into a count matrix
+function compute2(counts; binned=true, nbins=30)
+    
+    means = vcat(mean(counts, dims=1)...)
+    vars = vcat(var(counts, dims=1)...)
+    
+    mask = vars .> 0
+    log_means = log.(means[mask])
+    log_vars = log.(vars[mask])
+
+    if binned
+        log_means, log_vars = binned_average(log_means, log_vars; nbins=nbins)
+        log_means, log_vars = clean_log(log_means, log_vars)
+    end
+    
+    xrange = minimum(log_means):0.01:maximum(log_means)
+    model(x, p) = p[1] .+ p[2] .* x
+    fit = curve_fit(model, log_means, log_vars, [0.0, 2.0])
+
+    return (log_means, log_vars, fit)
+end
+
+
+# Helper functions
+function binned_average(x, y; nbins=20)
+    edges = range(minimum(x), stop=maximum(x), length=nbins+1)
+    bin_indices = searchsortedfirst.(Ref(edges), x) .- 1  # get bin index for each x
+    bin_indices = clamp.(bin_indices, 1, nbins)  # ensure indices are within range
+
+    y_mean = [mean(y[bin_indices .== i]) for i in 1:nbins]
+    x_center = [(edges[i] + edges[i+1])/2 for i in 1:nbins]
+
+    return x_center, y_mean
+end
+
+function clean_log(x, y)
+    mask = isfinite.(x) .& isfinite.(y)
+    return x[mask], y[mask]
 end
 
 end # module Taylor

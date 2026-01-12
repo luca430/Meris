@@ -1,36 +1,120 @@
 module DataTools
 
-using DataFrames, FHist
+using DataFrames, FHist, Distributions
 
 #################
 ### FUNCTIONS ###
-"Filter standardized DataFrame based on min_samples and min_nreads"
-function df_filter!(df::DataFrame; min_samples=1, min_nreads=1)
+"""
+Filter standardized DataFrame based on min_samples and min_nreads.
+"""
+function df_filter!(
+    df::DataFrame;
+    min_nreads::Int = 1,
+    min_species::Int = 1,
+    min_samples::Int = 1,
+)
 
-    # First remove samples with nreads < min_nreads
-    filter!(row -> row.nreads >= min_nreads, df)
+    # 1. Filter by total reads
+    filter!(row -> row.nreads ≥ min_nreads, df)
 
-    # Consider only nevironments with more than min_samples
-    select!(df, [:class, :component_id, :sample_id, :counts, :nreads])
-    grouped = groupby(df, [:class])
-    temp = combine(grouped) do sdf
-        if length(unique(sdf.sample_id)) >= min_samples
-            return sdf
-        else
-            return DataFrame(
-                class=Float64[],
-                component_id=Float64[],
-                sample_id=Float64[],
-                counts=Int64[],
-                nreads=Int64[],
-            )
+    # 2. Remove samples with too few unique species
+    g = groupby(df, [:class, :sample_id])
+    species_per_sample = combine(g) do sdf
+        (; n_species = count(>(0), sdf.counts))
+    end
+
+    good_samples = species_per_sample[
+        species_per_sample.n_species .≥ min_species,
+        [:class, :sample_id],
+    ]
+
+    df = innerjoin(df, good_samples, on = [:class, :sample_id])
+
+    # 3. Keep only classes with enough samples
+    gclass = groupby(df, :class)
+    good_classes = combine(gclass, nrow => :nsamples)
+    good_classes = good_classes.class[good_classes.nsamples .≥ min_samples]
+
+    filter!(row -> row.class in good_classes, df)
+
+    return df
+end
+
+"""
+Downsample a DataFrame by reducing counts so that each sample has the same `nreads`.
+Returns a count matrix with samples in rows and species in columns.
+""" 
+function downsample(df; N=10_000, class=nothing)
+
+    sdf = deepcopy(df)
+    if !isnothing(class)
+        sdf = df[df.class .== class, :]
+    end
+    
+    # Convert df into counts matrix
+    counts, nreads = get_counts(sdf, occ=0.0)
+    mask = nreads .>= N
+    counts = Int.(counts[mask, :])
+    nreads = Int.(nreads[mask])
+
+    nrows, ncols = size(counts)
+    ds_counts = zeros(Int, nrows, ncols)
+    
+    for q in 1:nrows
+        row = counts[q, :]
+        total = sum(row)
+        remaining = N
+        rest = total
+
+        for k in 1:ncols
+            if remaining == 0
+                break
+            end
+        
+            c = row[k]
+            if c == 0
+                continue
+            end
+        
+            # enforce feasibility
+            max_possible = min(c, remaining)
+            min_possible = max(0, remaining - (rest - c))
+        
+            if min_possible == max_possible
+                x = min_possible
+            else
+                x = rand(Hypergeometric(c, rest - c, remaining))
+            end
+        
+            ds_counts[q, k] = x
+            remaining -= x
+            rest -= c
         end
     end
 
-    good_set = unique(temp.class)
-    filter!(row -> row.class in good_set, df)
+    return ds_counts
+end
 
-    return df
+"""
+Order columns of a count matrix by occupancy level.
+Optionally, filter by occupancy level.
+"""
+function order_by_occ(counts; occ=0.0)
+    inv_occ = 1 - occ
+    # Reorder columns (species) counts from most occupied to least occupied
+    zero_counts = sum(counts .== 0, dims=1)
+    col_order = sortperm(vec(zero_counts))
+    counts = counts[:, col_order]
+    
+    # Filter counts by occupancy level
+    T, S = size(counts)
+    zero_counts = vcat(sum(counts .== 0, dims=1)...)
+    max_idx = findfirst(>(inv_occ * T), zero_counts)
+    if isnothing(max_idx)
+        max_idx = S
+    end
+    
+    return counts[:, 1:max_idx]
 end
 
 """
@@ -71,8 +155,6 @@ end
 "Extract a matrix of counts and an array of nreads from standardized DataFrame for a specific level of occupancy."
 function get_counts(df; occ=0.95)
 
-    occ = 1 - occ
-
     # Transform raw data into matrix of counts and vector of nreads
     components = unique(df.component_id)
     samples = unique(df.sample_id)
@@ -95,19 +177,7 @@ function get_counts(df; occ=0.95)
         end
     end
 
-    # Reorder columns counts from most occupied to least occupied
-    zero_counts = sum(counts .== 0, dims=1)
-    col_order = sortperm(vec(zero_counts))
-    counts = counts[:, col_order]
-
-
-    # Filter counts by only consider species with high occupancy
-    zero_counts = vec(sum(counts .== 0, dims=1))
-    max_idx = findfirst(>(occ * T), zero_counts)
-    if isnothing(max_idx)
-        max_idx = S
-    end
-    counts = counts[:, 1:max_idx]
+    counts = order_by_occ(counts; occ=occ)
 
     return counts, nreads
 end
@@ -116,9 +186,8 @@ end
 Extract a matrix of frequencies from standardized DataFrame for a specific level of occupancy.
 Optionally rescale by occupancy.
 """
-function get_frequencies(df; occ=0.9, rescale=true)
+function get_frequencies(df; occ=0.95, rescale=false)
 
-    occ = 1 - occ
     dff = copy(df)
     dff.f = dff.counts ./ dff.nreads
 
@@ -142,18 +211,7 @@ function get_frequencies(df; occ=0.9, rescale=true)
         end
     end
 
-    # Reorder columns counts from most occupied to least occupied
-    zero_counts = vec(sum(freqs .== 0, dims=1))
-    col_order = sortperm(zero_counts)
-    freqs = freqs[:, col_order]
-
-    # Filter counts by only consider species with high occupancy
-    zero_counts = vec(sum(freqs .== 0, dims=1))
-    max_idx = findfirst(>(occ * T), zero_counts)
-    if isnothing(max_idx)
-        max_idx = S
-    end
-    freqs = freqs[:, 1:max_idx]
+    freqs = order_by_occ(freqs; occ=occ)
 
     if rescale # Multiply by the occupancy
         zero_counts = sum(freqs .!= 0, dims=1)

@@ -12,6 +12,7 @@ const TREEDIR = DATADIR * "datasets/bci.tree/"
 const PATENTDIR = DATADIR * "datasets/patents/"
 const WIKIDIR = DATADIR * "datasets/wikitext-2/"
 const GAIADIR = DATADIR * "datasets/gaia/"
+const GTEXDIR = DATADIR * "datasets/genetic/"
 
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers 
@@ -24,6 +25,7 @@ include("dataframes/arxiv/arxivsampler.jl")
 include("dataframes/rfc/rfcsampler.jl")
 include("dataframes/bci.tree/bctreesampler.jl")
 include("dataframes/gaia/gaiasampler.jl")
+include("dataframes/GTEx/GTExsampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")
