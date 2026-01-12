@@ -15,6 +15,7 @@ function wikifit(; nbins=31)
     words = Meris.WikitextSampler.load_bagofwords()
     counts = values(countmap(words))
     x = counts ./ sum(counts)
+    return x
     
     #~ Compute the histogram
     logx = log10.(x)
