@@ -10,7 +10,9 @@ const CORPUSDIR = DATADIR * "datasets/corpus/"
 const RFCDIR = DATADIR * "datasets/rfc/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"
 const PATENTDIR = DATADIR * "datasets/patents/"
-const WIKIDIR = DATADIR * "datasets/wikitext-2/"
+const WIKIDIR = DATADIR * "datasets/wikitext/"
+const WIKI2DIR = DATADIR * "datasets/wikitext-2/"
+const WIKI103DIR = DATADIR * "datasets/wikitext-103/"
 const GAIADIR = DATADIR * "datasets/gaia/"
 const GTEXDIR = DATADIR * "datasets/genetic/"
 
@@ -40,7 +42,9 @@ include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
 include("dataframes/datatools.jl")
 include("distributions/pareto.jl")
-include("distributions/tweedie.jl")
+
+include("distributions/distributions.jl")
+
 include("distributions/lr_distributions.jl")
 include("distributions/zipf-heaps.jl")
 include("distributions/core.jl")

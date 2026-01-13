@@ -61,6 +61,11 @@ struct ParetoIV{T<:Real} <: ContinuousUnivariateDistribution
     ParetoIV{T}(α, γ, ε, θ) where {T<:Real} = new{T}(α, γ, ε, θ)
 end
 
+function ParetoIV(α::T, γ::T, ε::T, θ::T; check_args::Bool=true) where {T<:Real}
+    Distributions.@check_args ParetoIV (α, α > zero(α)) (γ, γ > zero(γ)) (θ, θ > zero(θ)) (ε, ε > zero(ε))
+    return ParetoIV{T}(α, γ, ε, θ)
+end
+
 struct Burr{T<:Real} <: ContinuousUnivariateDistribution
     c::T
     α::T
@@ -206,6 +211,22 @@ function pdf(d::ParetoI, x::Real)
     return d.α * d.ε^d.α * x^(-(d.α + 1))
 end
 
+function pdf(d::ParetoIV, x::Real)
+    if x < d.ε
+        return 0.0
+    end
+    z = (x - d.ε) / d.θ
+    return (d.α * d.γ / d.θ) * z^(d.γ - 1) * (1 + z^d.γ)^(-1 - d.α)
+end
+
+function pdf(d::ParetoIV, x::Real)
+    if x < d.ε
+        return 0.0
+    end
+    z = (x - d.ε) / d.θ
+    return (d.α * d.γ / d.θ) * z^(d.γ - 1) * (1 + z^d.γ)^(-1 - d.α)
+end
+
 function pdf(d::Burr, x::Real)
     if x <= 0.0
         return 0.0
@@ -255,6 +276,13 @@ function ccdf(d::ParetoI, x::Real)
         return 1.0
     end
     return (d.ε / x)^d.α
+end
+
+function ccdf(d::ParetoIV, x::Real)
+    if x < d.ε
+        return 1.0
+    end
+    return (1 + ((x - d.ε) / d.θ)^d.γ)^(-d.α)
 end
 
 function ccdf(d::Burr, x::Real)
@@ -392,6 +420,7 @@ function logpdf(d::BoundedPareto, x::T) where {T<:Real}
 end
 
 
+
 "Log density function of the generalized Pareto distribution"
 function logpdf(d::GeneralizedPareto, x::T) where {T<:Real}
     z = (x - d.ε) / d.θ
@@ -425,14 +454,15 @@ function fit(::Type{ParetoI}, x::Array{T}; ε=nothing) where {T<:Real}
     return ParetoI(αhat, ε)
 end
 
-function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
-    (isnothing(ε)) && (ε = 1.0)
+function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
+    (isnothing(ε)) && (ε = minimum(x))
 
     function negloglikelihood(x, params)
-        logα, logβ = params
-        α = exp(logα)    #~ ensures α>0
-        β = exp(logβ)    #~ ensures β>0
-        d = TemperedPareto(α,β,ε)
+        logα, logγ, logθ = params
+        α = exp(logα)
+        γ = exp(logγ)
+        θ = exp(logθ)
+        d = ParetoIV(α, γ, ε, θ)
         return -sum(logpdf.(d, x))
     end
 
@@ -448,18 +478,18 @@ function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
 
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
-        [-3.0, log(1/maximum(x))],
+        [-3.0, log(1 / maximum(x))],
         [3.0, 0.0],
         params,
-        Fminbox(LBFGS());
+        LBFGS(),
         autodiff=:forward
     )
     if Optim.converged(optimres)
-        αhat, βhat = optimres.minimizer
-        return TemperedPareto(exp(αhat), exp(βhat), ε)
+        αhat, γhat, θhat = optimres.minimizer
+        return ParetoIV(exp(αhat), exp(γhat), ε, exp(θhat))
     end
-    @warn("Optimizer not converged, returning initial guesses [method of moments]")
-    return TemperedPareto(αinit, βinit, ε)
+    @warn("Optimizer not converged, returning initial guesses")
+    return ParetoIV(αinit, γinit, ε, θinit)
 end
 
 function fit(::Type{BoundedPareto}, x::Array{T}; ε=nothing, εmax=nothing) where {T<:Real}

@@ -14,8 +14,8 @@ using StatsBase
 #/ Modules, directories
 import Meris.LEGODIR as LEGODIR
 
-#################
-### FUNCTIONS ###
+#######################
+### HEAPS FUNCTIONS ###
 "Take n samples of sizes Nv=[N1,N2,...] from the full LEGO catalogus and compute vocabulary size"
 function samplevocabsize(
     Nv::Vector{Int};

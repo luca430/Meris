@@ -15,10 +15,12 @@ function wikifit(; nbins=31)
     words = Meris.WikitextSampler.load_bagofwords()
     counts = values(countmap(words))
     x = counts ./ sum(counts)
+    return x
     
     #~ Compute the histogram
     logx = log10.(x)
     bmin, bmax = extrema(logx)
+    @info "huh" bmin bmax
     binedges = range(bmin, bmax, nbins)
     fh = FHist.Hist1D(logx; binedges=binedges, overflow=true) |> normalize
     #~ Specify all ε's (xmin's) to try
@@ -26,9 +28,9 @@ function wikifit(; nbins=31)
     
     #~ Fit some pure Pareto on the right-tail
     pfit = Meris.Powerlaw.fitPareto(x; xmins=xmins)
-    Pareto = pfit.Pareto    
+    Pareto = pfit.Pareto
     #~ Compute proper transformation of p(x) from the fit
-    xpdf = exp10.(range(log10(Pareto.ε), exp10(bmax), 256))
+    xpdf = exp10.(range(log10(Pareto.ε), bmax, 256))
     ypdf = (10 .^ log10.(xpdf)) .* Meris.ParetoDistribution.pdf.(Pareto, xpdf)
     ztail = sum(x .> Pareto.ε) / length(x)
     ypdf = ypdf .* (log(10) * ztail)
@@ -40,8 +42,8 @@ function wikifit(; nbins=31)
     bxmins = exp10.(range(bmin, log10(Pareto.ε), 64))    
     #~ Compute proper transformation of p(x) from the fit
     bpfit = Meris.Powerlaw.fitBoundedPareto(bx; xmins=bxmins, εmax=Pareto.ε)
-    bPareto = bpfit.BoundedPareto
-    xpdf = exp10.(range(log10(bPareto.ε), exp10(bPareto.εmax), 256))
+    bPareto = bpfit.BoundedPareto 
+    xpdf = exp10.(range(log10(bPareto.ε), log10(bPareto.εmax), 256))
     ypdf = (10 .^ log10.(xpdf)) .* Meris.ParetoDistribution.pdf.(bPareto, xpdf)
     ztail = sum(bx .> bPareto.ε) / length(bx)
     ypdf = ypdf .* (log(10) * ztail)
@@ -51,11 +53,13 @@ function wikifit(; nbins=31)
     gpfit = Meris.Powerlaw.fitGeneralizedPareto(x; xmins=xmins)
     gPareto = gpfit.GeneralizedPareto
     #~ Compute proper transformation of p(x) from the fit
-    xpdf = exp10.(range(log10(gPareto.ε), exp10(bmax), 256))
+    xpdf = exp10.(range(log10(gPareto.ε), bmax, 256))
     ypdf = (10 .^ log10.(xpdf)) .* Meris.ParetoDistribution.pdf.(gPareto, xpdf)
     ztail = sum(x .> gPareto.ε) / length(x)
     ypdf = ypdf .* (log(10) * ztail)
     gpareto = (; xpdf=xpdf, ypdf=ypdf)
+
+    @info "pdfs" Pareto bPareto gPareto
     
     return (; fh=fh, pareto=pareto, bpareto=bpareto, gpareto=gpareto)
 end

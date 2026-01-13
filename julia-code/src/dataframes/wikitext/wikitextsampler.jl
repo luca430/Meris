@@ -63,6 +63,7 @@ function load_bagofwords(;
     DIR = WIKIDIR
 )
     file = open(DIR*FILENAME)
+    @info "name" DIR*FILENAME
     bagofwords = readlines(file)
     close(file)
     return bagofwords
