@@ -84,11 +84,11 @@ function fit_scores(model, x, y, p)
     χ2_reduced = σ2_unbiased == 0 ? Inf : (SSE / σ2_unbiased) / (n - k) # simplifies to 1, but keep form if you have explicit sigma_i
 
     # Log-likelihood under Gaussian iid errors (using ML variance = SSE/n)
-    ll = -n/2 * (log(2π) + log(σ2_mle) + 1)
+    ll = -n / 2 * (log(2π) + log(σ2_mle) + 1)
     AIC = 2k - 2ll
     BIC = k * log(n) - 2ll
     # AICc for small samples
-    AICc = AIC + (2k*(k+1)) / (n - k - 1)
+    AICc = AIC + (2k * (k + 1)) / (n - k - 1)
 
     return Dict(
         :n => n,
@@ -228,7 +228,7 @@ function eccdf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
     n = length(x)
     _x = sort(x)
     F = [sum(_x .> τ) for τ in sort(t)] ./ n
-    
+
     mask = F .> 0
     F = F[mask]
     _x = _x[mask]

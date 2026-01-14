@@ -104,25 +104,6 @@ function load_all(
     return df
 end
 
-"Load *all* available papers of *all* categories"
-function load_all(
-    DIR=ARXIVDIR * "lemmatized-text/"
-)
-    df = DataFrame(sample_id=String[], component_id=String[])
-
-    for (root, dirs, files) in walkdir(DIR)
-        filenames = joinpath.(root, files)
-        for (filename, paperid) in zip(filenames, files)
-            if endswith(filename, ".txt")
-                paperdf = CSV.read(filename, DataFrame, header=["component_id"])
-                paperdf.sample_id = fill(paperid, nrow(paperdf))
-                append!(df, paperdf)
-            end
-        end
-    end
-    return df
-end
-
 "Load all papers, put them into a single DataFrame"
 function load(;
     DIR=ARXIVDIR * "clean_text/",

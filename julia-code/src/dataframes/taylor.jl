@@ -9,6 +9,8 @@ using DataFrames, DataFramesMeta
 using StatsBase
 using LsqFit
 
+using Meris
+
 #################
 ### FUNCTIONS ###
 ""
@@ -81,9 +83,10 @@ function compute2(counts; binned=true, nbins=30)
         log_means, log_vars = clean_log(log_means, log_vars)
     end
     
-    xrange = minimum(log_means):0.01:maximum(log_means)
-    model(x, p) = p[1] .+ p[2] .* x
-    fit = curve_fit(model, log_means, log_vars, [0.0, 2.0])
+    # model(x, p) = p[1] .+ p[2] .* x
+    # fit = curve_fit(model, log_means, log_vars, [0.0, 2.0])
+    weights = ones(length(log_means))
+    fit = Meris.StraightLine.weightedyorkfit(log_means, log_vars, weights, weights)
 
     return (log_means, log_vars, fit)
 end

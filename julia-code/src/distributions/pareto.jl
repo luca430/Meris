@@ -219,14 +219,6 @@ function pdf(d::ParetoIV, x::Real)
     return (d.α * d.γ / d.θ) * z^(d.γ - 1) * (1 + z^d.γ)^(-1 - d.α)
 end
 
-function pdf(d::ParetoIV, x::Real)
-    if x < d.ε
-        return 0.0
-    end
-    z = (x - d.ε) / d.θ
-    return (d.α * d.γ / d.θ) * z^(d.γ - 1) * (1 + z^d.γ)^(-1 - d.α)
-end
-
 function pdf(d::Burr, x::Real)
     if x <= 0.0
         return 0.0
