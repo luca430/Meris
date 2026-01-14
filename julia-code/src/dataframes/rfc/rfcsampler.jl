@@ -44,6 +44,73 @@ function collect_rfcs(;
     return df
 end
 
+"""
+    computevocabsize
+"""
+function computevocabsize(;
+    DIR = RFCDIR * "raw-text/",
+    mintokens = 512,      #~ Min. no of tokens in text to be counted
+    maxfiles = 5000,      #~ Max. no of parsed files
+    maxrows  = 1_000_000, #~ Max. no of rows allowed in DataFrame,
+    nobservationlenghts = 31
+)
+    tokendf = DataFrame(sample_id=String[], component_id=String[], nreads=Int[])
+    nfiles = 0
+    #~ Loop through all files in DIR and extract tokens
+    for FILE in readdir(DIR)
+        #~ Check if filename is `rfc[0-9].txt`
+        if occursin(r"rfc[0-9]+\.txt$", basename(FILE))
+            tokens = load_rfc(; FILENAME=FILE)
+            if length(tokens) > mintokens
+                nfiles += 1
+                nreads = length(tokens)
+                for token in tokens
+                    push!(tokendf, [splitext(FILE)[begin], token, nreads])
+                end
+            end
+        end
+        #~ Stop if max. files have been tokenized or if maximum no. of rows is reached
+        (has_reached(nfiles, maxfiles) || has_reached(nrow(tokendf), maxrows)) && (break)
+    end
+    #~ Go through each document in order and count total distinct words and vocabsize
+    # sample_ids = unique(bagofwords[!,:sample_id])
+    bagofwords = shuffle(tokendf.component_id)
+    heapsdf = DataFrame(observationlength=Int[], vocabularysize=Int[])
+    vocabulary = String[]
+    dictionary = Set{String}()
+
+    Nmin = 10
+    Nmax = nrow(tokendf)
+    logN = exp10.(range(log10(Nmin), log10(Nmax), nobservationlenghts))
+    logN = vcat([1], round.(Int, logN))
+    for i in eachindex(logN[begin:end-1])
+        #~ Gather trees and add to vocabulary and dictionary
+        for tree in view(bagofwords, logN[i]:logN[i+1])
+            if !(tree in dictionary)
+                push!(vocabulary, tree)
+                push!(dictionary, tree)
+            end
+        end
+        push!(heapsdf, [logN[i+1], length(vocabulary)])
+    end
+    return heapsdf
+    
+    gdf = @groupby(bagofwords, :sample_id)
+    for documentdf in gdf
+        for word in documentdf.component_id
+            if !(word in dictionary)
+                push!(vocabulary, word)
+                push!(dictionary, word)
+            end
+        end
+        _observationlength = isempty(heapsdf.observationlength) ?
+                             length(documentdf.component_id) :
+                             last(heapsdf.observationlength) + length(documentdf.component_id)
+        push!(heapsdf, [_observationlength, length(vocabulary)])
+    end
+    return heapsdf
+end
+
 ########################
 ### HELPER FUNCTIONS ###
 "Load RFC document"

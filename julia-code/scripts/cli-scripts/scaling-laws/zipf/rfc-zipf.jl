@@ -1,6 +1,6 @@
 #= Simple script to check Zipf's law in LEGO sets =#
 #/ Packages
-using CSV, DataFrames, DataFramesMeta
+using DataFrames, DataFramesMeta
 using StatsBase
 using JLD2
 

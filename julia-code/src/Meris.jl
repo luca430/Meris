@@ -23,7 +23,7 @@ include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
 include("dataframes/arxiv/arxivsampler.jl")
 include("dataframes/rfc/rfcsampler.jl")
-include("dataframes/bci.tree/bctreesampler.jl")
+include("dataframes/bci.tree/bcitreesampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")

@@ -22,7 +22,7 @@ const CSVTREEDIR = TREEDIR * "csv/"
 
 #################
 ### FUNCTIONS ###
-function load_treedata(; filename=nothing, mincount=1, joinquadrats=true)
+function load_treedata(; filename=nothing, mincount=1, joinquadrats=true, raw=false)
     treedf = DataFrame()
     census_ids = String[]
     filenames = isnothing(filename) ? readdir(RTREEDIR) : [filename]
@@ -54,6 +54,15 @@ function load_treedata(; filename=nothing, mincount=1, joinquadrats=true)
         @subset(:alive .== true)
     end
     treedf = innerjoin(treedf, alivedf, on=:treeID)
+    if raw
+        __treedf = @chain treedf begin
+            @subset(:census_id .== last(sort(unique(:census_id))))
+            @select(:treeID, :census_id, :sp, :quadrat)
+            @rename(:sample_id = :quadrat, :component_id = :sp)
+            @select(:sample_id, :component_id)
+        end
+        return __treedf
+    end
     #~ Allocate
     countdf = DataFrame(sample_id=String[], component_id=String[], counts=Int[], nreads=Int[])
     #~ Per plot [quadrat], count the no. of trees of each species
@@ -67,6 +76,39 @@ function load_treedata(; filename=nothing, mincount=1, joinquadrats=true)
         end
     end    
     return countdf
+end
+
+"""
+    computevocabularysize
+"""
+function computevocabularysize(;
+    filename=nothing,
+    joinquadrats=false,
+    nobservationlenghts=30
+)
+    treedf = load_treedata(; joinquadrats=false, raw=true)
+    #~ Randomly permute and count vocabulary size for growing observation lengths
+    bagoftrees = shuffle(treedf.component_id)
+    heapsdf = DataFrame(observationlength=Int[], vocabularysize=Int[])
+    #~ Determine observation lengths
+    Nmin = 10
+    Nmax = length(bagoftrees)
+    logN = exp10.(range(log10(Nmin), log10(Nmax), nobservationlenghts))
+    logN = vcat([1], round.(Int, logN))
+    
+    vocabulary = String[]
+    dictionary = Set{String}()
+    for i in eachindex(logN[begin:end-1])
+        #~ Gather trees and add to vocabulary and dictionary
+        for tree in view(bagoftrees, logN[i]:logN[i+1])
+            if !(tree in dictionary)
+                push!(vocabulary, tree)
+                push!(dictionary, tree)
+            end
+        end
+        push!(heapsdf, [logN[i+1], length(vocabulary)])
+    end
+    return heapsdf
 end
 
 ########################
