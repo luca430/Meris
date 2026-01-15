@@ -95,6 +95,66 @@ function plot_zipf(;
     return fig
 end
 
+function plot_syntheticzipf(;
+    ZIPFDIR = DATADIR * "zipf/synthetic/",
+    filename = "synthetic-zipf.jld2",
+    savefig = false,
+    figname = nothing
+)
+    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
+    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
+    set_theme!(__theme)
+    colors = MakiePublication.COLORS[begin]
+
+    width = .7 * 246
+    height = width
+    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    
+    #/ Plot Zipf's law for synthetic data
+    ax = Axis(
+        fig[1,1], aspect=1,
+        xlabel=L"\textrm{rank}\;\log_{10}\,r", xlabelsize=11,
+        ylabel=L"\textrm{frequency}\;\log_{10}\,\nu", ylabelsize=11,
+        limits=(0,5,-8,-1)
+    )
+
+    #~ Load data
+    db = JLD2.load(ZIPFDIR*filename)
+    logr = log10.(db["ranks"])
+    logf = log10.(db["freqs"])
+    params = db["params"]
+    #/ Scatter synthetic data
+    scatter!(
+        ax, logr, logf,
+        color=:white, strokecolor=:black, markersize=4, strokewidth=.4
+    )
+    #~ Straight line, power law
+    xmin, xmax, ymin, ymax = ax.limits[]
+    xs = 2.0
+    ys = -2.2
+    ζ = params.γ/(1-params.γ)
+    lines!(
+        ax, [xs,xmax], [ys,ys+ζ*(ymin-ys)],
+        color=:black, linestyle=(:dash,:dense), linewidth=.8
+    )
+    #/ Add clarifying labels
+    #~ compute rotation in "screen space"
+    Δx_data, Δy_data = ax.finallimits[].widths
+    Δx_screen, Δy_screen = ax.scene.viewport[].widths
+    Δx_data = xmax - xs
+    Δy_data = ζ * (ymin - ys)
+    dx = Δx_screen  / (xmax - xmin)
+    dy = Δy_screen / (ymax - ymin)
+    angle = atan(Δy_data * dy, Δx_data * dx)    
+    text!(3, ymax - ζ*3, rotation=angle, text=L"\propto r^{-\zeta}",
+        align=(:left,:bottom), fontsize=10
+    )
+
+    #~ Save
+    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
+    return fig
+end
+
 ########################
 ### HELPER FUNCTIONS ###
 function _plot_zipf(

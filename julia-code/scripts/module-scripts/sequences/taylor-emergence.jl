@@ -33,7 +33,7 @@ function observe(;
 )
     #~ Generate random propensities
     TPareto = MDist.TemperedPareto(γ, 1/φ, ε)
-    w = MDist.rand(rng, TPareto, S)
+    θ = MDist.rand(rng, TPareto, S)
     #~ Specify noise distribution
     Pξ = Distributions.Gamma()
 
@@ -42,7 +42,7 @@ function observe(;
     
     for k in 1:K
         ξ = rand(rng, Pξ, S)
-        p = w .* ξ / sum(w .* ξ)
+        p = θ .* ξ / sum(θ .* ξ)
         # n = StatsBase.sample(rng, 1:S, Weights(p), N; replace=true)
         x[k,:] .+= rand.(rng, Poisson.(N.*p))
         

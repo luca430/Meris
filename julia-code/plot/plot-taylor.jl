@@ -213,7 +213,7 @@ function plot_taylor(;
     return fig
 end
 
-function plot_synthetictaylor(
+function plot_synthetictaylor(;
     TLDIR = DATADIR * "taylor/synthetic/",
     filename = "synthetic-taylor.jld2",
     savefig = false,
@@ -224,15 +224,15 @@ function plot_synthetictaylor(
     set_theme!(__theme)
     colors = MakiePublication.COLORS[begin]
 
-    width = .85 * 246
+    width = .7 * 246
     height = width
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
     
     #/ Plot Taylor's law for synthetic data
     ax = Axis(
         fig[1,1], aspect=1,
-        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
+        xlabel=L"\textrm{sample mean}\;\log_{10}\,m", xlabelsize=11,
+        ylabel=L"\textrm{sample variance}\;\log_{10}\,s^2", ylabelsize=11,
         limits=(-4,4,-4,6)
     )
 
@@ -266,16 +266,16 @@ function plot_synthetictaylor(
     sx = 1 / (xmax - xmin)
     sy = 1 / (ymax - ymin)
     angle = atan(sy, sx)
-    text!(2, 2+a1, rotation=angle, text=L"b=1", align=(:left,:top), fontsize=11)
+    text!(2, 2+a1, rotation=angle, text=L"b=1", align=(:left,:top), fontsize=10)
     sx = 1 / (xmax - xmin)
     sy = 2 / (ymax - ymin)
     angle = atan(sy, sx)
-    text!(-1.25, -1.25*2+a2, rotation=angle, text=L"b=2", align=(:left,:top), fontsize=11)
+    text!(-1.25, -1.25*2+a2, rotation=angle, text=L"b=2", align=(:left,:top), fontsize=10)
 
     vlines!(ax, [0.], color=:gray, linestyle=:dash, linewidth=.5)
-    text!(0., ymax, rotation=π/2, text=L"Np=1", align=(:right,:bottom), color=:gray, fontsize=10)
+    text!(0., ymax, rotation=π/2, text=L"Np=1", align=(:right,:bottom), color=:gray, fontsize=9)
     
-
+    #~ Save
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
