@@ -12,6 +12,8 @@ using JLD2
 #/ Modules
 using Meris
 
+const ICONDIR = normpath(joinpath(@__DIR__, "..", "icons/"))
+
 #################
 ### FUNCTIONS ###
 function plot_taylor(;
@@ -52,6 +54,8 @@ function plot_taylor(;
     lines!(axrfc, xtl .- minimum(m) .- 0.5, 2 .* (xtl .- minimum(m)), linewidth=1, color=:black, linestyle=(:dash,:dense))
     lines!(axrfc, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
     # axislegend(axrfc, position=:rb)
+    push!(icons, ICONDIR*"documents.png")
+    push!(axes, (; ax=axrfc, pos=[1,3]))
 
     # #/ OTU
     axotu = Axis(
@@ -73,6 +77,8 @@ function plot_taylor(;
     lines!(axotu, xtl .- minimum(m) .- 0.5, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
     lines!(axotu, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
     # axislegend(axotu, position=:rb)
+    push!(icons, ICONDIR*"bacteria.png")
+    push!(axes, (; ax=axotu, pos=[1,4]))
 
     # #/ Lego
     axlego = Axis(
@@ -94,6 +100,8 @@ function plot_taylor(;
     lines!(axlego, xtl .- minimum(m) .- 0.3, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
     lines!(axlego, xtl .- minimum(m) .- 0.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
     # axislegend(axlego, position=:rb)
+    push!(icons, ICONDIR*"lego.png")
+    push!(axes, (; ax=axlego, pos=[2,3]))
 
     # #/ GTEx
     axgtex = Axis(
@@ -115,6 +123,8 @@ function plot_taylor(;
     lines!(axgtex, xtl .- minimum(m) .- 1.3, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
     lines!(axgtex, xtl .- minimum(m) .- 1.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
     # axislegend(axgtex, position=:rb)
+    push!(icons, ICONDIR*"gene.png")
+    push!(axes, (; ax=axgtex, pos=[2,4]))
 
     # Plot high occupancy TL
     axtl = Axis(
@@ -123,6 +133,21 @@ function plot_taylor(;
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
         limits=(-2, 2, -4, 4)
     )
+
+    for (i, ax) in enumerate(axes)
+        (xmin, xmax, ymin, ymax) = ax.ax.limits[]
+        lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
+        axicon = Axis(
+            fig[ax.pos...],
+            width=Relative(0.22), height=Relative(0.22),
+            halign=0.072, valign=0.95
+        )
+        icon = FileIO.load(icons[i])
+        icon_small = imresize(icon, (256, 256))
+        image!(axicon, rotr90(icon))
+        hidedecorations!(axicon)
+        hidespines!(axicon)
+    end
 
     m, s = log10.(gtex_df[gtex_df.occupancy .> 0.99999, :][!, :omeanfrequency]), log10.(gtex_df[gtex_df.occupancy .> 0.99999, :][!, :ovarfrequency])
     m .-= mean(m)
