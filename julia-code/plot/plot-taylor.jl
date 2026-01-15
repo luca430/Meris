@@ -6,17 +6,20 @@ using CairoMakie
 using MakiePublication
 using LaTeXStrings
 
+using FileIO, ImageTransformations
 using StatsBase
 using JLD2
 
 #/ Modules
 import Meris.DATADIR as DATADIR
+import Meris.FIGUREDIR as FIGDIR
 import Meris.StraightLine as SL
 
 #################
 ### FUNCTIONS ###
 function plot_taylor(;
     TLDIR = DATADIR * "taylor/",
+    ICONDIR = FIGDIR * "icons/",
     rescale = false,
     savefig = false,
     figname = true
@@ -31,7 +34,7 @@ function plot_taylor(;
     height = width
     fig = Figure(; size=(width,height/2), figure_padding=(2,4,2,14))
 
-    labels = []
+    icons = []
     axes = []
     
     #/ [...]
@@ -42,7 +45,7 @@ function plot_taylor(;
         fig[1,3],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-6,-1,-10,-2)
+        limits=(-8,-1,-14,0)
     )
     rfcdf = JLD2.load(TLDIR*"rfc/rfc-taylor.jld2")
     m, s = rfcdf["omean"], rfcdf["ovar"]
@@ -50,8 +53,9 @@ function plot_taylor(;
         axrfc, log10.(m), log10.(s),
         color=:white, strokecolor=colors[1], markersize=4, strokewidth=.4
     )
-    push!(labels, L"\textrm{RFC}")
-    push!(axes, axrfc)
+    # push!(labels, L"\textrm{RFC}")
+    push!(icons, ICONDIR*"documents.png")
+    push!(axes, (; ax=axrfc, pos=[1,3]))
     
     #/ OTU
     axotu = Axis(
@@ -66,15 +70,17 @@ function plot_taylor(;
         axotu, log10.(m), log10.(s),
         color=:white, strokecolor=colors[2], markersize=4, strokewidth=.4
     )
-    push!(labels, L"\textrm{OTU}")
-    push!(axes, axotu)
+    # push!(labels, L"\textrm{OTU}")
+    push!(icons, ICONDIR*"bacteria.png")
+    push!(axes, (; ax=axotu, pos=[1,4]))
+    # return axotu
 
     #/ Lego
     axlego = Axis(
         fig[2,3],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-6,-1,-10,0)
+        limits=(-8,-2,-12,0)
     )
     legodf = JLD2.load(TLDIR*"lego/lego-taylor.jld2")
     m, s = legodf["omean"], legodf["ovar"]
@@ -82,8 +88,9 @@ function plot_taylor(;
         axlego, log10.(m), log10.(s),
         color=:white, strokecolor=colors[3], markersize=4, strokewidth=.4
     )
-    push!(labels, L"\textrm{Lego}")
-    push!(axes, axlego)
+    # push!(labels, L"\textrm{Lego}")
+    push!(icons, ICONDIR*"lego.png")
+    push!(axes, (; ax=axlego, pos=[2,3]))
 
     #/ Genes
     axgtex = Axis(
@@ -98,14 +105,29 @@ function plot_taylor(;
         axgtex, log10.(m), log10.(s),
         color=:white, strokecolor=colors[4], markersize=4, strokewidth=.4
     )
-    push!(labels, L"\textrm{GTEx}")
-    push!(axes, axgtex)
+    push!(icons, ICONDIR*"gene.png")
+    push!(axes, (; ax=axgtex, pos=[2,4]))
 
-    for (i,ax) in enumerate(axes)
-        (xmin, xmax, ymin, ymax) = ax.limits[]
-        lines!(ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
-        text!(ax, 0.03,0.97,text=labels[i], space=:relative, fontsize=11, align=(:left,:top))
+    # for (i,ax) in enumerate(axes)
+
+    #     text!(ax, 0.03,0.97,text=labels[i], space=:relative, fontsize=11, align=(:left,:top))
+    # end
+
+    for (i, ax) in enumerate(axes)
+        (xmin, xmax, ymin, ymax) = ax.ax.limits[]
+        lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
+        axicon = Axis(
+            fig[ax.pos...],
+            width=Relative(0.22), height=Relative(0.22),
+            halign=0.072, valign=0.95
+        )
+        icon = FileIO.load(icons[i])
+        icon_small = imresize(icon, (256, 256))
+        image!(axicon, rotr90(icon))
+        hidedecorations!(axicon)
+        hidespines!(axicon)
     end
+    
     return fig
     
     

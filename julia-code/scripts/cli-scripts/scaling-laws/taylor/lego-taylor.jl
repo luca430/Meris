@@ -17,7 +17,7 @@ mindistinctpieces = 50
 #/ Load data
 legodf = Lego.filterlegos(; minquantity=minquantity, mindistinctpieces=mindistinctpieces)
 nsamples = length(unique(legodf[!,:sample_id]))
-tdf = Taylor.compute(legodf, :component_id; minoccupancy=32/nsamples)
+tdf = Taylor.compute(legodf, :component_id; minoccupancy=0.)
 
 #/ Save
 filename = "lego-taylor.jld2"

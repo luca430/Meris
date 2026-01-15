@@ -15,6 +15,8 @@ const WIKIDIR   = DATADIR * "datasets/wikitext/"
 const WIKI2DIR  = DATADIR * "datasets/wikitext-2/"
 const WIKI103DIR= DATADIR * "datasets/wikitext-103/"
 
+const FIGUREDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
+
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers 
 include("dataframes/books/booksampler.jl")

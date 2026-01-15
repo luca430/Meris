@@ -18,7 +18,7 @@ maxrows  = 1_000_000 #~ Max. no of rows allowed in DataFrame
 #/ Load data
 rfcdf = RFC.collect_rfcs(; mintokens=mintokens, maxfiles=maxfiles, maxrows=maxrows)
 nsamples = length(unique(rfcdf[!,:sample_id]))
-tdf = Taylor.compute(rfcdf, :component_id; minoccupancy=32/nsamples)
+tdf = Taylor.compute(rfcdf, :component_id; minoccupancy=0.0)
 
 #/ Save
 filename = "rfc-taylor.jld2"
