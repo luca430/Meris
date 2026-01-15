@@ -25,7 +25,7 @@ include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
 include("dataframes/arxiv/arxivsampler.jl")
 include("dataframes/rfc/rfcsampler.jl")
-include("dataframes/bci.tree/bctreesampler.jl")
+include("dataframes/bci.tree/bcitreesampler.jl")
 include("dataframes/gaia/gaiasampler.jl")
 include("dataframes/GTEx/GTExsampler.jl")
 #~ Processes
