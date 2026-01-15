@@ -22,12 +22,13 @@ Observe system by multinomial sampling out of S components, each with prob. `p[i
 `Θ = sum(θ)`, and `θ ~ TemperedPareto(γ,1/φ)` with `φ` the characteristic scale of the system.
 , when `N≫φ` 
 """
-function observe(
-    N::Int, K::Int;
+function observe(;
+    N::Int=10^4,
+    K::Int=10^3,
     γ::Float64=0.5,
-    φ::Float64=1e5,
     ε::Float64=1e0,
     S::Int=10^5,
+    φ::Float64=1e2*S,
     rng=Random.Xoshiro(42*N)
 )
     #~ Generate random propensities
