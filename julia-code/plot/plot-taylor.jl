@@ -5,6 +5,7 @@ module TaylorPlotter
 using CairoMakie
 using MakiePublication
 using LaTeXStrings
+using FileIO, ImageTransformations
 
 using StatsBase
 using JLD2
@@ -33,6 +34,8 @@ function plot_taylor(;
 
     #/ Plot
     xtl = -10:0.1:10.0
+    icons = []
+    axes = []
 
     #/ RFC
     axrfc = Axis(
@@ -78,7 +81,7 @@ function plot_taylor(;
     lines!(axotu, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
     # axislegend(axotu, position=:rb)
     push!(icons, ICONDIR*"bacteria.png")
-    push!(axes, (; ax=axotu, pos=[1,4]))
+    push!(axes, (; ax=axotu, pos=[2,3]))
 
     # #/ Lego
     axlego = Axis(
@@ -101,7 +104,7 @@ function plot_taylor(;
     lines!(axlego, xtl .- minimum(m) .- 0.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
     # axislegend(axlego, position=:rb)
     push!(icons, ICONDIR*"lego.png")
-    push!(axes, (; ax=axlego, pos=[2,3]))
+    push!(axes, (; ax=axlego, pos=[1,4]))
 
     # #/ GTEx
     axgtex = Axis(
@@ -136,7 +139,7 @@ function plot_taylor(;
 
     for (i, ax) in enumerate(axes)
         (xmin, xmax, ymin, ymax) = ax.ax.limits[]
-        lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
+        # lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
         axicon = Axis(
             fig[ax.pos...],
             width=Relative(0.22), height=Relative(0.22),
