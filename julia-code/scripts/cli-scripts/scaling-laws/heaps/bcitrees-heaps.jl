@@ -8,12 +8,8 @@ using Meris
 DATADIR = Meris.DATADIR * "heaps/bci.tree/"
 mkpath(DATADIR)
 
-#~ Specify variables
-save = true
-
+#/ Load vocabulary data
 bcitreedf = Meris.BCITreeSampler.computevocabularysize()
-#~ Save
-if save
-    filename = "bci.tree-heaps.jld2"
-    jldsave(DATADIR*filename; N=bcitreedf.observationlength, V=bcitreedf.vocabularysize)
-end
+#/ Save
+filename = "bci.tree-heaps.jld2"
+jldsave(DATADIR*filename; N=bcitreedf.observationlength, V=bcitreedf.vocabularysize)

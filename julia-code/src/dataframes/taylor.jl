@@ -11,7 +11,7 @@ using StatsBase
 #################
 ### FUNCTIONS ###
 "" 
-function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfrequency::Float64=1e-2)
+function compute(df::DataFrame, idcolname; minoccupancy::Float64=0., maxfrequency::Float64=1.)
     #~ Compute the (log) relative frequency of each of the "species"
     @transform!(df, :frequency = :counts ./ :nreads)
     @transform!(df, :logfrequency = log.(:frequency))
@@ -38,24 +38,22 @@ function compute(df::DataFrame, idcolname; minoccupancy::Float64=1e-2, maxfreque
         #~ Omit those with an occupancy below a specified threshold
         #~ note: if the threshold is zero, then omit hapax legomenas
         #        (those that occur only a single time within the entire document)
-        @subset(:occupancy .> minoccupancy, :s .> 0.)
+        @subset(:occupancy .>= minoccupancy, :s .> 0.)
         #~ Select only those with a rel. frequency below the given maximum, and positive variance
         #  note: The first filters out those where, roughly, a Poisson distribution approximates
         #        a Binomial distribution well.
         @subset(:m .< maxfrequency)
         #~ Take the occupation number into account
         #~ this means that μ → o⋅μ and σ² → o⋅[σ²+μ²(1-o)], where o the occupancy
-        # @transform(:omeanfrequency = :meanfrequency .* :occupancy)
-        # @transform(:ovarfrequency = :varfrequency .+ :meanfrequency.^2 .* (1 .- :occupancy))
-        # @transform(:ovarfrequency = :varfrequency .* :occupancy)
-        # @transform(:meanlog = :meanlog .* :occupancy)
-        # @transform(:varlog = :varlog .+ :meanlog.^2 .* (1 .- :occupancy))
-        # @transform(:varlog = :varlog .* :occupancy)
+        #! note that here σ²=s
+        @transform(:omeanfrequency = :m .* :occupancy)
+        @transform(:ovarfrequency = :occupancy .* (:s .+ :m.^2 .* (1 .- :occupancy)))
         #~ Perform a log-transform on the mean-frequency (needed for lognormal)
         @rename(:meanfrequency = :m, :varfrequency = :s)
         @select(
-            :component_id,
+            ($idcolname),
             :meanfrequency, :varfrequency,
+            :omeanfrequency, :ovarfrequency,
             :noccurrences, :occupancy,
             :varm, :vars,
             :errorcov, :errorcorr
