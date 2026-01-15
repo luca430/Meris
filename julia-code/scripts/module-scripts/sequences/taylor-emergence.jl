@@ -98,7 +98,7 @@ end
 
 #############################
 ### DATA HELPER FUNCTIONS ###
-function save_taylor(result, filename; DIR=TLDIR)
+function save_taylor(result; filename="synthetic-taylor.jld2", DIR=TLDIR)
     mkpath(DIR)
     jldsave(DIR*filename, n=result.x, mean=result.μx, var=result.σx, params=result.params)
 end

@@ -108,11 +108,7 @@ function plot_taylor(;
     push!(icons, ICONDIR*"gene.png")
     push!(axes, (; ax=axgtex, pos=[2,4]))
 
-    # for (i,ax) in enumerate(axes)
-
-    #     text!(ax, 0.03,0.97,text=labels[i], space=:relative, fontsize=11, align=(:left,:top))
-    # end
-
+    #/ Plot lines and icons
     for (i, ax) in enumerate(axes)
         (xmin, xmax, ymin, ymax) = ax.ax.limits[]
         lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
@@ -217,166 +213,72 @@ function plot_taylor(;
     return fig
 end
 
-"Plot AFD of component systems of a very specific 'type'"
-function plot_typedafd(;
-    DIRECTORY = "macro/afd/lego/",
-    LABELS = [L"\textrm{Star Wars}"],
-    nbins::Int = 27,
-    DIR = DATADIR,
-    BASEFILENAME = "themed-z-values.csv",
-    # BASETLFILENAME = "themed-tl-stats.csv",
+function plot_synthetictaylor(
+    TLDIR = DATADIR * "taylor/synthetic/",
+    filename = "synthetic-taylor.jld2",
     savefig = false,
-    figname = true
+    figname = nothing
 )
     sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
     set_theme!(__theme)
-
     colors = MakiePublication.COLORS[begin]
 
-    width = .95 * 246
-    height = 3*width / 4.67
+    width = .85 * 246
+    height = width
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
-    ax = Axis(
-        fig[1,1],
-        xlabel=L"z", xlabelsize=12,
-        ylabel=L"p(z)", ylabelsize=12,
-        yscale=log10,
-        limits=(-25.0,5.0,1e-6,1e0)
-    )
     
-    #/ Load data
-    zdf = CSV.read(DIR*DIRECTORY*BASEFILENAME, DataFrame)
-    z = zdf[!,:z]
-    zmin, zmax = extrema(zdf[!,:z])
-    binedges = range(zmin, zmax, nbins)
-    fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
-    #~ Scatter
-    s = scatter!(ax, bincenters(fh), fh.bincounts, label=LABELS[begin], markersize=5)
-    #~ do something stupid
-    gamma = Distributions.fit_mle(Gamma, exp.(z))
-    zgamma = -25.0:0.01:3.0
-    gammaplot = exp.(zgamma) .* Distributions.pdf.(gamma, exp.(zgamma))
-    lines!(ax, zgamma, gammaplot, color=:black, linestyle=(:dash,:dense), linewidth=1.)
-
-    axislegend(
-        ax,
-        position=:lt, labelsize=9, patchsize=(8,20),
-        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
+    #/ Plot Taylor's law for synthetic data
+    ax = Axis(
+        fig[1,1], aspect=1,
+        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
+        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
+        limits=(-4,4,-4,6)
     )
+
+    #~ Load data
+    db = JLD2.load(TLDIR*filename)
+    logm = log10.(filter(x->x>0, db["mean"]))
+    logs = log10.(filter(x->x>0, db["var"]))
+
+    #/ Scatter synthetic data
+    scatter!(
+        ax, logm, logs,
+        color=:white, strokecolor=:black, markersize=4, strokewidth=.4
+    )
+    #/ Lines
+    (xmin, xmax, ymin, ymax) = ax.limits[]
+    #~ Determine and plot line with b=1
+    a1 = minimum(logs) - minimum(logm)
+    line1 = lines!(
+        ax, [xmin, xmax], [ymin-a1, ymin + (xmax-xmin)],
+        linewidth=.6, linestyle=:dot, color=:black
+    )
+    #~ Determine and plot line with b=2
+    a2 = maximum(logs) - 2*maximum(logm)
+    line2 = lines!(
+        ax, [(ymin-a2)/2, (ymax-a2)/2], [ymin, ymax],
+        linewidth=.6, linestyle=:dot, color=:black
+    )
+
+    #/ Add clarifying labels
+    #~ compute rotation in "screen space"
+    sx = 1 / (xmax - xmin)
+    sy = 1 / (ymax - ymin)
+    angle = atan(sy, sx)
+    text!(2, 2+a1, rotation=angle, text=L"b=1", align=(:left,:top), fontsize=11)
+    sx = 1 / (xmax - xmin)
+    sy = 2 / (ymax - ymin)
+    angle = atan(sy, sx)
+    text!(-1.25, -1.25*2+a2, rotation=angle, text=L"b=2", align=(:left,:top), fontsize=11)
+
+    vlines!(ax, [0.], color=:gray, linestyle=:dash, linewidth=.5)
+    text!(0., ymax, rotation=π/2, text=L"Np=1", align=(:right,:bottom), color=:gray, fontsize=10)
+    
+
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
-
-
-"Plot AFD of the Brown corpus"
-function plot_brownafd(;
-    methods = ["noreplace", "replace", "multinomial", "mvhypgeom"],
-    nbins::Int = 19,
-    DIR = DATADIR * "macro/afd/",
-    FILENAME = "Nfixed_zvalues.csv",
-    TLFILENAME = "Nfixed_stats.csv",
-    savefig = false,
-    figname = true
-)
-    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
-    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
-    set_theme!(__theme)
-
-    colors = MakiePublication.COLORS[begin]
-
-    width = .95 * 246
-    height = 3*width / 4.67
-    fig = Figure(; size=(1.5*width,height), figure_padding=(2,4,2,14))
-    ax = Axis(
-        fig[1,1],
-        xlabel=L"z", xlabelsize=12,
-        ylabel=L"p(z)", ylabelsize=12,
-        # yscale=log10,
-        limits = (-5.,3.,0,0.6)
-    )
-    axtl = Axis(
-        fig[1,2],
-        xlabel=L"\textrm{mean}\;\mu", xlabelsize=12,
-        ylabel=L"\textrm{variance}\;\sigma^2", ylabelsize=12,
-    )
-
-    #/ Plot
-    β = zeros(length(methods))
-    a = zeros(length(methods))
-    b = zeros(length(methods))
-    μplot = -10.0:0.01:0.0
-    for i in eachindex(methods)
-        zdf = CSV.read(DIR*methods[i]*"_"*FILENAME, DataFrame)
-        z = zdf[!,:z]
-        zmin, zmax = extrema(zdf[!,:z])
-        binedges = range(zmin, zmax, nbins)
-        fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
-        #~ Compute β using Taylor's law
-        tldf = CSV.read(DIR*methods[i]*"_"*TLFILENAME, DataFrame)
-        c = mean(tldf[!,:meanfrequency] .^2 ./ tldf[!,:varfrequency])
-        a[i], b[i] = CurveFit.linear_fit(
-            log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency])
-        )
-        # ltl = lines!(axtl, μplot, af .+ bf .* μplot)
-        β[i] = 2*c/(c-1)
-        # stl = scatter!(axtl, 2.0 .* log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency]))
-        stl = scatter!(axtl, log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency]))
-
-        #~ Try to plot log-Lomax
-        #~ Find the `b` param of the log-lomax by fitting [@TODO Use Taylor's law instead]
-        # neglogll(p) = -sum(loglomax(z, p))
-        # res = Optim.optimize(neglogll, 1e-6, 1e4)
-        # btemp = Optim.minimizer(res)
-        # b += btemp
-        
-        #~ Scatter
-        s = scatter!(ax, bincenters(fh), fh.bincounts, label=L"\textrm{%$(methods[i])}")
-    end
-
-    βplot = mean(β)
-    zplot = -5:0.01:3
-    pplot = loglomax.(zplot, βplot)
-    lines!(ax, zplot, exp.(pplot), linewidth=.8, color=:black, label=L"\textrm{Lomax}")
-
-    #~ Plot a straight line with exponent β
-    σplot(b) = b .* μplot
-    lines!(axtl, μplot, mean(a) .+ σplot(mean(b)), linewidth=.8, color=:black)
-    lines!(axtl, [-6.,-3.], [-14.,-11.], linewidth=.8, color=:black, linestyle=(:dash,:dense))
-    text!(
-        axtl, -5.25, -11.5; text=L"\sigma^2 \propto \mu",
-        align=(:center,:center), rotation=π/4.5
-    )
-
-    
-    axislegend(
-        ax,
-        position=:lt, labelsize=9, patchsize=(8,20),
-        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
-    )
-    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
-    return fig
-end
-
-########################
-### HELPER FUNCTIONS ###
-
-#/ A ZOO OF DISTRIBUTIONS
-function loggamma(z, α)
-    return α*sqrt(trigamma(α)) .* z .+ α*digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5*log(trigamma(α)) .- loggamma(α)
-end
-
-"Logarithmic Lomax distribution"
-function loglomax(z, b)
-    s = sqrt(trigamma(1) + trigamma(b))
-    m = digamma(1) - digamma(b)
-    return log(s * b) .+ z .* s .+ m .- (b + 1) .* log.(1 .+ exp.(z .* s .+ m))
-end
-
-function lrln(z, σ)
-    return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
-end
-##############################
 
 end # module AFDPlotter
 #/ End module
