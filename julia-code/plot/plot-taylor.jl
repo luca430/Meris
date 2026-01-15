@@ -36,7 +36,7 @@ function plot_taylor(;
     # ytl = copy(xtl).*2
     # lines!(ax, xtl, ytl, linewidth=1, color=:black, linestyle=(:solid,:dense))
 
-    #/ Plot Taylor's law for RFC
+    #/ Gutemberg
     axtl = Axis(fig[1:2, 1:2])
     axrfc = Axis(
         fig[1, 3],
@@ -44,9 +44,9 @@ function plot_taylor(;
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
         limits=(-6, -1, -10, -2)
     )
-    rfcdf = JLD2.load(TLDIR * "rfc/rfc-taylor.jld2")
-    m, s = rfcdf["omean"], rfcdf["ovar"]
-    rfctl = scatter!(
+    gutemberg_df = JLD2.load(TLDIR * "")
+    m, s = gutemberg_df["omean"], gutemberg_df["ovar"]
+    gutemberg_df = scatter!(
         axrfc, log10.(m), log10.(s),
         color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4
     )
@@ -58,8 +58,8 @@ function plot_taylor(;
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
         limits=(-6, -1, -10, -2)
     )
-    otudf = JLD2.load(TLDIR * "otu/otu-gut1-taylor.jld2")
-    m, s = otudf["omean"], otudf["ovar"]
+    otu_df = JLD2.load(TLDIR * "")
+    m, s = otu_df["omean"], otu_df["ovar"]
     otutl = scatter!(
         axotu, log10.(m), log10.(s),
         color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4
@@ -72,264 +72,30 @@ function plot_taylor(;
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
         limits=(-6, -1, -10, -2)
     )
+    lego_df = JLD2.load(TLDIR * "")
+    m, s = lego_df["omean"], lego_df["ovar"]
+    legotl = scatter!(
+        axlego, log10.(m), log10.(s),
+        color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4
+    )
 
-    #/ Genes
-    axlego = Axis(
+    #/ GTEx
+    axgtex = Axis(
         fig[2, 4],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
         limits=(-6, -1, -10, -2)
     )
-
-    return fig
-
-
-    for i in eachindex(DIRECTORIES)
-        #/ Taylor's law
-        tldf = CSV.read(DIR * DIRECTORIES[i] * BASETLFILENAME, DataFrame)
-        m = tldf[!, :meanfrequency]
-        s = tldf[!, :varfrequency]
-        x = log.(m)
-        y = log.(s)
-
-        #~ Compute rescaled moments using the occupancy        
-        tldf = @chain tldf begin
-            @transform(:omeanfrequency = :meanfrequency .* :occupancy)
-            @transform(:ovarfrequency = :varfrequency .+ (1 .- :occupancy) .* :meanfrequency .^ 2)
-            @transform(:ovarfrequency = :ovarfrequency .* :occupancy)
-        end
-        #~ Use them if `rescale=true`
-        if rescale
-            x = log.(tldf[!, :omeanfrequency])
-            y = log.(tldf[!, :ovarfrequency])
-        end
-
-        #/ Fix a straight line using York's method
-        #/ Calculate weights using the errors
-        #~ Calculate how much of the total variation comes from presence-absence
-        #  recall (σ′)² ← o⋅[σ²+μ²(1-o)], and so the ratio R = (σ′)² / (o⋅σ²) 
-        o = tldf[!, :occupancy] .* (1 .- tldf[!, :occupancy])
-        R = o .* tldf[!, :meanfrequency] .^ 2 ./ tldf[!, :ovarfrequency]
-        #~ filter those with ratio 0 [occupancy 0]
-        sidxs = findall(x -> x > 0, R)
-        x = x[sidxs]
-        y = y[sidxs]
-        #~ extract the errors on the mean and variance [see `taylor.jl`]
-        #! note: use the δ-method to get the error on the log-transformed variables
-        σx = m[sidxs] ./ m[sidxs] .^ 2
-        σy = s[sidxs] ./ s[sidxs] .^ 2
-        logcov = tldf[!, :errorcov][sidxs] ./ (m[sidxs] .* s[sidxs])
-        logρ = logcov ./ sqrt.(σx .* σy)
-        #~ specify the weights
-        #! note: As for the line fitting only the relative weights are relevant, one could in
-        #        principle scale the weights such that they are numerically more 'stable'. Yet,
-        #        this may distort the error on the slope and intercept, as these are now
-        #        'artificially' inflated by the weights. To bring them into a reasonable scale,
-        #        we here specify the scale specifically, such that errors are reflecting the
-        #        actual scatter of the means and variances and not the artificial weights.
-        wx = 1.0 ./ σx
-        wy = 1.0 .* sqrt.(1.0 .- R[sidxs]) ./ σy
-        wscale = length(sidxs) / sum(wy)
-        wx = wx .* wscale
-        wy = wy .* wscale
-        #~ Fit
-        straightlinefit = SL.weightedyorkfit(x, y, wx, wy, ρ=logρ)
-        @info "fit" DIRECTORIES[i] straightlinefit
-        #~ Reshuffle before plotting so it goes through (0,0)        
-        xs = -20:1.0:0.0
-        bs = round(straightlinefit.b, sigdigits=3)
-        σs = round(straightlinefit.σb, sigdigits=2)
-        blabel = L"b = %$(bs)\,(%$(σs))"
-        l = lines!(
-            axtl, xs, straightlinefit.b .* xs, label=blabel,
-            linestyle=(:dash, :dense), linewidth=0.8, color=colors[i]
-        )
-        #~ Scatter w.r.t. to their weight
-        minwidth = 0.33
-        maxwidth = 1.0
-        strokewidth = (maxwidth - minwidth) .* wx ./ sum(wx) .+ minwidth
-        #~ shift so that they go through the origin
-        yshifted = y .- straightlinefit.a
-        stl = scatter!(axtl, x, yshifted, markersize=4, strokewidth=strokewidth)
-        # _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
-        # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)
-    end
-
-
-    axislegend(
-        ax,
-        position=:lt, labelsize=9, patchsize=(8, 20),
-        margin=(8, 0, 0, 0), patchlabelgap=2, padding=(0, 0, 0, 0)
+    gtex_df = JLD2.load(TLDIR * "")
+    m, s = gtex_df["omean"], gtex_df["ovar"]
+    gtextl = scatter!(
+        axgtex, log10.(m), log10.(s),
+        color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4
     )
-    axislegend(
-        axtl,
-        position=:lt, labelsize=9, patchsize=(8, 20),
-        margin=(8, 0, 0, 0), patchlabelgap=2, padding=(0, 0, 0, 0)
-    )
+
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
-
-"Plot AFD of component systems of a very specific 'type'"
-function plot_typedafd(;
-    DIRECTORY="macro/afd/lego/",
-    LABELS=[L"\textrm{Star Wars}"],
-    nbins::Int=27,
-    DIR=DATADIR,
-    BASEFILENAME="themed-z-values.csv",
-    # BASETLFILENAME = "themed-tl-stats.csv",
-    savefig=false,
-    figname=true
-)
-    sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
-    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
-    set_theme!(__theme)
-
-    colors = MakiePublication.COLORS[begin]
-
-    width = 0.95 * 246
-    height = 3 * width / 4.67
-    fig = Figure(; size=(width, height), figure_padding=(2, 4, 2, 14))
-    ax = Axis(
-        fig[1, 1],
-        xlabel=L"z", xlabelsize=12,
-        ylabel=L"p(z)", ylabelsize=12,
-        yscale=log10,
-        limits=(-25.0, 5.0, 1e-6, 1e0)
-    )
-
-    #/ Load data
-    zdf = CSV.read(DIR * DIRECTORY * BASEFILENAME, DataFrame)
-    z = zdf[!, :z]
-    zmin, zmax = extrema(zdf[!, :z])
-    binedges = range(zmin, zmax, nbins)
-    fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
-    #~ Scatter
-    s = scatter!(ax, bincenters(fh), fh.bincounts, label=LABELS[begin], markersize=5)
-    #~ do something stupid
-    gamma = Distributions.fit_mle(Gamma, exp.(z))
-    zgamma = -25.0:0.01:3.0
-    gammaplot = exp.(zgamma) .* Distributions.pdf.(gamma, exp.(zgamma))
-    lines!(ax, zgamma, gammaplot, color=:black, linestyle=(:dash, :dense), linewidth=1.)
-
-    axislegend(
-        ax,
-        position=:lt, labelsize=9, patchsize=(8, 20),
-        margin=(8, 0, 0, 0), patchlabelgap=2, padding=(0, 0, 0, 0)
-    )
-    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
-    return fig
-end
-
-
-"Plot AFD of the Brown corpus"
-function plot_brownafd(;
-    methods=["noreplace", "replace", "multinomial", "mvhypgeom"],
-    nbins::Int=19,
-    DIR=DATADIR * "macro/afd/",
-    FILENAME="Nfixed_zvalues.csv",
-    TLFILENAME="Nfixed_stats.csv",
-    savefig=false,
-    figname=true
-)
-    sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
-    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
-    set_theme!(__theme)
-
-    colors = MakiePublication.COLORS[begin]
-
-    width = 0.95 * 246
-    height = 3 * width / 4.67
-    fig = Figure(; size=(1.5 * width, height), figure_padding=(2, 4, 2, 14))
-    ax = Axis(
-        fig[1, 1],
-        xlabel=L"z", xlabelsize=12,
-        ylabel=L"p(z)", ylabelsize=12,
-        # yscale=log10,
-        limits=(-5., 3., 0, 0.6)
-    )
-    axtl = Axis(
-        fig[1, 2],
-        xlabel=L"\textrm{mean}\;\mu", xlabelsize=12,
-        ylabel=L"\textrm{variance}\;\sigma^2", ylabelsize=12,
-    )
-
-    #/ Plot
-    β = zeros(length(methods))
-    a = zeros(length(methods))
-    b = zeros(length(methods))
-    μplot = -10.0:0.01:0.0
-    for i in eachindex(methods)
-        zdf = CSV.read(DIR * methods[i] * "_" * FILENAME, DataFrame)
-        z = zdf[!, :z]
-        zmin, zmax = extrema(zdf[!, :z])
-        binedges = range(zmin, zmax, nbins)
-        fh = FHist.Hist1D(z; counttype=Int, binedges=binedges, overflow=true) |> normalize
-        #~ Compute β using Taylor's law
-        tldf = CSV.read(DIR * methods[i] * "_" * TLFILENAME, DataFrame)
-        c = mean(tldf[!, :meanfrequency] .^ 2 ./ tldf[!, :varfrequency])
-        a[i], b[i] = CurveFit.linear_fit(
-            log.(tldf[!, :meanfrequency]), log.(tldf[!, :varfrequency])
-        )
-        # ltl = lines!(axtl, μplot, af .+ bf .* μplot)
-        β[i] = 2 * c / (c - 1)
-        # stl = scatter!(axtl, 2.0 .* log.(tldf[!,:meanfrequency]), log.(tldf[!,:varfrequency]))
-        stl = scatter!(axtl, log.(tldf[!, :meanfrequency]), log.(tldf[!, :varfrequency]))
-
-        #~ Try to plot log-Lomax
-        #~ Find the `b` param of the log-lomax by fitting [@TODO Use Taylor's law instead]
-        # neglogll(p) = -sum(loglomax(z, p))
-        # res = Optim.optimize(neglogll, 1e-6, 1e4)
-        # btemp = Optim.minimizer(res)
-        # b += btemp
-
-        #~ Scatter
-        s = scatter!(ax, bincenters(fh), fh.bincounts, label=L"\textrm{%$(methods[i])}")
-    end
-
-    βplot = mean(β)
-    zplot = -5:0.01:3
-    pplot = loglomax.(zplot, βplot)
-    lines!(ax, zplot, exp.(pplot), linewidth=0.8, color=:black, label=L"\textrm{Lomax}")
-
-    #~ Plot a straight line with exponent β
-    σplot(b) = b .* μplot
-    lines!(axtl, μplot, mean(a) .+ σplot(mean(b)), linewidth=0.8, color=:black)
-    lines!(axtl, [-6., -3.], [-14., -11.], linewidth=0.8, color=:black, linestyle=(:dash, :dense))
-    text!(
-        axtl, -5.25, -11.5; text=L"\sigma^2 \propto \mu",
-        align=(:center, :center), rotation=π / 4.5
-    )
-
-
-    axislegend(
-        ax,
-        position=:lt, labelsize=9, patchsize=(8, 20),
-        margin=(8, 0, 0, 0), patchlabelgap=2, padding=(0, 0, 0, 0)
-    )
-    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
-    return fig
-end
-
-########################
-### HELPER FUNCTIONS ###
-
-#/ A ZOO OF DISTRIBUTIONS
-function loggamma(z, α)
-    return α * sqrt(trigamma(α)) .* z .+ α * digamma(α) .- exp.(z .* sqrt(trigamma(α)) .+ digamma(α)) .+ 0.5 * log(trigamma(α)) .- loggamma(α)
-end
-
-"Logarithmic Lomax distribution"
-function loglomax(z, b)
-    s = sqrt(trigamma(1) + trigamma(b))
-    m = digamma(1) - digamma(b)
-    return log(s * b) .+ z .* s .+ m .- (b + 1) .* log.(1 .+ exp.(z .* s .+ m))
-end
-
-function lrln(z, σ)
-    return -z .^ 2 ./ 2 .- log(sqrt(σ^2 * 2 * π))
-end
-##############################
 
 end # module AFDPlotter
 #/ End module
