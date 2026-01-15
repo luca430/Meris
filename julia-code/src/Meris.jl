@@ -3,6 +3,7 @@ module Meris
 ## DIRECTORIES
 const DATADIR   = normpath(joinpath(@__DIR__, "..", "data/"))
 const BOOKDIR   = DATADIR * "datasets/books/"
+const GTEXDIR   = DATADIR * "datasets/gtex/"
 const LEGODIR   = DATADIR * "datasets/lego/"
 const OTUDIR    = DATADIR * "datasets/otu/"
 const ARXIVDIR  = DATADIR * "datasets/arxiv/"
@@ -17,6 +18,7 @@ const WIKI103DIR= DATADIR * "datasets/wikitext-103/"
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers 
 include("dataframes/books/booksampler.jl")
+include("dataframes/gtex/gtexsampler.jl")
 include("dataframes/books/wordsampler.jl")
 include("dataframes/wikitext/wikitextsampler.jl")
 include("dataframes/lego/legosampler.jl")

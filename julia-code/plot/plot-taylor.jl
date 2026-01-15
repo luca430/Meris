@@ -31,13 +31,13 @@ function plot_taylor(;
     height = width
     fig = Figure(; size=(width,height/2), figure_padding=(2,4,2,14))
 
-    #/ Plot
-    # xtl = -20:0.1:0.0
-    # ytl = copy(xtl).*2
-    # lines!(ax, xtl, ytl, linewidth=1, color=:black, linestyle=(:solid,:dense))
-
-    #/ Plot Taylor's law for RFC
+    labels = []
+    axes = []
+    
+    #/ [...]
     axtl = Axis(fig[1:2,1:2])
+    
+    #/ Plot Taylor's law for RFC
     axrfc = Axis(
         fig[1,3],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
@@ -50,13 +50,15 @@ function plot_taylor(;
         axrfc, log10.(m), log10.(s),
         color=:white, strokecolor=colors[1], markersize=4, strokewidth=.4
     )
-
+    push!(labels, L"\textrm{RFC}")
+    push!(axes, axrfc)
+    
     #/ OTU
     axotu = Axis(
-        fig[2,3],
+        fig[1,4],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-6,-1,-10,-2)
+        limits=(-5,-1,-10,-2)
     )
     otudf = JLD2.load(TLDIR*"otu/otu-gut1-taylor.jld2")
     m, s = otudf["omean"], otudf["ovar"]
@@ -64,108 +66,131 @@ function plot_taylor(;
         axotu, log10.(m), log10.(s),
         color=:white, strokecolor=colors[2], markersize=4, strokewidth=.4
     )
+    push!(labels, L"\textrm{OTU}")
+    push!(axes, axotu)
 
     #/ Lego
     axlego = Axis(
-        fig[1,4],
+        fig[2,3],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-6,-1,-10,-2)
+        limits=(-6,-1,-10,0)
     )
+    legodf = JLD2.load(TLDIR*"lego/lego-taylor.jld2")
+    m, s = legodf["omean"], legodf["ovar"]
+    legotl = scatter!(
+        axlego, log10.(m), log10.(s),
+        color=:white, strokecolor=colors[3], markersize=4, strokewidth=.4
+    )
+    push!(labels, L"\textrm{Lego}")
+    push!(axes, axlego)
 
     #/ Genes
-    axlego = Axis(
+    axgtex = Axis(
         fig[2,4],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-6,-1,-10,-2)
+        limits=(-10,0,-20,0)
     )
-    
+    gtexdf = JLD2.load(TLDIR*"gtex/gtex-taylor.jld2")
+    m, s = gtexdf["omean"], gtexdf["ovar"]
+    gtextl = scatter!(
+        axgtex, log10.(m), log10.(s),
+        color=:white, strokecolor=colors[4], markersize=4, strokewidth=.4
+    )
+    push!(labels, L"\textrm{GTEx}")
+    push!(axes, axgtex)
+
+    for (i,ax) in enumerate(axes)
+        (xmin, xmax, ymin, ymax) = ax.limits[]
+        lines!(ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
+        text!(ax, 0.03,0.97,text=labels[i], space=:relative, fontsize=11, align=(:left,:top))
+    end
     return fig
     
     
-    for i in eachindex(DIRECTORIES)
-        #/ Taylor's law
-        tldf = CSV.read(DIR*DIRECTORIES[i]*BASETLFILENAME, DataFrame)
-        m = tldf[!,:meanfrequency]
-        s = tldf[!,:varfrequency]
-        x = log.(m)
-        y = log.(s)
+    # for i in eachindex(DIRECTORIES)
+    #     #/ Taylor's law
+    #     tldf = CSV.read(DIR*DIRECTORIES[i]*BASETLFILENAME, DataFrame)
+    #     m = tldf[!,:meanfrequency]
+    #     s = tldf[!,:varfrequency]
+    #     x = log.(m)
+    #     y = log.(s)
 
-        #~ Compute rescaled moments using the occupancy        
-        tldf = @chain tldf begin 
-            @transform(:omeanfrequency = :meanfrequency .* :occupancy)
-            @transform(:ovarfrequency = :varfrequency .+ (1 .- :occupancy) .* :meanfrequency.^2)
-            @transform(:ovarfrequency = :ovarfrequency .* :occupancy)
-        end
-        #~ Use them if `rescale=true`
-        if rescale
-            x = log.(tldf[!,:omeanfrequency])
-            y = log.(tldf[!,:ovarfrequency])
-        end
+    #     #~ Compute rescaled moments using the occupancy        
+    #     tldf = @chain tldf begin 
+    #         @transform(:omeanfrequency = :meanfrequency .* :occupancy)
+    #         @transform(:ovarfrequency = :varfrequency .+ (1 .- :occupancy) .* :meanfrequency.^2)
+    #         @transform(:ovarfrequency = :ovarfrequency .* :occupancy)
+    #     end
+    #     #~ Use them if `rescale=true`
+    #     if rescale
+    #         x = log.(tldf[!,:omeanfrequency])
+    #         y = log.(tldf[!,:ovarfrequency])
+    #     end
         
-        #/ Fix a straight line using York's method
-        #/ Calculate weights using the errors
-        #~ Calculate how much of the total variation comes from presence-absence
-        #  recall (σ′)² ← o⋅[σ²+μ²(1-o)], and so the ratio R = (σ′)² / (o⋅σ²) 
-        o = tldf[!,:occupancy] .* (1 .- tldf[!,:occupancy])
-        R = o .* tldf[!,:meanfrequency].^2 ./ tldf[!,:ovarfrequency]
-        #~ filter those with ratio 0 [occupancy 0]
-        sidxs = findall(x -> x > 0, R)
-        x = x[sidxs]
-        y = y[sidxs]
-        #~ extract the errors on the mean and variance [see `taylor.jl`]
-        #! note: use the δ-method to get the error on the log-transformed variables
-        σx = m[sidxs] ./ m[sidxs].^2
-        σy = s[sidxs] ./ s[sidxs].^2
-        logcov = tldf[!,:errorcov][sidxs] ./ (m[sidxs] .* s[sidxs])
-        logρ = logcov ./ sqrt.(σx .* σy)
-        #~ specify the weights
-        #! note: As for the line fitting only the relative weights are relevant, one could in
-        #        principle scale the weights such that they are numerically more 'stable'. Yet,
-        #        this may distort the error on the slope and intercept, as these are now
-        #        'artificially' inflated by the weights. To bring them into a reasonable scale,
-        #        we here specify the scale specifically, such that errors are reflecting the
-        #        actual scatter of the means and variances and not the artificial weights.
-        wx = 1.0 ./ σx
-        wy = 1.0 .* sqrt.(1.0 .- R[sidxs]) ./ σy
-        wscale = length(sidxs) / sum(wy)
-        wx = wx .* wscale
-        wy = wy .* wscale
-        #~ Fit
-        straightlinefit = SL.weightedyorkfit(x, y, wx, wy, ρ=logρ)
-        @info "fit" DIRECTORIES[i] straightlinefit
-        #~ Reshuffle before plotting so it goes through (0,0)        
-        xs = -20:1.0:0.0
-        bs = round(straightlinefit.b, sigdigits=3)
-        σs = round(straightlinefit.σb, sigdigits=2)
-        blabel = L"b = %$(bs)\,(%$(σs))"
-        l = lines!(
-            axtl, xs, straightlinefit.b .* xs, label=blabel,
-            linestyle=(:dash,:dense), linewidth=.8, color=colors[i]
-        )
-        #~ Scatter w.r.t. to their weight
-        minwidth = .33
-        maxwidth = 1.0
-        strokewidth = (maxwidth - minwidth) .* wx./sum(wx) .+ minwidth
-        #~ shift so that they go through the origin
-        yshifted = y .- straightlinefit.a
-        stl = scatter!(axtl, x, yshifted, markersize=4, strokewidth=strokewidth)
-        # _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
-        # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)
-    end
+    #     #/ Fix a straight line using York's method
+    #     #/ Calculate weights using the errors
+    #     #~ Calculate how much of the total variation comes from presence-absence
+    #     #  recall (σ′)² ← o⋅[σ²+μ²(1-o)], and so the ratio R = (σ′)² / (o⋅σ²) 
+    #     o = tldf[!,:occupancy] .* (1 .- tldf[!,:occupancy])
+    #     R = o .* tldf[!,:meanfrequency].^2 ./ tldf[!,:ovarfrequency]
+    #     #~ filter those with ratio 0 [occupancy 0]
+    #     sidxs = findall(x -> x > 0, R)
+    #     x = x[sidxs]
+    #     y = y[sidxs]
+    #     #~ extract the errors on the mean and variance [see `taylor.jl`]
+    #     #! note: use the δ-method to get the error on the log-transformed variables
+    #     σx = m[sidxs] ./ m[sidxs].^2
+    #     σy = s[sidxs] ./ s[sidxs].^2
+    #     logcov = tldf[!,:errorcov][sidxs] ./ (m[sidxs] .* s[sidxs])
+    #     logρ = logcov ./ sqrt.(σx .* σy)
+    #     #~ specify the weights
+    #     #! note: As for the line fitting only the relative weights are relevant, one could in
+    #     #        principle scale the weights such that they are numerically more 'stable'. Yet,
+    #     #        this may distort the error on the slope and intercept, as these are now
+    #     #        'artificially' inflated by the weights. To bring them into a reasonable scale,
+    #     #        we here specify the scale specifically, such that errors are reflecting the
+    #     #        actual scatter of the means and variances and not the artificial weights.
+    #     wx = 1.0 ./ σx
+    #     wy = 1.0 .* sqrt.(1.0 .- R[sidxs]) ./ σy
+    #     wscale = length(sidxs) / sum(wy)
+    #     wx = wx .* wscale
+    #     wy = wy .* wscale
+    #     #~ Fit
+    #     straightlinefit = SL.weightedyorkfit(x, y, wx, wy, ρ=logρ)
+    #     @info "fit" DIRECTORIES[i] straightlinefit
+    #     #~ Reshuffle before plotting so it goes through (0,0)        
+    #     xs = -20:1.0:0.0
+    #     bs = round(straightlinefit.b, sigdigits=3)
+    #     σs = round(straightlinefit.σb, sigdigits=2)
+    #     blabel = L"b = %$(bs)\,(%$(σs))"
+    #     l = lines!(
+    #         axtl, xs, straightlinefit.b .* xs, label=blabel,
+    #         linestyle=(:dash,:dense), linewidth=.8, color=colors[i]
+    #     )
+    #     #~ Scatter w.r.t. to their weight
+    #     minwidth = .33
+    #     maxwidth = 1.0
+    #     strokewidth = (maxwidth - minwidth) .* wx./sum(wx) .+ minwidth
+    #     #~ shift so that they go through the origin
+    #     yshifted = y .- straightlinefit.a
+    #     stl = scatter!(axtl, x, yshifted, markersize=4, strokewidth=strokewidth)
+    #     # _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
+    #     # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)
+    # end
 
     
-    axislegend(
-        ax,
-        position=:lt, labelsize=9, patchsize=(8,20),
-        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
-    )
-    axislegend(
-        axtl,
-        position=:lt, labelsize=9, patchsize=(8,20),
-        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
-    )
+    # axislegend(
+    #     ax,
+    #     position=:lt, labelsize=9, patchsize=(8,20),
+    #     margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
+    # )
+    # axislegend(
+    #     axtl,
+    #     position=:lt, labelsize=9, patchsize=(8,20),
+    #     margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
+    # )
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
