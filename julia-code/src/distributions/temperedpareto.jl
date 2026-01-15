@@ -73,9 +73,7 @@ end
 ###############
 ### FITTING ###
 
-function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
-    (isnothing(ε)) && (ε = 1.0)
-
+function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
     function negloglikelihood(x, params)
         logα, logβ = params
         α = exp(logα)    #~ ensures α>0
@@ -92,13 +90,16 @@ function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
     xfit = xs[idx:end]
     S = sum(log.(xfit / ε))
     αinit = length(x) / S
-    βinit = 1 / (Ex - ε)
+    βinit = 1 / (Ex + ε)
     params = [log(αinit), log(βinit)]    
 
+    #~ Optimize
+    #!note: ranges wherein to search are rather arbitrary
+    #@TODO: is there a way this can be made more robust?
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
         [-3.0, log(1/maximum(x))],
-        [3.0, 0.0],
+        [3.0, log(100/minimum(x))],
         params,
         Fminbox(LBFGS());
         autodiff=:forward
@@ -110,3 +111,78 @@ function fit(::Type{TemperedPareto}, x::Array{T}; ε=nothing) where {T<:Real}
     @warn("Optimizer not converged, returning initial guesses [method of moments]")
     return TemperedPareto(αinit, βinit, ε)
 end
+
+function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing) where T<:Real
+    xs = sort(x)
+    εs = isnothing(εs) ? unique(xs) : εs
+    
+    αhat = nothing
+    βhat = nothing
+    εhat = nothing
+    D = Inf
+    n = 0
+    #/ For each possible xmin in xmins;
+    #  - compute the max.-likelihood estimate of the power law exponent γ
+    #  - compute the Kolmogorov-Smirnov distance
+    #  - extract the xmin for which the MLE γ gives the smallest KS distance
+    for i in eachindex(εs)
+        ε = εs[i]
+        n = count(xs .> ε)
+        (n < 50) && (break)        # If less than 50 samples >xmin, break
+        #~ Filter data
+        _idx = searchsortedfirst(xs, ε) + 1
+        _x = xs[_idx:end]
+        _P = fit(TemperedPareto, _x, ε)
+        #~ Compute Kolmogorov-Smirnov distance as the test statistic
+        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
+        Ftv = max.(0.0, 1.0 .- ccdf.(_P, _x))
+        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
+        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+        Dhat = maximum(distances)
+        #~ If smaller than the current best, update
+        if Dhat < D
+            αhat = _P.α
+            βhat = _P.β
+            εhat = _P.ε
+            D = Dhat
+        end
+    end
+    return TemperedPareto(αhat, βhat, εhat)
+end
+
+########################
+### HELPER FUNCTIONS ###
+# """
+# Compute empirical CDF at points t where F[t] = (no. elements ≤ t) / n
+# """
+# function _ecdf(xs::Array{T}, t::Array{T}; sorted=false) where T<:Real
+#     (!sorted) && (xs = sort(xs))
+#     n = length(xs)
+#     F = similar(t, Float64)
+#     k = 1
+#     for i in eachindex(t)
+#         #~ Move k until xs[k] > edges[k]
+#         while k ≤ n && xs[k] ≤ t[i]
+#             k += 1
+#         end
+#         F[i] = (k-1) / n
+#     end
+#     return (; F=F, t=t)
+# end
+
+# """
+# Compute empirical CDF at equally distributed points t
+# """
+# function _ecdf(x::Array{T}, t::Int; sorted=false) where T<:Real
+#     (!sorted) && (xs = sort(x))
+#     edges = range(xs[begin], xs[end], length=t) |> collect
+#     return _ecdf(x, edges, sorted=true)
+# end
+
+
+# """
+# Compute empirical CDF at data points themselves
+# """
+# function _ecdf(x::Array{T}) where T<:Real
+#     return _ecdf(x, sort(x), sorted=false)
+# end

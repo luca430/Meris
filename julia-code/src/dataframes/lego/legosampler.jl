@@ -63,7 +63,7 @@ function computevocabsize(;
         DIR=DIR, FILENAME=FILENAME, returnsummary=returnsummary
     )
     #/ Aggregate the data by computing, for each unique sample size, the mean vocabularysize.
-    #  This is useful for investigating Heap's law.
+    #  This is useful for investigating Heaps' law.
     if aggregate
         sdf = @by(legodf, :documentsize, :meanvocabularysize = mean(:vocabularysize))
         return sdf
@@ -247,7 +247,7 @@ function _sample(
 )
     #~ Compute weights, and return sample from catalogus
     w = Weights(legos[!, :counts])
-    s = sample(rng, legos[:, :species_id], w, N, replace=false)
+    s = sample(rng, legos[:, :component_id], w, N, replace=false)
     return s
 end
 
