@@ -11,9 +11,10 @@ using StatsBase
 using Distributions
 using FHist
 
+using JLD2
+
 #/ Modules
 import Meris.DATADIR as DATADIR
-import Meris.MLEstimator as MLE
 import Meris.StraightLine as SL
 
 #################
@@ -293,6 +294,74 @@ function plot_brownafd(;
         position=:lt, labelsize=9, patchsize=(8,20),
         margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
     )
+    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
+    return fig
+end
+
+function plot_syntheticafd(;
+    AFDDIR = DATADIR * "afd/synthetic/",
+    filename = "synthetic-afd.jld2",
+    nbins::Int = 31,
+    savefig = false,
+    figname = nothing
+)
+    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
+    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
+    set_theme!(__theme)
+    colors = MakiePublication.COLORS[begin]
+
+    width = .7 * 246
+    height = width
+    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
+    
+    #/ Plot Taylor's law for synthetic data
+    ax = Axis(
+        fig[1,1], aspect=1,
+        xlabel=L"\log_{10}\,m", xlabelsize=11,
+        ylabel=L"\textrm{pdf}\;\log_{10}\,p(z)", ylabelsize=11,
+        limits=(-8,4,-3,0)
+    )
+
+    #~ Load data
+    db = JLD2.load(AFDDIR*filename)
+    z = db["z"]
+    params = db["params"]
+
+    #~ Fit histogram
+    zmin, zmax = extrema(z)
+    binedges = range(zmin, zmax, nbins)
+    fh = FHist.Hist1D(z; binedges=binedges, overflow=true) |> normalize
+    zs = bincenters(fh)
+    ps = fh.bincounts
+
+    #@TODO Compute a Gamma from system parameters instead
+    xmin, xmax, ymin, ymax = ax.limits[]
+    G = Distributions.fit_mle(Gamma, exp.(z))
+    xgamma = exp.(range(xmin, xmax, 127))
+    ygamma = xgamma .* Distributions.pdf.(G, xgamma)
+    
+    #/ Scatter synthetic data
+    scatter!(
+        ax, zs, log10.(ps),
+        color=:white, strokecolor=:black, markersize=4, strokewidth=.4
+    )
+
+    lines!(
+        ax, log.(xgamma), log10.(ygamma), label=L"\textrm{Gamma}",
+        color=:black, linestyle=(:dash,:dense), linewidth=.8
+    )
+    #/ Legend and labels
+    axislegend(
+        ax,
+        position=:cb, labelsize=9, patchsize=(8,20),
+        margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
+    )
+    text!(
+        0.05,0.975, text=L"Np \gg 1", fontsize=10, align=(:left,:top), space=:relative,
+        color=:grey
+    )
+    
+    #~ Save
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
