@@ -16,6 +16,7 @@ function compute(
 
     Random.seed!(1234)
 
+    heap_df = computevocabsize(df)
     agg_df = aggregate_samples(df)
     (relative_counts) && (agg_df.counts ./= agg_df.nreads)
 
@@ -39,26 +40,28 @@ function compute(
     end
 
     x, pdf = Meris.DataTools.make_hist(log10.(counts); nbins=nbins)
-    pdf = pdf ./ (α * ε ^ α)
+    pdf = (pdf ./ (α * ε ^ α) ./ log(10)) .^ (1 / α)
 
     pareto = Meris.ParetoDistribution.ParetoI(α, ε)
     paretox = relative_counts ? collect(ε:1e-4:maximum(counts)) : collect(ε:maximum(counts))
 
     ax1 = (
-        scatterx = ranks,
-        scattery = counts,
-        linex = maximum(ranks) .* Meris.ParetoDistribution.ccdf.(pareto, paretox),
-        liney = paretox
-        )
-    ax2 = (
         scatterx = x,
         scattery = pdf,
         linex = log10.(paretox),
-        liney = paretox .^ (-α) .* log(10)
+        liney = 1 ./ paretox
+        )
+    ax2 = (
+        scatterx = ranks ./ maximum(ranks),
+        scattery = (counts ./ ε) .^ α,
+        linex = ranks ./ maximum(ranks),
+        liney = maximum(ranks) ./ ranks
         )
     ax3 = (
-        scatterx = α_x,
-        scattery = α_pdf
+        scatterx = heap_df.documentsize ./ maximum(heap_df.documentsize),
+        scattery = (heap_df.vocabularysize ./ maximum(heap_df.vocabularysize)) .^ (1 / α),
+        linex = collect(0:1e-2:1),
+        liney = collect(0:1e-2:1)
     )
 
     figure = (ax1 = ax1, ax2 = ax2, ax3 = ax3, α = α)
@@ -98,6 +101,31 @@ function fit_samples(df; samples_idx=nothing, xmins=nothing)
     end
     
     return (α_vec, ε_vec)
+end
+
+function computevocabsize(df::DataFrame; rng=Random.Xoshiro(42))
+    #/ Construct vocabulary and dictionary
+    #  note: dictionary is a set for quick comparison
+    heapdf = DataFrame(documentsize=Int[], vocabularysize=Int[])
+    vocabulary = []
+    dictionary = Set()
+    #/ In random order, compute the vocabularysize for increasing document sizes
+    sample_ids = unique(df[!, :sample_id])
+    _order = randperm(rng, length(sample_ids))
+    for id in sample_ids[_order]
+        idxs = findall(df[!, :sample_id] .== id)
+        for word in df[!, :component_id][idxs]
+            if !(word in dictionary)
+                push!(vocabulary, word)
+                push!(dictionary, word)
+            end
+        end
+
+        _documentsize = isempty(heapdf[!, :documentsize]) ? length(idxs) :
+                        last(heapdf[!, :documentsize]) + length(idxs)
+        push!(heapdf, [_documentsize, length(vocabulary)])
+    end
+    return heapdf
 end
 
 end # End module
