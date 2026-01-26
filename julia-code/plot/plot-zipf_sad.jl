@@ -8,14 +8,15 @@ using LaTeXStrings
 
 using CSV, DataFrames, DataFramesMeta
 using StatsBase, JLD2
-using Colors
+using Colors, ColorTypes
 
 #/ Modules
 import Meris
+import Meris.MDistributions as MDist
 
 #################
 ### FUNCTIONS ###
-function plot_taylor(;
+function plot(;
         color_num=1,
         ZIPFDIR=Meris.DATADIR * "macro/zipf/",
         relative_counts=false,
@@ -27,7 +28,8 @@ function plot_taylor(;
     set_theme!(__theme)
 
     base = MakiePublication.COLORS[1][color_num]
-    colors = shades(base, 5)
+    base_hsl = HSL(base)  # convert to HSL
+    colors = [HSL(base_hsl.h, base_hsl.s, l) for l in range(0.1, 0.8, length=5)]
 
     count_label = relative_counts ? "ν" : "n"
 
@@ -37,55 +39,51 @@ function plot_taylor(;
 
     ax1 = Axis(
         fig[1,1],
-        xlabel=L"\log_{10}(\text{%$count_label})", xlabelsize=11,
-        ylabel=L"\text{counts pdf}", ylabelsize=11,
-        yscale=log10,
-        limits=(-5,-0.9,5e0,1e5)
-    )
-    
-    ax2 = Axis(
-        fig[1,2],
-        xlabel=L"\text{rank}", xlabelsize=11,
-        ylabel=L"\log_{10}(\text{%$count_label})", ylabelsize=11,
-        yscale=log10, xscale=log10,
-        limits=(5e-4,1,1,2e2)
+        xlabelsize=11, xticklabelsize=6,
+        ylabel=L"\text{CAD exponent } \gamma", ylabelsize=11
     )
 
+    ax2 = Axis(
+        fig[1,2],
+        xlabel=L"\text{Sample size } N", xlabelsize=11,
+        ylabel=L"\text{Vocabulary size } V", ylabelsize=11,
+        xscale=log10, yscale=log10
+    )
+    
     ax3 = Axis(
         fig[1,3],
-        xlabel=L"\text{Sample size } N", xlabelsize=11,
-        ylabel=L"\text{Vocabulary size } V", ylabelsize=11
+        xlabel=L"\text{rank } r", xlabelsize=11,
+        ylabel=L"\log_{10}(\text{%$count_label})", ylabelsize=11,
+        yscale=log10, xscale=log10
     )
 
     # Load data
-    otu = JLD2.load(ZIPFDIR * "otu.jld2")["figure"]
-    otu2 = JLD2.load(ZIPFDIR * "otu2.jld2")["figure"]
-    otu3 = JLD2.load(ZIPFDIR * "otu3.jld2")["figure"]
-    otu5 = JLD2.load(ZIPFDIR * "otu5.jld2")["figure"]
+    otu = JLD2.load(ZIPFDIR * "otu.jld2")["out"]
 
-    # Plot ax1
-    scatter!(ax1, otu.ax1.scatterx, otu.ax1.scattery, color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4)
-    scatter!(ax1, otu2.ax1.scatterx, otu2.ax1.scattery, color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4)
-    scatter!(ax1, otu3.ax1.scatterx, otu3.ax1.scattery, color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4)
-    scatter!(ax1, otu5.ax1.scatterx, otu5.ax1.scattery, color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4)
-    lines!(ax1, otu5.ax1.linex, otu5.ax1.liney,
-            linewidth=1, linestyle=:dash,  color=:black)
+    # Axis 1: Boxplot
+    labels = collect(keys(otu.boxplot))
+    vals = collect(values(otu.boxplot))
+    
+    for (i, v) in enumerate(vals)
+        boxplot!(ax1, fill(i, length(v)), v, color=(colors[i], 0.8), markersize=4, whiskerlinewidth=0.8, medianlinewidth=0.8)
+    end
+    ax1.xticks = (1:length(labels), labels)
 
-    # Plot ax2
-    scatter!(ax2, otu.ax2.scatterx, otu.ax2.scattery, color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4)
-    scatter!(ax2, otu2.ax2.scatterx, otu2.ax2.scattery, color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4)
-    scatter!(ax2, otu3.ax2.scatterx, otu3.ax2.scattery, color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4)
-    scatter!(ax2, otu5.ax2.scatterx, otu5.ax2.scattery, color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4)
-    lines!(ax2, otu5.ax2.linex, otu5.ax2.liney,
-            linewidth=1, linestyle=:dash, color=:black)
+    # Axis 2: Heaps' law
+    for (i,v) in enumerate(values(otu.heaps))
+        Δ = Int(ceil(length(v.samplesize) / 50))
+        scatter!(ax2, v.samplesize[1:Δ:end], v.vocabsize[1:Δ:end], color=:white, strokecolor=colors[i], markersize=5, strokewidth=0.5)
+    end
 
-    # Plot ax3
-    scatter!(ax3, otu.ax3.scatterx, otu.ax3.scattery, color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4)
-    scatter!(ax3, otu2.ax3.scatterx, otu2.ax3.scattery, color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4)
-    scatter!(ax3, otu3.ax3.scatterx, otu3.ax3.scattery, color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4)
-    scatter!(ax3, otu5.ax3.scatterx, otu5.ax3.scattery, color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4)
-    lines!(ax3, otu5.ax3.linex, otu5.ax3.liney .^ 0.5,
-            linewidth=1, linestyle=:dash, color=:black)
+    # Axis 3: Zipf's law
+    for (i,(v,f)) in enumerate(zip(values(otu.zipf), values(otu.fit)))
+        Δ = Int(ceil(length(v.ranks) / 60))
+        scatter!(ax3, v.ranks[1:Δ:end], v.counts[1:Δ:end], color=:white, strokecolor=colors[i], markersize=5, strokewidth=0.5)
+        
+        func = MDist.ParetoI(f.α, f.ε)
+        x = 10 .^ collect(log10(minimum(v.counts)):1e-2:log10(maximum(v.counts)))
+        lines!(ax3, MDist.ccdf.(func, x) .* maximum(v.ranks), x, linestyle=:dash, color=:black, linewidth=0.8)
+    end
 
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig

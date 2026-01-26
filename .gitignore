@@ -30,6 +30,7 @@ julia-code/Manifest.toml
 /julia-code/data/datasets/arxiv/lemmatized_noun_adj_data/
 /julia-code/data/datasets/arxiv/lemmatized_noun_data/
 /julia-code/data/datasets/books/gutemberg/corpus.csv.gz
+/julia-code/data/datasets/taraocean/
 
 # Exclude temporary files
 tmp/

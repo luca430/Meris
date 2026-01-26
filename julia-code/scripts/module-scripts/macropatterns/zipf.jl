@@ -3,71 +3,68 @@ module Zipf
 using Meris
 using DataFrames, DataFramesMeta, StatsBase
 using JLD2, Random
+import Meris.MDistributions as MDist
 
 function compute(
         df;
         relative_counts=false,
         filter=true,
         xmins=nothing,
-        nbins=30,
         save=true,
         filename="zipf.jld2"
     )
 
     Random.seed!(1234)
 
-    heap_df = computevocabsize(df)
-    agg_df = aggregate_samples(df)
-    (relative_counts) && (agg_df.counts ./= agg_df.nreads)
+    classes = unique(df.class)
 
-    α_vec, ε_vec = fit_samples(agg_df; xmins=xmins)
-    α_x, α_pdf = Meris.DataTools.make_hist(α_vec; nbins=40)
+    zipf = Dict()
+    heaps = Dict()
+    boxplot = Dict()
+    fit = Dict()
+    for class in classes
+        sdf = df[df.class .== class, :]
 
-    agg_df.samples_id .= "samp"
-    α, ε = fit_samples(agg_df; xmins=xmins)
-    α, ε = α[1], ε[1]
+        # Compute Heaps'
+        heap_df = computevocabsize(sdf)
+        samplesize = heap_df.documentsize
+        vocabsize = heap_df.vocabularysize
+        heaps[class] = (samplesize = samplesize, vocabsize = vocabsize)
 
-    agg_df.ranks .= tiedrank(-agg_df.counts)
-    ranks, counts = agg_df.ranks, agg_df.counts
-    p = sortperm(ranks)          # permutation that sorts ranks ascending
-    ranks  = ranks[p]
-    counts = counts[p]
-    
-    if filter
-        mask = counts .> ε
-        ranks = ranks[mask]
-        counts = counts[mask]
+        # Compute Zipf
+        agg_df = aggregate_samples(sdf)
+        (relative_counts) && (agg_df.counts ./= agg_df.nreads)
+        
+        agg_df.ranks .= tiedrank(-agg_df.counts)
+        ranks, counts = agg_df.ranks, agg_df.counts
+        p = sortperm(ranks)          # permutation that sorts ranks ascending
+        ranks  = ranks[p]
+        counts = counts[p]
+
+        # Compute parameters for boxplot
+        α_vec, β_vec, ε_vec = fit_samples(agg_df; xmins=xmins)
+        boxplot[class] = α_vec .+ 1
+
+        # Compute TemperedPareto fit
+        agg_df.samples_id .= "samp"
+        α, β, ε = fit_samples(agg_df; xmins=xmins)
+        # α, β, ε = α[1], β[1], ε[1]
+        α, ε = α[1], ε[1]
+        fit[class] = MDist.ParetoI(α, ε)
+        
+        if filter
+            mask = counts .> ε
+            ranks = ranks[mask]
+            counts = counts[mask]
+        end
+
+        zipf[class] = (ranks = ranks, counts = counts)
     end
 
-    x, pdf = Meris.DataTools.make_hist(log10.(counts); nbins=nbins)
-    pdf = (pdf ./ (α * ε ^ α) ./ log(10)) .^ (1 / α)
-
-    pareto = Meris.ParetoDistribution.ParetoI(α, ε)
-    paretox = relative_counts ? collect(ε:1e-4:maximum(counts)) : collect(ε:maximum(counts))
-
-    ax1 = (
-        scatterx = x,
-        scattery = pdf,
-        linex = log10.(paretox),
-        liney = 1 ./ paretox
-        )
-    ax2 = (
-        scatterx = ranks ./ maximum(ranks),
-        scattery = (counts ./ ε) .^ α,
-        linex = ranks ./ maximum(ranks),
-        liney = maximum(ranks) ./ ranks
-        )
-    ax3 = (
-        scatterx = heap_df.documentsize ./ maximum(heap_df.documentsize),
-        scattery = (heap_df.vocabularysize ./ maximum(heap_df.vocabularysize)) .^ (1 / α),
-        linex = collect(0:1e-2:1),
-        liney = collect(0:1e-2:1)
-    )
-
-    figure = (ax1 = ax1, ax2 = ax2, ax3 = ax3, α = α)
-    (save) && (@save filename figure)
+    out = (zipf = zipf, heaps = heaps, boxplot = boxplot, fit = fit)
+    (save) && (@save filename out)
     
-    return figure
+    return out
 end
 
 #### HELPER ####
@@ -88,19 +85,22 @@ function fit_samples(df; samples_idx=nothing, xmins=nothing)
     samples = unique(df.sample_id)
     samples_idx = isnothing(samples_idx) ? collect(1:length(samples)) : samples_idx
 
-    ε_vec = []
     α_vec = []
+    β_vec = []
+    ε_vec = []
     for sample in samples[samples_idx]
         sdf = df[df.sample_id .== sample, :]
 
-        fit = Meris.Powerlaw.fitPareto(sdf.counts; xmins=xmins, minsamples=50)
-        ε = fit.Pareto.ε
+        fit = MDist.fit(MDist.ParetoI, sdf.counts; εs=xmins)
+        # β = fit.β
+        # push!(β_vec, β)
+        ε = fit.ε
         push!(ε_vec, ε)
-        α = fit.Pareto.α
+        α = fit.α
         push!(α_vec, α)
     end
     
-    return (α_vec, ε_vec)
+    return (α_vec, β_vec, ε_vec)
 end
 
 function computevocabsize(df::DataFrame; rng=Random.Xoshiro(42))
