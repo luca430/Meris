@@ -23,12 +23,12 @@ Observe system by multinomial sampling out of S components, each with prob. `p[i
 , when `N≫φ` 
 """
 function generate(;
-    N::Int=10^4,
+    N::Int=10^11,
     K::Int=10^3,
     γ::Float64=0.5,
     ε::Float64=1e0,
-    S::Int=10^5,
-    φ::Float64=1e2*S,
+    S::Int=10^6,
+    φ::Float64=1e9,
     nobservationslengths::Int = 31,
     rng=Random.Xoshiro(43*N)
 )

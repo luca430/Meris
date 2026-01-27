@@ -18,7 +18,6 @@ import Meris.ARXIVDIR as RARXIVDIR  #~ Directory with raw arXiv data
 ### FUNCTIONS ###
 function plot_heaps(;
     RFCDIR = DATADIR * "heaps/rfc/",
-    αv = [0.5, 0.9],
     PYDIR = DATADIR * "heaps/pitmanyor/",
     # BOOKDIR = DATADIR * "heap/books/",
     LEGODIR = DATADIR * "heaps/lego/",
@@ -238,16 +237,19 @@ function plot_syntheticheaps(;
     set_theme!(__theme)
     colors = MakiePublication.COLORS[begin]
 
-    width = .7 * 246
+    width = .45 * 246
     height = width
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
     
     #/ Plot Zipf's law for synthetic data
     ax = Axis(
         fig[1,1],
-        xlabel=L"\textrm{observation length}\;\log_{10}\,N", xlabelsize=11,
-        ylabel=L"\textrm{mean vocabulary size}\;\log_{10}\,\bar{V}", ylabelsize=11,
-        limits=(1,9,0,6)
+        xlabel=L"\textrm{sample size}\;\log_{10}N", xlabelsize=11,
+        ylabel=L"\textrm{vocab. size}\;\log_{10}V", ylabelsize=11,        
+        xminorticks=IntervalsBetween(4),
+        yminorticks=IntervalsBetween(4),
+        limits=(1,11,0,7),
+        xticks=[1,3,5,7,9,11], yticks=[0,2,4,6]
     )
 
     #~ Load data
@@ -258,48 +260,43 @@ function plot_syntheticheaps(;
     #/ Scatter synthetic data
     scatter!(
         ax, logN, logV,
-        color=:white, strokecolor=:black, markersize=4, strokewidth=.4
+        color=(colors[2],0.7), strokecolor=:black, markersize=4, strokewidth=.4
     )
     #~ Straight line, power law
-    @info "eh" params.γ
     xmin, xmax, ymin, ymax = ax.limits[]
-    lines!(ax, [0.5,2.6], [ymin, ymin+2.1], linestyle=(:dash,:dense), color=:black, linewidth=.8)
+    # xstart = 1.0
+    # xend = 2.5
+    # ystart = 0.5
+    # lines!(
+    #     ax, [xstart, xend], [ystart, ystart + (xend-xstart)],
+    #     linestyle=(:dash,:dense), color=:black, linewidth=.8
+    # )
+    η = min(params.γ, 1)
+
+    xstart = 3.25
+    xend = 9.5
+    ystart = 2.05
     lines!(
-        ax, [3,6.5], [ymin+2.5,(6.5-3)*params.γ-ymin+2.5],
+        ax, [xstart,xend], [ystart, ystart + (xend-xstart)*η],
+        # [ymin+2.5,(6.5-3)*β-ymin+2.5],
         linestyle=(:dash,:dense), color=:black, linewidth=.8
     )
-    hlines!(ax, [log10.(params.S)], linestyle=:dot, color=:gray, linewidth=.5)
-    # ζ = params.γ/(1-params.γ)
-    # lines!(
-    #     ax, [xs,xmax], [ys,ys+ζ*(ymin-ys)],
-    #     color=:black, linestyle=(:dash,:dense), linewidth=.8
-    # )
-    #/ Add clarifying labels
-    #~ compute rotation in "screen space"
-    Δx_data, Δy_data = ax.finallimits[].widths
-    Δx_screen, Δy_screen = ax.scene.viewport[].widths
-    Δx_data = xmax - xmin
-    Δy_data = ymax - ymin
-    dx = Δx_screen  / (xmax - xmin)
-    dy = Δy_screen / (ymax - ymin)
+    hlines!(ax, [log10.(params.S)], linestyle=:dot, color=:gray, linewidth=.5)    
     #~ Slope 1
-    xs = 1.8
-    ys = 1.2
-    angle = atan(dy, dx)    
-    text!(xs, ys, rotation=angle, text=L"\propto N",
-        align=(:center,:top), fontsize=10
-    )
-    #~ Slope γ
-    xs = 5.0
-    ys = ymin+2.5 + params.γ*(xs - 3)
-    angle = atan(params.γ * dy, dx)
-    text!(xs, ys, rotation=angle, text=L"\propto N^{-\gamma}",
-        align=(:center,:top), fontsize=10
+    # xs = 1.8    # x-position, chosen by eye
+    # ys = 1.2    # y-position, chosen by eye
+    # text!(xs, ys, rotation=_get_angle(ax, 1), text=L"\propto\!N", align=(:center,:top), fontsize=10)
+    #~ Slope η
+    xs = 6.6
+    ys = 3.4
+    text!(
+        xs, ys, rotation=_get_angle(ax, η), text=L"\propto\!N^{\eta(\gamma)}",
+        align=(:center,:top), fontsize=12
     )
 
-    #~ S
+    #~ Convergence to system size S
     text!(
-        1.2, log10(params.S), text=L"V\rightarrow S", fontsize=10, color=:grey,
+        1.2, log10(params.S), text=L"V(N)\rightarrow S", fontsize=10, color=:grey,
         align=(:left,:bottom)
     )
 
@@ -336,6 +333,14 @@ function _scatter(ax, FILENAME, strokecolor;
     #     linewidth=1., color=strokecolor, linestyle=(:dashdot,:dense)
     # )
     # return (; s=scat, l=line)
+end
+
+function _get_angle(ax, γ)
+    (xmin, xmax, ymin, ymax) = ax.limits[]
+    sx = 1 / (xmax - xmin)
+    sy = γ / (ymax - ymin)
+    angle = atan(sy, sx)
+    return angle
 end
 
 function fit_line(N, V; Nmin=nothing, Nmax=nothing)

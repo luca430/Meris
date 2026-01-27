@@ -1,13 +1,13 @@
 #= Module to plot Heap's law for some processes and/or data =#
 #/ Start module
-module TLPlotter
+module TaylorPlotter
 
 using CairoMakie
 using MakiePublication
 using LaTeXStrings
 
 using FileIO, ImageTransformations
-using StatsBase
+using StatsBase, Random
 using JLD2
 
 #/ Modules
@@ -217,37 +217,61 @@ function plot_synthetictaylor(;
     TLDIR = DATADIR * "taylor/synthetic/",
     filename = "synthetic-taylor.jld2",
     savefig = false,
-    figname = nothing
+    figname = nothing,
+    n = 42,
+    rng = Random.Xoshiro(42)
 )
     sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
     set_theme!(__theme)
     colors = MakiePublication.COLORS[begin]
 
-    width = .7 * 246
+    width = .45 * 246
     height = width
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
     
     #/ Plot Taylor's law for synthetic data
     ax = Axis(
         fig[1,1], aspect=1,
-        xlabel=L"\textrm{sample mean}\;\log_{10}\,m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;\log_{10}\,s^2", ylabelsize=11,
+        xlabel=L"\textrm{mean}\;\log_{10}\,\mu", xlabelsize=11,
+        ylabel=L"\textrm{variance}\;\log_{10}\,\sigma^2", ylabelsize=11,
+        xminorticks=IntervalsBetween(4),
+        yminorticks=IntervalsBetween(4),
         limits=(-4,4,-4,6)
+    )
+
+    (xmin, xmax, ymin, ymax) = ax.limits[]
+    xband = [0, 4]
+    band!(
+        ax, xband, ymin .* ones(length(xband)), ymax .* ones(length(xband)),
+        color=(:gray, 0.2)
     )
 
     #~ Load data
     db = JLD2.load(TLDIR*filename)
     logm = log10.(filter(x->x>0, db["mean"]))
     logs = log10.(filter(x->x>0, db["var"]))
-
+    #~ Take a [small] subsample
+    nsamples = length(logm)
+    _order = sortperm(logm)
+    logm = logm[_order]
+    logs = logs[_order]
+    mmin, mmax = extrema(logm)
+    idxs = Array{Int}(undef, n)
+    for (i, m) in enumerate(range(mmin, mmax, n))
+        (m == mmin) && (idxs[begin] = 1; continue)
+        (m == mmax) && (idxs[end] = nsamples; break)
+        idxs[i] = idxs[i-1] + findfirst(x -> x > m, logm[idxs[i-1]:end])
+    end
+    mplot = logm[idxs]
+    splot = logs[idxs]
+    
     #/ Scatter synthetic data
     scatter!(
-        ax, logm, logs,
-        color=:white, strokecolor=:black, markersize=4, strokewidth=.4
+        ax, mplot, splot,
+        color=(colors[1],0.7), strokecolor=:black, markersize=4, strokewidth=.3
     )
-    #/ Lines
-    (xmin, xmax, ymin, ymax) = ax.limits[]
+    #/ Lines    
     #~ Determine and plot line with b=1
     a1 = minimum(logs) - minimum(logm)
     line1 = lines!(
@@ -258,7 +282,7 @@ function plot_synthetictaylor(;
     a2 = maximum(logs) - 2*maximum(logm)
     line2 = lines!(
         ax, [(ymin-a2)/2, (ymax-a2)/2], [ymin, ymax],
-        linewidth=.6, linestyle=:dot, color=:black
+        linewidth=.6, linestyle=:dash, color=:black
     )
 
     #/ Add clarifying labels
@@ -266,14 +290,17 @@ function plot_synthetictaylor(;
     sx = 1 / (xmax - xmin)
     sy = 1 / (ymax - ymin)
     angle = atan(sy, sx)
-    text!(2, 2+a1, rotation=angle, text=L"b=1", align=(:left,:top), fontsize=10)
+    text!(1.5, 1.5+a1, rotation=angle, text=L"b=1", align=(:left,:top), fontsize=10)
     sx = 1 / (xmax - xmin)
     sy = 2 / (ymax - ymin)
     angle = atan(sy, sx)
-    text!(-1.25, -1.25*2+a2, rotation=angle, text=L"b=2", align=(:left,:top), fontsize=10)
+    text!(1.2, 1.5*2+a2, rotation=angle, text=L"b=2", align=(:left,:bottom), fontsize=10)
 
     vlines!(ax, [0.], color=:gray, linestyle=:dash, linewidth=.5)
-    text!(0., ymax, rotation=π/2, text=L"Np=1", align=(:right,:bottom), color=:gray, fontsize=9)
+    # text!(0., ymax, rotation=π/2, text=L"Np=1", align=(:right,:bottom), color=:gray, fontsize=10)
+    #~ Rare / common text
+    text!(0.05,0.98, space=:relative, fontsize=9, text=L"\textrm{rare}", align=(:left,:top))
+    text!(0.98,0.05, space=:relative, fontsize=9, text=L"\textrm{common}", align=(:right,:bottom))
     
     #~ Save
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))

@@ -310,15 +310,17 @@ function plot_syntheticafd(;
     set_theme!(__theme)
     colors = MakiePublication.COLORS[begin]
 
-    width = .7 * 246
+    width = .45 * 246
     height = width
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
     
     #/ Plot Taylor's law for synthetic data
     ax = Axis(
         fig[1,1], aspect=1,
-        xlabel=L"\log_{10}\,m", xlabelsize=11,
+        xlabel=L"\log_{10}\,z", xlabelsize=11,
         ylabel=L"\textrm{pdf}\;\log_{10}\,p(z)", ylabelsize=11,
+        xminorticks=IntervalsBetween(4),
+        yminorticks=IntervalsBetween(4),
         limits=(-8,4,-3,0)
     )
 
@@ -353,7 +355,7 @@ function plot_syntheticafd(;
     #/ Legend and labels
     axislegend(
         ax,
-        position=:cb, labelsize=9, patchsize=(8,20),
+        position=:cb, labelsize=8, patchsize=(8,20),
         margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
     )
     text!(

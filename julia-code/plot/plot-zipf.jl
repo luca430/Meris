@@ -97,7 +97,8 @@ end
 
 function plot_syntheticzipf(;
     ZIPFDIR = DATADIR * "zipf/synthetic/",
-    filename = "synthetic-zipf.jld2",
+    filename = "synthetic-zipf-1.jld2",
+    n = 31,
     savefig = false,
     figname = nothing
 )
@@ -106,53 +107,65 @@ function plot_syntheticzipf(;
     set_theme!(__theme)
     colors = MakiePublication.COLORS[begin]
 
-    width = .7 * 246
+    width = .45 * 246
     height = width
     fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
     
     #/ Plot Zipf's law for synthetic data
     ax = Axis(
         fig[1,1], aspect=1,
-        xlabel=L"\textrm{rank}\;\log_{10}\,r", xlabelsize=11,
-        ylabel=L"\textrm{frequency}\;\log_{10}\,\nu", ylabelsize=11,
-        limits=(0,5,-8,-1)
+        xlabel=L"\textrm{rank}\;\log_{10}r", xlabelsize=11,
+        ylabel=L"\textrm{frequency}\;\log_{10}\nu", ylabelsize=11,        
+        xminorticks=IntervalsBetween(4),
+        yminorticks=IntervalsBetween(4),
+        limits=(0,4,-6,0),
+        xticks = range(0, 4, 5), yticks=range(-6,0,4)
     )
 
     #~ Load data
     db = JLD2.load(ZIPFDIR*filename)
     logr = log10.(db["ranks"])
     logf = log10.(db["freqs"])
+    #~ subsample, as there's too many points otherwise
+    dn = floor(Int, length(logr) / n)
+    rplot = logr[1:dn:end]
+    fplot = logf[1:dn:end]
+    
     params = db["params"]
     #/ Scatter synthetic data
     scatter!(
-        ax, logr, logf,
-        color=:white, strokecolor=:black, markersize=4, strokewidth=.4
+        ax, rplot, fplot,
+        color=(colors[3],0.7), strokecolor=:black, markersize=4, strokewidth=.4,
     )
     #~ Straight line, power law
     xmin, xmax, ymin, ymax = ax.limits[]
-    xs = 2.0
-    ys = -2.2
-    ζ = params.γ/(1-params.γ)
+    xstart = 1.5
+    ystart = -1.8
+    yend = -5
+    ζ = 1/params.γ
+    xend = xstart + (ystart-yend)/ζ
     lines!(
-        ax, [xs,xmax], [ys,ys+ζ*(ymin-ys)],
+        ax, [xstart, xend], [ystart, yend],
         color=:black, linestyle=(:dash,:dense), linewidth=.8
-    )
-    #/ Add clarifying labels
-    #~ compute rotation in "screen space"
-    Δx_data, Δy_data = ax.finallimits[].widths
-    Δx_screen, Δy_screen = ax.scene.viewport[].widths
-    Δx_data = xmax - xs
-    Δy_data = ζ * (ymin - ys)
-    dx = Δx_screen  / (xmax - xmin)
-    dy = Δy_screen / (ymax - ymin)
-    angle = atan(Δy_data * dy, Δx_data * dx)    
-    text!(3, ymax - ζ*3, rotation=angle, text=L"\propto r^{-\zeta}",
-        align=(:left,:bottom), fontsize=10
+    )    
+    text!(
+        xstart+(xend-xstart)/2, ystart+(yend-ystart)/2, text=L"\propto r^{-\zeta(\gamma)}",
+        rotation=_get_angle(ax, -ζ), align=(:center,:bottom), fontsize=12
     )
 
     #~ Save
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
+end
+
+########################
+### HELPER FUNCTIONS ###
+function _get_angle(ax, γ)
+    (xmin, xmax, ymin, ymax) = ax.limits[]
+    sx = 1 / (xmax - xmin)
+    sy = γ / (ymax - ymin)
+    angle = atan(sy, sx)
+    return angle
 end
 
 ########################
