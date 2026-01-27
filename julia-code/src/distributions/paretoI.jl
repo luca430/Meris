@@ -13,10 +13,11 @@ function ParetoI(α::T, ε::T; check_args::Bool = true) where {T<:Real}
     return ParetoI{T}(α,ε)
 end
 
+const Pareto = ParetoI
+
 ####################
 ### CONSTRUCTORS ###
 
-Pareto(α::Real,ε::Real; check_args::Bool=true) = ParetoI(promote(α,ε)...; check_args=check_args)
 ParetoI(α::Real,ε::Real; check_args::Bool=true) = ParetoI(promote(α,ε)...; check_args=check_args)
 
 ##################
