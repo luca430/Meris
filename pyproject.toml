@@ -17,6 +17,7 @@ ipython = "^9.6.0"
 kagglehub = "^0.3.13"
 fastparquet = "^2024.11.0"
 ptipython = "^1.0.1"
+yfinance = "^1.1.0"
 
 
 [build-system]

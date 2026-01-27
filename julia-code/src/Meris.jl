@@ -4,6 +4,7 @@ module Meris
 const DATADIR   = normpath(joinpath(@__DIR__, "..", "data/"))
 const BOOKDIR   = DATADIR * "datasets/books/"
 const GTEXDIR   = DATADIR * "datasets/gtex/"
+const GUTENBERGDIR = DATADIR * "datasets/gutenberg/"
 const LEGODIR   = DATADIR * "datasets/lego/"
 const OTUDIR    = DATADIR * "datasets/otu/"
 const ARXIVDIR  = DATADIR * "datasets/arxiv/"
@@ -14,6 +15,7 @@ const PATENTDIR = DATADIR * "datasets/patents/"
 const WIKIDIR   = DATADIR * "datasets/wikitext/"
 const WIKI2DIR  = DATADIR * "datasets/wikitext-2/"
 const WIKI103DIR= DATADIR * "datasets/wikitext-103/"
+const YAHOODIR = DATADIR * "datasets/finance/"
 
 const FIGUREDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
 
