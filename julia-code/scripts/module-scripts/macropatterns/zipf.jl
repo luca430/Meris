@@ -18,18 +18,18 @@ function compute(
 
     classes = unique(df.class)
 
-    zipf = Dict()
-    heaps = Dict()
-    boxplot = Dict()
-    fit = Dict()
+    zipf_d = Dict()
+    heaps_d = Dict()
+    boxplot_d = Dict()
+    fit_d = Dict()
     for class in classes
         sdf = df[df.class .== class, :]
 
         # Compute Heaps'
-        heap_df = computevocabsize(sdf)
+        heap_df = heaps(sdf)
         samplesize = heap_df.documentsize
         vocabsize = heap_df.vocabularysize
-        heaps[class] = (samplesize = samplesize, vocabsize = vocabsize)
+        heaps_d[class] = (samplesize = samplesize, vocabsize = vocabsize)
 
         # Compute Zipf
         agg_df = aggregate_samples(sdf)
@@ -43,14 +43,13 @@ function compute(
 
         # Compute parameters for boxplot
         α_vec, β_vec, ε_vec = fit_samples(agg_df; xmins=xmins)
-        boxplot[class] = α_vec .+ 1
+        boxplot_d[class] = α_vec .+ 1
 
         # Compute TemperedPareto fit
         agg_df.samples_id .= "samp"
         α, β, ε = fit_samples(agg_df; xmins=xmins)
-        # α, β, ε = α[1], β[1], ε[1]
-        α, ε = α[1], ε[1]
-        fit[class] = MDist.ParetoI(α, ε)
+        α, β, ε = α[1], β[1], ε[1]
+        fit_d[class] = MDist.TemperedPareto(α, β, ε)
         
         if filter
             mask = counts .> ε
@@ -58,10 +57,10 @@ function compute(
             counts = counts[mask]
         end
 
-        zipf[class] = (ranks = ranks, counts = counts)
+        zipf_d[class] = (ranks = ranks, counts = counts)
     end
 
-    out = (zipf = zipf, heaps = heaps, boxplot = boxplot, fit = fit)
+    out = (zipf = zipf_d, heaps = heaps_d, boxplot = boxplot_d, fit = fit_d)
     (save) && (@save filename out)
     
     return out
@@ -91,11 +90,11 @@ function fit_samples(df; samples_idx=nothing, xmins=nothing)
     for sample in samples[samples_idx]
         sdf = df[df.sample_id .== sample, :]
 
-        fit = MDist.fit(MDist.ParetoI, sdf.counts; εs=xmins)
-        # β = fit.β
-        # push!(β_vec, β)
+        fit = MDist.fit(MDist.TemperedPareto, sdf.counts; εs=xmins)
         ε = fit.ε
         push!(ε_vec, ε)
+        β = fit.β
+        push!(β_vec, β)
         α = fit.α
         push!(α_vec, α)
     end
@@ -103,29 +102,22 @@ function fit_samples(df; samples_idx=nothing, xmins=nothing)
     return (α_vec, β_vec, ε_vec)
 end
 
-function computevocabsize(df::DataFrame; rng=Random.Xoshiro(42))
+function heaps(df::DataFrame; sizes=10 .^ collect(1:1e-2:log10(size(df, 1))), rng=Random.Xoshiro(42))
     #/ Construct vocabulary and dictionary
-    #  note: dictionary is a set for quick comparison
-    heapdf = DataFrame(documentsize=Int[], vocabularysize=Int[])
-    vocabulary = []
-    dictionary = Set()
-    #/ In random order, compute the vocabularysize for increasing document sizes
-    sample_ids = unique(df[!, :sample_id])
-    _order = randperm(rng, length(sample_ids))
-    for id in sample_ids[_order]
-        idxs = findall(df[!, :sample_id] .== id)
-        for word in df[!, :component_id][idxs]
-            if !(word in dictionary)
-                push!(vocabulary, word)
-                push!(dictionary, word)
-            end
-        end
-
-        _documentsize = isempty(heapdf[!, :documentsize]) ? length(idxs) :
-                        last(heapdf[!, :documentsize]) + length(idxs)
-        push!(heapdf, [_documentsize, length(vocabulary)])
+    heaps_df = DataFrame(documentsize=Int[], vocabularysize=Int[])
+    component_array = []
+    samples = unique(df.sample_id)
+    for sample in samples
+        sub = df[df.sample_id .== sample, :]
+        append!(component_array, sub.component_id)
     end
-    return heapdf
+
+    shuffle!(rng, component_array)
+    for N in Int.(floor.(sizes))
+        push!(heaps_df, (N, length(unique(component_array[1:N]))))
+    end
+    
+    return unique(heaps_df)
 end
 
 end # End module

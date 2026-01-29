@@ -2,6 +2,7 @@ module Meris
 
 ## DIRECTORIES
 const DATADIR = normpath(joinpath(@__DIR__, "..", "data/"))
+const FIGDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
 const BOOKDIR = DATADIR * "datasets/books/"
 const LEGODIR = DATADIR * "datasets/lego/"
 const OTUDIR = DATADIR * "datasets/otu/"
