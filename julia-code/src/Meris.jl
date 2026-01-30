@@ -18,16 +18,15 @@ const GAIADIR = DATADIR * "datasets/gaia/"
 const GTEXDIR = DATADIR * "datasets/genetic/"
 
 ## SUBMODULES
-#~ Data handlers, loaders, and samplers 
-include("dataframes/books/booksampler.jl")
-include("dataframes/books/wordsampler.jl")
+#~ Data handlers, loaders, and samplers
+include("dataframes/arxiv/arxivloader.jl")
+include("dataframes/gaia/gaialoader.jl")
+# include("dataframes/gowalla/gowallaloader.jl")
 include("dataframes/wikitext/wikitextsampler.jl")
 include("dataframes/lego/legosampler.jl")
 include("dataframes/otu/otusampler.jl")
-include("dataframes/arxiv/arxivsampler.jl")
 include("dataframes/rfc/rfcsampler.jl")
 include("dataframes/bci.tree/bcitreesampler.jl")
-include("dataframes/gaia/gaiasampler.jl")
 include("dataframes/GTEx/GTExsampler.jl")
 #~ Processes
 include("processes/dirichlet.jl")
