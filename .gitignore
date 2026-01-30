@@ -3,34 +3,20 @@
 **/*Manifest.toml
 Manifest.toml
 julia-code/Manifest.toml
-/julia-code/data/datasets/arxiv/raw-data/
-/julia-code/data/datasets/arxiv/raw-text/
-/julia-code/data/datasets/arxiv/clean_text/
-/julia-code/data/datasets/corpus/
+/poetry.lock
+
+# Exclude dataset directories
+/julia-code/data/datasets/arxiv/
 /julia-code/data/datasets/lego/
 /julia-code/data/datasets/otu/
-/julia-code/data/gutenberg/
-/julia-code/data/datasets/books/gutemberg/books.jld2
-/julia-code/data/datasets/books/gutemberg/gutemberg_metadata.csv
-/julia-code/data/datasets/genetic/
-/julia-code/data/datasets/mobility/
-/julia-code/figures/
-/poetry.lock
-**/movie-transcripts/**/*.txt
-/julia-code/data/datasets/rfc/raw-text/**
-/julia-code/data/datasets/rfc/*.zip
-/julia-code/data/datasets/rfc/**/*.txt
-/julia-code/data/datasets/rfc/**/*.xml
-/julia-code/data/datasets/rfc/**/*.css
-/julia-code/data/datasets/books/**/*.parquet
-/julia-code/data/datasets/movie-transcripts/**
+/julia-code/data/datasets/gtex/
+/julia-code/data/datasets/gowalla/
+/julia-code/data/datasets/rfc/
 /julia-code/data/datasets/bci.tree/
 /julia-code/data/datasets/gaia/
-/julia-code/data/datasets/arxiv/lemmatized_data/
-/julia-code/data/datasets/arxiv/lemmatized_noun_adj_data/
-/julia-code/data/datasets/arxiv/lemmatized_noun_data/
-/julia-code/data/datasets/books/gutemberg/corpus.csv.gz
+/julia-code/data/datasets/gutenberg/
 /julia-code/data/datasets/taraocean/
+/julia-code/figures/
 
 # Exclude temporary files
 tmp/
