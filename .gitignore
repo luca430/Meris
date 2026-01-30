@@ -1,22 +1,28 @@
-**/**.jld2
-**/**.csv
-**/*Manifest.toml
+**.jld2
+**.csv
+**.png
+**.pdf
 Manifest.toml
 julia-code/Manifest.toml
 /poetry.lock
 
-# Exclude dataset directories
-/julia-code/data/datasets/arxiv/
-/julia-code/data/datasets/lego/
-/julia-code/data/datasets/otu/
-/julia-code/data/datasets/gtex/
-/julia-code/data/datasets/gowalla/
-/julia-code/data/datasets/rfc/
-/julia-code/data/datasets/bci.tree/
-/julia-code/data/datasets/gaia/
-/julia-code/data/datasets/gutenberg/
-/julia-code/data/datasets/taraocean/
-/julia-code/figures/
+# Exclude directories
+/julia-code/data/datasets/arxiv/raw-data/*
+/julia-code/data/datasets/arxiv/processed/*
+/julia-code/data/datasets/bci.tree/raw-data/*
+/julia-code/data/datasets/gaia/raw-data/*
+/julia-code/data/datasets/gaia/processed/*
+/julia-code/data/datasets/gowalla/raw-data/*
+/julia-code/data/datasets/gtex/raw-data/*
+/julia-code/data/datasets/gutenberg/raw-data/*
+/julia-code/data/datasets/lego/raw-data/*
+/julia-code/data/datasets/otu/raw-data/*
+/julia-code/data/datasets/rfc/raw-data/*
+/julia-code/data/datasets/taraocean/raw-data/*
+
+/julia-code/data/macro/sad/*
+/julia-code/data/macro/taylor/*
+/julia-code/data/macro/taylor_conv/*
 
 # Exclude temporary files
 tmp/
@@ -25,6 +31,5 @@ tmp.*/
 .ipynb_checkpoints/
 /.dir-locals.el
 /.projectile
-*.ipynb
-**/*ipynb
-**/*.ipynb
+**.ipynb
+**.Rhistory
