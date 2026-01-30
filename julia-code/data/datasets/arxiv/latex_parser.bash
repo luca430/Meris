@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 SRC_DIR="./raw-data"
-OUT_DIR="./clean_text"
+OUT_DIR="./processed"
 TMP_DIR="./tmp"
 
 mkdir -p "$OUT_DIR" "$TMP_DIR"
