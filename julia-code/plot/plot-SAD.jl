@@ -73,7 +73,7 @@ function plot!(parent;
         ylabel = L"\eta = \gamma - 1",
         xlabelsize = 9,
         ylabelsize = 9,
-        xscale = log10,
+        xscale = log10, #yscale=log10,
         yticksmirrored = true
     )
 
@@ -88,10 +88,10 @@ function plot!(parent;
     colsize!(bottom, 2, Relative(0.45))
 
     # ---- Data + plotting (unchanged)
-    otu = JLD2.load(ZIPFDIR)["out"]
+    out = JLD2.load(ZIPFDIR)["out"]
 
-    labels = collect(keys(otu.pl))
-    pl_vals = collect(values(otu.pl))
+    labels = collect(keys(out.pl))
+    pl_vals = collect(values(out.pl))
 
     min_vals = Float64[]
     max_vals = Float64[]
@@ -118,14 +118,14 @@ function plot!(parent;
     end
     ax1.xticks = (1:length(labels), labels)
 
-    cad_vals = collect(values(otu.cad))
+    cad_vals = collect(values(out.cad))
     x_min = Float64[]
     x_max = Float64[]
     for (i, (v, p)) in enumerate(zip(cad_vals, pl_vals))
         push!(x_min, minimum(v.x))
         push!(x_max, maximum(v.x))
-        α = mean(p.α)
-        ε = mean(p.ε)
+        α = p.α_eff
+        ε = p.ε_eff
         scatter!(ax2, 10 .^ (v.x), (v.y ./ (α * ε ^ α .* log(10))) .^ (1 / α),
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
@@ -133,9 +133,9 @@ function plot!(parent;
     xrange = minimum(x_min)*1.05:1e-2:maximum(x_max)/1.1
     lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1)
 
-    heaps_vals = collect(values(otu.heaps))
+    heaps_vals = collect(values(out.heaps))
     for (i, (v,p)) in enumerate(zip(heaps_vals, pl_vals))
-        α = mean(p.α)
+        α = p.α_eff
         z, t = log10.(v.N), log10.(v.V)
         g = diff(t) ./ diff(z)
         c = (g[end] - 1) / (α - 1)
@@ -144,8 +144,7 @@ function plot!(parent;
         scatter!(ax3, v.N[idx], etas[idx],
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
-        hlines!(ax3, α, color=colors[i], linestyle=:dot, linewidth=0.5,
-            xmin=(log10(v.N[idx][end])-1) / 6)
+            hlines!(ax3, α, color=colors[i], linestyle=:dot, linewidth=0.5, xmin=(log10(v.N[idx][end])-1) / 6)
     end
     hlines!(ax3, 1, color=:black, linestyle=:dash, linewidth=0.5)
 

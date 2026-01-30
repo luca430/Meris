@@ -32,11 +32,14 @@ function compute(
     
         # Compute power law exponents
         α_vec, ε_vec = fit_samples(rdf; xmins=xmins)
-        pl_d[class] = (α = α_vec, ε = ε_vec)
     
         # Compute CAD
         agg_df = aggregate_samples(sdf)
         agg_df.counts .= agg_df.counts ./ agg_df.nreads
+        agg_df.sample_id .= ""
+        α_eff, ε_eff = fit_samples(agg_df; xmins=xmins)
+        α_eff, ε_eff = α_eff[1], ε_eff[1]
+        pl_d[class] = (α = α_vec, ε = ε_vec, α_eff = α_eff, ε_eff = ε_eff)
         x = filter ? log10.(agg_df.counts[agg_df.counts .> mean(ε_vec)]) : log10.(agg_df.counts)
         h = Meris.DataTools.make_hist(x, nbins=nbins)
         cad_d[class] = (x = h[1], y = h[2])
