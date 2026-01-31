@@ -14,8 +14,6 @@ using StatsBase
 
 #/ Modules, directories
 import Meris.OTUDIR as OTUDIR
-const ROTUDIR = OTUDIR * "RData/"
-const CSVOTUDIR = OTUDIR * "csv/"
 
 const ENV_MAP = Dict(
     " seawater.MGYS00002437" => "SEA",
@@ -53,16 +51,16 @@ end
 "Convert raw DataFrame to the standardized version"
 function standardized(df)
     df = @chain df begin
-        @transform(:environment = :classification .* "." .* :project_id)
+        @transform(:class = :classification .* "." .* :project_id)
         @rename(:counts = :count, :component_id = :otu_id)
-        @select(:environment, :component_id, :counts, :nreads, :run_id)
+        @select(:class, :component_id, :counts, :nreads, :run_id)
         @rename(:sample_id = :run_id)
     end
-    df.environment = get.(Ref(ENV_MAP), df.environment, df.environment)
+    df.class = get.(Ref(ENV_MAP), df.class, df.class)
     return df
 end
 
-function load(; datafilename = ROTUDIR*"crosssecdata.RData")
+function load(; datafilename = OTUDIR * "/raw-data/crosssecdata.RData")
     df = load_rdata(; rdatafilename = datafilename)
     return standardized(df)
 end

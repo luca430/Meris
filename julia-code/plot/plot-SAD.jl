@@ -73,7 +73,7 @@ function plot!(parent;
         ylabel = L"\eta = \gamma - 1",
         xlabelsize = 9,
         ylabelsize = 9,
-        xscale = log10, #yscale=log10,
+        xscale = log10, yscale=log10,
         yticksmirrored = true
     )
 
@@ -124,8 +124,8 @@ function plot!(parent;
     for (i, (v, p)) in enumerate(zip(cad_vals, pl_vals))
         push!(x_min, minimum(v.x))
         push!(x_max, maximum(v.x))
-        α = p.α_eff
-        ε = p.ε_eff
+        α = mean(p.α)
+        ε = mean(p.ε)
         scatter!(ax2, 10 .^ (v.x), (v.y ./ (α * ε ^ α .* log(10))) .^ (1 / α),
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
@@ -135,18 +135,18 @@ function plot!(parent;
 
     heaps_vals = collect(values(out.heaps))
     for (i, (v,p)) in enumerate(zip(heaps_vals, pl_vals))
-        α = p.α_eff
+        α = mean(p.α)
         z, t = log10.(v.N), log10.(v.V)
         g = diff(t) ./ diff(z)
         c = (g[end] - 1) / (α - 1)
         etas = (g .- 1) ./ c .+ 1
         idx = round.(Int, 10 .^ range(0, log10(length(etas)), length = 60))
-        scatter!(ax3, v.N[idx], etas[idx],
+        scatter!(ax3, v.N[idx], v.V[idx],
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
-            hlines!(ax3, α, color=colors[i], linestyle=:dot, linewidth=0.5, xmin=(log10(v.N[idx][end])-1) / 6)
+            # hlines!(ax3, α, color=colors[i], linestyle=:dot, linewidth=0.5, xmin=(log10(v.N[idx][end])-1) / 6)
     end
-    hlines!(ax3, 1, color=:black, linestyle=:dash, linewidth=0.5)
+    # hlines!(ax3, 1, color=:black, linestyle=:dash, linewidth=0.5)
 
     return (ax1=ax1, ax2=ax2, ax3=ax3, panel=panel)
 end
