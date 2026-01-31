@@ -2,7 +2,7 @@
 
 =#
 #/ Start module
-module GTExSampler
+module GTExLoader
 
 #/ Packages
 using DataFrames, DataFramesMeta
@@ -63,6 +63,6 @@ function load(; tissues=["BRAIN", "HEART", "LIVER", "PANCREAS"])
     return vcat(all_df...)
 end
 
-end # module arXivSampler
+end # module GTExLoader
 #/ End module
 

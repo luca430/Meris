@@ -1,4 +1,4 @@
 ### RUN FROM THIS FOLDER ###
-python download.py --from 2025-06-01 --to 2025-12-31T23:59 --sort relevance --n 50
+python download.py --from 2025-06-01 --to 2025-12-31T23:59 --sort relevance --n 100
 chmod +x latex_parser.bash
 ./latex_parser.bash

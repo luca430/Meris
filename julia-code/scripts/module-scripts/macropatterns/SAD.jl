@@ -1,4 +1,4 @@
-module Zipf
+module SAD
 
 using Meris
 using DataFrames, DataFramesMeta, StatsBase
@@ -9,9 +9,10 @@ function compute(
         df;
         filter=true,
         xmins=nothing,
+        pareto_type="I",
         nbins=30,
         save=true,
-        filename="zipf.jld2"
+        filename="SAD.jld2"
     )
 
     Random.seed!(1234)
@@ -31,7 +32,7 @@ function compute(
         heaps_d[class] = (N = hdf.documentsize, V = hdf.vocabularysize)
     
         # Compute power law exponents
-        α_vec, ε_vec = fit_samples(rdf; xmins=xmins)
+        α_vec, ε_vec = fit_samples(rdf; xmins=xmins, pareto_type=pareto_type)
         pl_d[class] = (α = α_vec, ε = ε_vec)
     
         # Compute CAD
@@ -61,7 +62,7 @@ function aggregate_samples(df)
     end
 end
     
-function fit_samples(df; samples_idx=nothing, xmins=nothing)
+function fit_samples(df; samples_idx=nothing, xmins=nothing, pareto_type)
     
     samples = unique(df.sample_id)
     samples_idx = isnothing(samples_idx) ? collect(1:length(samples)) : samples_idx
@@ -71,7 +72,12 @@ function fit_samples(df; samples_idx=nothing, xmins=nothing)
     for sample in samples[samples_idx]
         sdf = df[df.sample_id .== sample, :]
 
-        fit = MDist.fit(MDist.TemperedPareto, sdf.counts; εs=xmins)
+        if pareto_type == "I"
+            pareto = MDist.ParetoI
+        elseif pareto_type == "T"
+            pareto = MDist.TemperedPareto
+        end
+        fit = MDist.fit(pareto, sdf.counts; εs=xmins)
         ε = fit.ε
         push!(ε_vec, ε)
         α = fit.α

@@ -6,10 +6,6 @@ astro-ph.GA
 astro-ph.CO
 astro-ph.EP
 astro-ph.SR
-cond-mat.dis-nn
-cond-mat.mtrl-sci
-cond-mat.mes-hall
-cond-mat.quant-gas
 physics.soc-ph
 physics.acc-ph
 physics.ao-ph
