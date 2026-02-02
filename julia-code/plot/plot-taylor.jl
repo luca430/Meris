@@ -261,8 +261,9 @@ function plot_synthetictaylor(;
     for (i, m) in enumerate(range(mmin, mmax, n))
         (m == mmin) && (idxs[begin] = 1; continue)
         (m == mmax) && (idxs[end] = nsamples; break)
-        idxs[i] = idxs[i-1] + findfirst(x -> x > m, logm[idxs[i-1]:end])
+        idxs[i] = min(idxs[i-1] + findfirst(x -> x > m, logm[idxs[i-1]:end]), nsamples)
     end
+    idxs = unique(idxs)
     mplot = logm[idxs]
     splot = logs[idxs]
     
