@@ -6,7 +6,7 @@
    > `bci.sptable.rdata` [contains meta data to unique identify trees, if desired]
 =#
 #/ Start module
-module BCITreeSampler
+module BCITreeLoader
 
 #/ Packages
 using CSV
@@ -17,15 +17,13 @@ using StatsBase
 
 #/ Modules, directories
 import Meris.TREEDIR as TREEDIR
-const RTREEDIR = TREEDIR * "RData/"
-const CSVTREEDIR = TREEDIR * "csv/"
 
 #################
 ### FUNCTIONS ###
-function load_treedata(; filename=nothing, mincount=1, joinquadrats=true, raw=false)
+function load(; DIR=TREEDIR * "raw-data/", mincount=1, joinquadrats=true, steps=2, raw=false)
     treedf = DataFrame()
     census_ids = String[]
-    filenames = isnothing(filename) ? readdir(RTREEDIR) : [filename]
+    filenames = readdir(DIR)
     for FILE in filenames
         #~ Check if numeric number in filename, otherwise skip
         (!any(isnumeric, FILE)) && (continue)
@@ -78,39 +76,6 @@ function load_treedata(; filename=nothing, mincount=1, joinquadrats=true, raw=fa
     return countdf
 end
 
-"""
-    computevocabularysize
-"""
-function computevocabularysize(;
-    filename=nothing,
-    joinquadrats=false,
-    nobservationlenghts=30
-)
-    treedf = load_treedata(; joinquadrats=false, raw=true)
-    #~ Randomly permute and count vocabulary size for growing observation lengths
-    bagoftrees = shuffle(treedf.component_id)
-    heapsdf = DataFrame(observationlength=Int[], vocabularysize=Int[])
-    #~ Determine observation lengths
-    Nmin = 10
-    Nmax = length(bagoftrees)
-    logN = exp10.(range(log10(Nmin), log10(Nmax), nobservationlenghts))
-    logN = vcat([1], round.(Int, logN))
-
-    vocabulary = String[]
-    dictionary = Set{String}()
-    for i in eachindex(logN[begin:end-1])
-        #~ Gather trees and add to vocabulary and dictionary
-        for tree in view(bagoftrees, logN[i]:logN[i+1])
-            if !(tree in dictionary)
-                push!(vocabulary, tree)
-                push!(dictionary, tree)
-            end
-        end
-        push!(heapsdf, [logN[i+1], length(vocabulary)])
-    end
-    return heapsdf
-end
-
 ########################
 ### HELPER FUNCTIONS ###
 """
@@ -119,19 +84,10 @@ end
 Load RData file into a DataFrame
 """
 function load_rdata(; rdatafilename="bci.tree1.rdata", joinquadrats=false, steps=2)
-    df = RData.load(RTREEDIR * rdatafilename)[splitext(rdatafilename)[begin]]
+    df = RData.load(TREEDIR * "raw-data/" * rdatafilename)[splitext(rdatafilename)[begin]]
     df = @transform(df, :treeID = Int.(:treeID))
     (joinquadrats) && (df = join_quadrats(df; steps=steps))
     return df
-end
-
-"""
-    load_data
-
-Load DataFrame from specific document
-"""
-function load_data(documentname; csvfilename="raw-bci.tree-$(documentname).csv")
-    return CSV.read(CSVTREEDIR * csvfilename, DataFrame, delim=", ")
 end
 
 """
@@ -165,5 +121,5 @@ function join_quadrats(df::DataFrame; steps=2, rng=Random.Xoshiro(42 * steps))
     return df
 end
 
-end # module BCTreeSampler
+end # module BCTreeLoader
 #/ End module

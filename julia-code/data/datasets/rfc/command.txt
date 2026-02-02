@@ -1,2 +1,3 @@
 ### RUN FROM THIS FOLDER ###
-python download.py
+chmod +x download.sh
+./download.sh

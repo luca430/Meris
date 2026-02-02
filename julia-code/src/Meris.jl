@@ -6,6 +6,7 @@ const FIGDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
 
 const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"
+const BRIGHTKITEDIR = DATADIR * "datasets/brightkite/"
 const GAIADIR = DATADIR * "datasets/gaia/"
 const GOWALLADIR = DATADIR * "datasets/gowalla/"
 const GTEXDIR = DATADIR * "datasets/gtex/"
@@ -18,14 +19,15 @@ const TARADIR = DATADIR * "datasets/taraocean/"
 ## SUBMODULES
 #~ Data handlers, loaders, and samplers
 include("dataframes/arxiv/arxivloader.jl")
-include("dataframes/bci.tree/bcitreesampler.jl")
+include("dataframes/bci.tree/bcitreeloader.jl")
+include("dataframes/brightkite/brightkiteloader.jl")
 include("dataframes/gaia/gaialoader.jl")
 include("dataframes/gowalla/gowallaloader.jl")
 include("dataframes/GTEx/gtexloader.jl")
-# include("dataframes/gutenberg/gutenbergloader.jl")
-include("dataframes/lego/legosampler.jl")
+include("dataframes/gutenberg/gutenbergloader.jl")
+include("dataframes/lego/legoloader.jl")
 include("dataframes/otu/otuloader.jl")
-include("dataframes/rfc/rfcsampler.jl")
+include("dataframes/rfc/rfcloader.jl")
 # include("dataframes/tara/taraloader.jl")
 
 #~ Processes

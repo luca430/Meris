@@ -3,7 +3,7 @@
    Of particular interest to our use-case is the `inventory_parts`.
 =#
 #/ Start module
-module LegoSampler
+module LegoLoader
 
 #/ Packages
 using CSV
@@ -15,61 +15,37 @@ using StatsBase
 import Meris.LEGODIR as LEGODIR
 
 #######################
-### HEAPS FUNCTIONS ###
-"Take n samples of sizes Nv=[N1,N2,...] from the full LEGO catalogus and compute vocabulary size"
-function samplevocabsize(
-    Nv::Vector{Int};
-    n::Int=32,
-    bagoflegos::Union{DataFrame,Nothing}=nothing,
-    minquantity::Int=100,      #~ Min. no of LEGO pieces in a set
-    mindistinctpieces::Int=30, #~ Min. no of *distinct* LEGO pieces in a set
-    rng=Random.Xoshiro(42 * minquantity * mindistinctpieces),
-    DIR=LEGODIR,
-    FILENAME="inventory_parts.csv"
-)
-    if isnothing(bagoflegos)
-        ldf = filterlegos(;
-            minquantity=minquantity, mindistinctpieces=mindistinctpieces,
-            DIR=DIR, FILENAME=FILENAME
-        )
-        bagoflegos = @select(ldf, :component_id, :counts)
-    end
-    #~ For each N in Nv, sample N words n times and compute the vocabulary size V(N)
-    V = zeros(Int, length(Nv), n)
-    for i in eachindex(Nv), k in 1:n
-        V[i, k] = _samplevocabsize(Nv[i]; bagoflegos=bagoflegos, rng=rng)
-    end
-    return V
-end
-
-
-"""
-    computevocabsize
-
-Compute vocabulary size of LEGO sets of sufficient size
-"""
-function computevocabsize(;
-    minquantity::Int=50,       #~ Min. no of LEGO pieces in a set
-    mindistinctpieces::Int=50, #~ Min. no of *distinct* LEGO pieces in a set
-    aggregate=false,
-    returnsummary=true,
-    DIR=LEGODIR,
-    FILENAME="inventory_parts.csv"
-)
-    #/ Load into DataFrame
-    #~ When `returnsummary=true`, return the summarizing statistics
-    legodf = filterlegos(;
-        minquantity=minquantity, mindistinctpieces=mindistinctpieces,
-        DIR=DIR, FILENAME=FILENAME, returnsummary=returnsummary
+### FUNCTIONS ###
+function load(;
+    DIR=LEGODIR * "raw-data/",
+    nthemes=20,
+    SETFILE="sets.csv",
+    INVENTORYSETFILE="inventories.csv",
+    INVENTORYPARTSFILE="inventory_parts.csv",
+    minquantity=64,
+    mindistinctpieces=32
     )
-    #/ Aggregate the data by computing, for each unique sample size, the mean vocabularysize.
-    #  This is useful for investigating Heaps' law.
-    if aggregate
-        sdf = @by(legodf, :documentsize, :meanvocabularysize = mean(:vocabularysize))
-        return sdf
-    end
-    return legodf
+
+    big_df, themes_df = parse_themes(;
+        DIR=DIR,
+        SETFILE=SETFILE,
+        INVENTORYSETFILE=INVENTORYSETFILE,
+        INVENTORYPARTSFILE=INVENTORYPARTSFILE,
+        minquantity=minquantity,
+        mindistinctpieces=mindistinctpieces,
+        standardize=true,
+        returnthemes=true
+        )
+
+    sort!(themes_df, :nsets, rev=true)
+    df = big_df[in.(big_df.theme_id, Ref(themes_df.theme_id[1:nthemes])), :]
+    rename!(df, :theme_id => :class)
+
+    df.class .= string.(df.class)
+
+    return df
 end
+
 
 ########################
 ### HELPER FUNCTIONS ###
@@ -210,47 +186,6 @@ function filterlegos(;
     return fdf
 end
 
-"""
-    _samplevocabsize
-
-Take sample of size `N` from the full LEGO catalogus and compute vocabulary size
-"""
-function _samplevocabsize(
-    N::Int;
-    bagoflegos::Union{DataFrame,Nothing}=nothing,
-    minquantity::Int=100,      #~ Min. no of LEGO pieces in a set
-    mindistinctpieces::Int=30, #~ Min. no of *distinct* LEGO pieces in a set
-    rng=Random.Xoshiro(42 * minquantity * mindistinctpieces),
-    DIR=LEGODIR,
-    FILENAME="inventory_parts.csv"
-)
-    if isnothing(bagoflegos)
-        ldf = filterlegos(;
-            minquantity=minquantity, mindistinctpieces=mindistinctpieces,
-            DIR=DIR, FILENAME=FILENAME
-        )
-        bagoflegos = @select(ldf, :component_id, :counts)
-    end
-    s = _sample(bagoflegos, N, rng=rng)
-    V = length(unique(s))
-    return V
-end
-
-"""
-    _sample
-
-Take a random sample from a DataFrame of LEGO pieces. Use their counts as weights.
-"""
-function _sample(
-    legos::DataFrame, N::Int;
-    rng=Random.Xoshiro(42)
-)
-    #~ Compute weights, and return sample from catalogus
-    w = Weights(legos[!, :counts])
-    s = sample(rng, legos[:, :component_id], w, N, replace=false)
-    return s
-end
-
 ##################################
 ### DATA ACQUISITION FUNCTIONS ###
 "Download relevant LEGO dataset from https://rebrickable.com/downloads/"
@@ -268,7 +203,5 @@ function download(;
     nothing
 end
 
-
-
-end # module LegoSampler
+end # module LegoLoader
 #/ End module
