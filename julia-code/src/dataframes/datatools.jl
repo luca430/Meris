@@ -1,0 +1,224 @@
+module DataTools
+
+using DataFrames, FHist, Distributions
+
+#################
+### FUNCTIONS ###
+"""
+Filter standardized DataFrame based on min_samples and min_nreads.
+"""
+function df_filter!(
+    df::DataFrame;
+    min_nreads::Int = 1,
+    min_species::Int = 1,
+    min_samples::Int = 1,
+)
+
+    # 1. Filter by total reads
+    filter!(row -> row.nreads ≥ min_nreads, df)
+
+    # 2. Remove samples with too few unique species
+    g = groupby(df, [:class, :sample_id])
+    species_per_sample = combine(g) do sdf
+        (; n_species = count(>(0), sdf.counts))
+    end
+
+    good_samples = species_per_sample[
+        species_per_sample.n_species .≥ min_species,
+        [:class, :sample_id],
+    ]
+
+    df = innerjoin(df, good_samples, on = [:class, :sample_id])
+
+    # 3. Keep only classes with enough samples
+    gclass = groupby(df, :class)
+    good_classes = combine(gclass, nrow => :nsamples)
+    good_classes = good_classes.class[good_classes.nsamples .≥ min_samples]
+
+    filter!(row -> row.class in good_classes, df)
+
+    return df
+end
+
+"""
+Downsample a DataFrame by reducing counts so that each sample has the same `nreads`.
+Returns a count matrix with samples in rows and species in columns.
+""" 
+function downsample(df; N=10_000, class=nothing)
+
+    sdf = deepcopy(df)
+    if !isnothing(class)
+        sdf = df[df.class .== class, :]
+    end
+    
+    # Convert df into counts matrix
+    counts, nreads = get_counts(sdf, occ=0.0)
+    mask = nreads .>= N
+    counts = Int.(counts[mask, :])
+    nreads = Int.(nreads[mask])
+
+    nrows, ncols = size(counts)
+    ds_counts = zeros(Int, nrows, ncols)
+    
+    for q in 1:nrows
+        row = counts[q, :]
+        total = sum(row)
+        remaining = N
+        rest = total
+
+        for k in 1:ncols
+            if remaining == 0
+                break
+            end
+        
+            c = row[k]
+            if c == 0
+                continue
+            end
+        
+            # enforce feasibility
+            max_possible = min(c, remaining)
+            min_possible = max(0, remaining - (rest - c))
+        
+            if min_possible == max_possible
+                x = min_possible
+            else
+                x = rand(Hypergeometric(c, rest - c, remaining))
+            end
+        
+            ds_counts[q, k] = x
+            remaining -= x
+            rest -= c
+        end
+    end
+
+    return ds_counts
+end
+
+"""
+Order columns of a count matrix by occupancy level.
+Optionally, filter by occupancy level.
+"""
+function order_by_occ(counts; occ=0.0)
+    inv_occ = 1 - occ
+    # Reorder columns (species) counts from most occupied to least occupied
+    zero_counts = sum(counts .== 0, dims=1)
+    col_order = sortperm(vec(zero_counts))
+    counts = counts[:, col_order]
+    
+    # Filter counts by occupancy level
+    T, S = size(counts)
+    zero_counts = vcat(sum(counts .== 0, dims=1)...)
+    max_idx = findfirst(>(inv_occ * T), zero_counts)
+    if isnothing(max_idx)
+        max_idx = S
+    end
+    
+    return counts[:, 1:max_idx]
+end
+
+"""
+    make_hist(data; nbins=20, normalize=true, all_values=false)
+
+Construct a histogram from `data` using `FHist`.
+
+# Arguments
+- `data`: Vector of numerical data.
+- `nbins`: Number of bins (default = 20).
+- `normalize`: If `true`, normalizes the histogram so that the area under the curve is 1.
+- `all_values`: If `false`, returns only bins with nonzero counts.
+
+# Returns
+A tuple `(centers, pdf)` where:
+- `centers`: Vector of bin centers.
+- `pdf`: Vector of (possibly normalized) counts or densities.
+"""
+function make_hist(data; nbins=20, normalize=true, all_values=false)
+    bmin, bmax = minimum(data), maximum(data)
+    Δb = (bmax - bmin) / nbins
+    fh = FHist.Hist1D(data, binedges=bmin:Δb:bmax)
+    centers = bincenters(fh)
+    pdf = bincounts(fh)
+
+    if normalize
+        pdf ./= (integral(fh) * Δb)
+    end
+
+    if !all_values
+        mask = pdf .> 0
+        centers = centers[mask]
+        pdf = pdf[mask]
+    end
+    return centers, pdf
+end
+
+"Extract a matrix of counts and an array of nreads from standardized DataFrame for a specific level of occupancy."
+function get_counts(df; occ=0.95)
+
+    # Transform raw data into matrix of counts and vector of nreads
+    components = unique(df.component_id)
+    samples = unique(df.sample_id)
+
+    S, T = length(components), length(samples)
+    sm_groups = groupby(df, :sample_id)
+
+    counts = zeros(T, S)
+    nreads = zeros(T)
+    comp_index = Dict(ci => i for (i, ci) in enumerate(components))
+    samp_index = Dict(sm => i for (i, sm) in enumerate(samples))
+
+    for g in sm_groups
+        sm = g.sample_id[1]
+        i = samp_index[sm]
+        nreads[i] = g.nreads[1]
+        for (ci, val) in zip(g.component_id, g.counts)
+            j = comp_index[ci]
+            counts[i, j] = val
+        end
+    end
+
+    counts = order_by_occ(counts; occ=occ)
+
+    return counts, nreads
+end
+
+"""
+Extract a matrix of frequencies from standardized DataFrame for a specific level of occupancy.
+Optionally rescale by occupancy.
+"""
+function get_frequencies(df; occ=0.95, rescale=false)
+
+    dff = copy(df)
+    dff.f = dff.counts ./ dff.nreads
+
+    # Transform raw data into matrix of counts and vector of nreads
+    components = unique(df.component_id)
+    samples = unique(df.sample_id)
+
+    S, T = length(components), length(samples)
+    sm_groups = groupby(dff, :sample_id)
+
+    freqs = zeros(T, S)
+    comp_index = Dict(ci => i for (i, ci) in enumerate(components))
+    samp_index = Dict(sm => i for (i, sm) in enumerate(samples))
+
+    for g in sm_groups
+        sm = g.sample_id[1]
+        i = samp_index[sm]
+        for (ci, val) in zip(g.component_id, g.f)
+            j = comp_index[ci]
+            freqs[i, j] = val
+        end
+    end
+
+    freqs = order_by_occ(freqs; occ=occ)
+
+    if rescale # Multiply by the occupancy
+        zero_counts = sum(freqs .!= 0, dims=1)
+        freqs .*= zero_counts ./ T
+    end
+
+    return freqs
+end
+
+end # End module DataTools

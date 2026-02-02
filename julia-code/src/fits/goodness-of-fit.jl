@@ -1,4 +1,5 @@
 #= Module to perform goodness-of-fit evaluations to check how well some data
+   - is described by a particular function
    - is described by a particular distribution
    - is described by some distribution compared to another distribution
 =#
@@ -7,8 +8,8 @@ module GOF
 
 #/ Packages
 using Random
-using StatsBase
 using FHist
+using Statistics, StatsBase, LinearAlgebra
 
 #################
 ### FUNCTIONS ###
@@ -16,6 +17,7 @@ using FHist
     estimatep(data, CDF, invCDF, test; nruns=10000, rng=Random.Xoshiro(42), params...)
 
 Estimate p-value for a goodness-of-fit (GOF) test using Monte-Carlo simulations.
+This function is intended specifically to perform a GOF test for distributions using one of the available methods.
 
 # Arguments
 - `data`: Sample data.
@@ -42,6 +44,71 @@ function estimatep(data, CDF, invCDF, test; nmcsamples=10_000, rng=Random.Xoshir
     p = mean(Tsim .>= T)
     return p
 end
+
+"""
+    fit_scores(fit, model, x, y)
+
+Estimate many statistic scores for a goodness-of-fit (GOF) test.
+This function is intended to perform a GOF test for a generic model, evaluating most of the classical GOF estimators.
+
+# Arguments
+- `model`: Theoretical model in used for the fit. It must be in the form 'model(x, p)'.
+- `x`: x data used to fit.
+- `y`: y data used to fit.
+- `p`: Array of model parameters
+
+# Returns
+Estimated p-value `p = mean(T_sim ≥ T)` where `T` is the observed statistic.
+"""
+function fit_scores(model, x, y, p)
+    ŷ = model(x, p)
+    n = length(y)
+    k = length(p)
+
+    # Residuals and SSE
+    res = y .- ŷ
+    SSE = sum(abs2, res)
+    MSE = SSE / n
+    RMSE = sqrt(MSE)
+
+    # R^2 and adjusted R^2 (useful for regression-like fits)
+    TSS = sum(abs2, y .- mean(y))
+    R2 = 1 - SSE / TSS
+    adjR2 = 1 - (1 - R2) * (n - 1) / (n - k - 1)
+
+    # Estimate variance of residuals
+    σ2_mle = SSE / n            # ML estimate (for AIC/BIC)
+    σ2_unbiased = SSE / (n - k) # unbiased estimate (used for reduced chi^2)
+
+    # Reduced chi-square (if you don't have per-point σ_i, use σ²_unbiased)
+    χ2_reduced = σ2_unbiased == 0 ? Inf : (SSE / σ2_unbiased) / (n - k) # simplifies to 1, but keep form if you have explicit sigma_i
+
+    # Log-likelihood under Gaussian iid errors (using ML variance = SSE/n)
+    ll = -n / 2 * (log(2π) + log(σ2_mle) + 1)
+    AIC = 2k - 2ll
+    BIC = k * log(n) - 2ll
+    # AICc for small samples
+    AICc = AIC + (2k * (k + 1)) / (n - k - 1)
+
+    return Dict(
+        :n => n,
+        :k => k,
+        :SSE => SSE,
+        :MSE => MSE,
+        :RMSE => RMSE,
+        :R2 => R2,
+        :adjR2 => adjR2,
+        :σ2_mle => σ2_mle,
+        :σ2_unbiased => σ2_unbiased,
+        :χ2_reduced => χ2_reduced,
+        :loglikelihood => ll,
+        :AIC => AIC,
+        :AICc => AICc,
+        :BIC => BIC,
+        :residuals => res
+    )
+end
+
 
 #######################
 ### TEST STATISTICS ###
@@ -85,11 +152,10 @@ Compute the Kolmogorov–Smirnov test statistic comparing empirical data to CDF 
 # Returns
 The Kolmogorov–Smirnov statistic `√n * max|Fₙ(x) - G(x)|`.
 """
-function KolmogorovSmirnov(data, CDF; m=1e-2)
+function KolmogorovSmirnov(data, CDF)
     n = length(data)
-    supp = collect(minimum(data):m:maximum(data))
-    Fn = edf(data, supp)
-    D = abs.(Fn .- CDF.(supp))
+    _x, Fn = ecdf(data, data)
+    D = abs.(Fn .- CDF.(data))
     return sqrt(n) * maximum(D)
 end
 
@@ -125,26 +191,48 @@ Compute the Cramér–von Mises test statistic comparing `data` to CDF `G`.
 # Returns
 The Cramér–von Mises statistic.
 """
-function CvM(data, G)
+function CramervonMises(data, G)
     n = length(data)
     U = G.(sort(data))
     i = 1:n
     W = sum((U .- (2 .* i .- 1) ./ 2n) .^ 2)
-    return W + 1 / (12*n)
+    return W + 1 / (12 * n)
 end
 
 ########################
 ### HELPER FUNCTIONS ###
 """
-    edf
+    ecdf
 
-Construct the empirical distribution function (eDF/eCDF) from the data given some thresholds.
+Construct the empirical cumulative distribution function (eDF/eCDF) from the data given some thresholds.
 That is, computed F(x,t;n) = 1/n ∑ 1(x ≤ t), with 1(⋅) the indicator function.
 """
-function edf(x::Array{Float64}, t::Array{Float64})
-	  n = length(x)
-    F = [sum(sort(x) .<= τ) for τ in t] ./ n
-    return F
+function ecdf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
+    n = length(x)
+    _x = sort(x)
+    F = [sum(_x .<= τ) for τ in sort(t)] ./ n
+
+    # mask = F .> 0
+    # F = F[mask]
+    # _x = _x[mask]
+    return _x, F
+end
+
+"""
+    eccdf
+
+Construct the empirical complementary cumulative distribution function (eDF/eCDF) from the data given some thresholds.
+That is, computed F(x,t;n) = 1/n ∑ 1(x > t), with 1(⋅) the indicator function.
+"""
+function eccdf(x::AbstractVector{<:Real}, t::AbstractVector{<:Real})
+    n = length(x)
+    _x = sort(x)
+    F = [sum(_x .> τ) for τ in sort(t)] ./ n
+
+    mask = F .> 0
+    F = F[mask]
+    _x = _x[mask]
+    return _x, F
 end
 
 end # module GOF

@@ -84,8 +84,8 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
     xs = sort(x)
     εs = isnothing(εs) ? unique(xs) : εs
     
-    αhat = nothing
-    εhat = nothing
+    αhat = 1.0
+    εhat = 1e-20
     D = Inf
     n = 0
     #/ For each possible xmin in xmins;

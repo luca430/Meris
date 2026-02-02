@@ -22,7 +22,7 @@ Uses methods from Clauset et al. (2009)
 
 @TODO Rewrite
 """
-function fitPareto(x::Array{T}; xmins=nothing) where T<:Real
+function fitPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
     xs = sort(x)
     xmins = isnothing(xmins) ? unique(xs) : xmins
     Pareto = Meris.ParetoDistribution.ParetoI
@@ -38,7 +38,7 @@ function fitPareto(x::Array{T}; xmins=nothing) where T<:Real
     for i in eachindex(xmins)
         _xmin = xmins[i]
         n = count(xs .>= _xmin)
-        (n < 50) && (break)        # If less than 50 samples >xmin, break
+        (n < minsamples) && (break)        # If less than 50 samples >xmin, break
         #~ Filter data
         _idx = searchsortedfirst(xs, _xmin)
         _x = xs[_idx:end]
@@ -56,7 +56,7 @@ function fitPareto(x::Array{T}; xmins=nothing) where T<:Real
         # Dhat = -(n+S)        
         
         distances = abs.(Fv .- Ftv) ./ Z
-        Dhat = maximum(distances)
+        Dhat = maximum(distances[.!isinf.(distances)])
         #~ If smaller than the current best, update
         if Dhat < D
             xmin = _xmin
@@ -126,7 +126,7 @@ end
 Fit a power law on the heavy-tail of the data above some xmin
 Uses methods from Clauset et al. (2009)
 """
-function fitGeneralizedPareto(x::Array{T}; xmins=nothing) where T<:Real
+function fitGeneralizedPareto(x::Array{T}; xmins=nothing, minsamples=50) where T<:Real
     xs = sort(x)
     xmins = isnothing(xmins) ? unique(xs) : xmins
     GeneralizedPareto = Meris.ParetoDistribution.GeneralizedPareto
@@ -158,7 +158,8 @@ function fitGeneralizedPareto(x::Array{T}; xmins=nothing) where T<:Real
         Z = sqrt.(Ftv .* (1 .- Ftv))
         
         distances = abs.(Fv .- Ftv) ./ Z
-        Dhat = maximum(distances)        
+        Dhat = maximum(distances[.!isinf.(distances)])
+        
         #~ If smaller than the current best, update
         if Dhat < D
             xmin = _xmin

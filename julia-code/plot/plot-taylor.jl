@@ -5,6 +5,7 @@ module TaylorPlotter
 using CairoMakie
 using MakiePublication
 using LaTeXStrings
+using FileIO, ImageTransformations
 
 using FileIO, ImageTransformations
 using StatsBase, Random
@@ -15,6 +16,8 @@ import Meris.DATADIR as DATADIR
 import Meris.FIGUREDIR as FIGDIR
 import Meris.StraightLine as SL
 
+const ICONDIR = normpath(joinpath(@__DIR__, "..", "icons/"))
+
 #################
 ### FUNCTIONS ###
 function plot_taylor(;
@@ -22,96 +25,126 @@ function plot_taylor(;
     ICONDIR = FIGDIR * "icons/",
     rescale = false,
     savefig = false,
-    figname = true
+    figname = 
 )
-    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
-    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
+    sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
+    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
     set_theme!(__theme)
 
     colors = MakiePublication.COLORS[begin]
 
     width = 1.9 * 246
     height = width
-    fig = Figure(; size=(width,height/2), figure_padding=(2,4,2,14))
+    fig = Figure(; size=(width, height / 2), figure_padding=(2, 4, 2, 14))
 
+    #/ Plot
+    xtl = -10:0.1:10.0
     icons = []
     axes = []
-    
-    #/ [...]
-    axtl = Axis(fig[1:2,1:2])
-    
-    #/ Plot Taylor's law for RFC
+
+    #/ RFC
     axrfc = Axis(
-        fig[1,3],
+        fig[1, 3],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-8,-1,-14,0)
+        limits=(-3, 4, -3, 5)
     )
-    rfcdf = JLD2.load(TLDIR*"rfc/rfc-taylor.jld2")
-    m, s = rfcdf["omean"], rfcdf["ovar"]
+    rfc_df = JLD2.load(TLDIR * "rfc.jld2")["tldf"]
+    fitrfc = fit(rfc_df)
+    m, s = log10.(rfc_df[!, :omeanfrequency]), log10.(rfc_df[!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    # s .-= fitrfc.a
     rfctl = scatter!(
-        axrfc, log10.(m), log10.(s),
-        color=:white, strokecolor=colors[1], markersize=4, strokewidth=.4
+        axrfc, m, s,
+        color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4, label=L"\text{RFCs}"
     )
-    # push!(labels, L"\textrm{RFC}")
+    lines!(axrfc, xtl .- minimum(m) .- 0.5, 2 .* (xtl .- minimum(m)), linewidth=1, color=:black, linestyle=(:dash,:dense))
+    lines!(axrfc, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
+    # axislegend(axrfc, position=:rb)
     push!(icons, ICONDIR*"documents.png")
     push!(axes, (; ax=axrfc, pos=[1,3]))
-    
-    #/ OTU
+
+    # #/ OTU
     axotu = Axis(
-        fig[1,4],
+        fig[2, 3],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-5,-1,-10,-2)
+        limits=(-2, 4, -4, 6)
     )
-    otudf = JLD2.load(TLDIR*"otu/otu-gut1-taylor.jld2")
-    m, s = otudf["omean"], otudf["ovar"]
+    otu_df = JLD2.load(TLDIR * "otu.jld2")["tldf"]
+    fitotu = fit(otu_df)
+    m, s = log10.(otu_df[!, :omeanfrequency]), log10.(otu_df[!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    # s .-= fitotu.a
     otutl = scatter!(
-        axotu, log10.(m), log10.(s),
-        color=:white, strokecolor=colors[2], markersize=4, strokewidth=.4
+        axotu, m, s,
+        color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4, label=L"\text{OTUs}"
     )
-    # push!(labels, L"\textrm{OTU}")
+    lines!(axotu, xtl .- minimum(m) .- 0.5, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
+    lines!(axotu, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
+    # axislegend(axotu, position=:rb)
     push!(icons, ICONDIR*"bacteria.png")
-    push!(axes, (; ax=axotu, pos=[1,4]))
-    # return axotu
+    push!(axes, (; ax=axotu, pos=[2,3]))
 
-    #/ Lego
+    # #/ Lego
     axlego = Axis(
-        fig[2,3],
+        fig[1, 4],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-8,-2,-12,0)
+        limits=(-1, 2, -2, 3)
     )
-    legodf = JLD2.load(TLDIR*"lego/lego-taylor.jld2")
-    m, s = legodf["omean"], legodf["ovar"]
+    lego_df = JLD2.load(TLDIR * "lego.jld2")["tldf"]
+    fitlego = fit(lego_df)
+    m, s = log10.(lego_df[!, :omeanfrequency]), log10.(lego_df[!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    # s .-= fitlego.a
     legotl = scatter!(
-        axlego, log10.(m), log10.(s),
-        color=:white, strokecolor=colors[3], markersize=4, strokewidth=.4
+        axlego, m, s,
+        color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4, label=L"\text{LEGO}"
     )
-    # push!(labels, L"\textrm{Lego}")
+    lines!(axlego, xtl .- minimum(m) .- 0.3, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
+    lines!(axlego, xtl .- minimum(m) .- 0.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
+    # axislegend(axlego, position=:rb)
     push!(icons, ICONDIR*"lego.png")
-    push!(axes, (; ax=axlego, pos=[2,3]))
+    push!(axes, (; ax=axlego, pos=[1,4]))
 
-    #/ Genes
+    # #/ GTEx
     axgtex = Axis(
-        fig[2,4],
+        fig[2, 4],
         xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
         ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-10,0,-20,0)
+        limits=(-6, 8, -10, 12)
     )
-    gtexdf = JLD2.load(TLDIR*"gtex/gtex-taylor.jld2")
-    m, s = gtexdf["omean"], gtexdf["ovar"]
+    gtex_df = JLD2.load(TLDIR * "gtex.jld2")["tldf"]
+    fitgtex = fit(gtex_df)
+    m, s = log10.(gtex_df[!, :omeanfrequency]), log10.(gtex_df[!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    # s .-= fitgtex.a
     gtextl = scatter!(
-        axgtex, log10.(m), log10.(s),
-        color=:white, strokecolor=colors[4], markersize=4, strokewidth=.4
+        axgtex, m, s,
+        color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4, label=L"\text{GTEx}"
     )
+    lines!(axgtex, xtl .- minimum(m) .- 1.3, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
+    lines!(axgtex, xtl .- minimum(m) .- 1.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
+    # axislegend(axgtex, position=:rb)
     push!(icons, ICONDIR*"gene.png")
     push!(axes, (; ax=axgtex, pos=[2,4]))
 
-    #/ Plot lines and icons
+    # Plot high occupancy TL
+    axtl = Axis(
+        fig[1:2, 1:2],
+        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
+        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
+        limits=(-2, 2, -4, 4)
+    )
+
     for (i, ax) in enumerate(axes)
         (xmin, xmax, ymin, ymax) = ax.ax.limits[]
-        lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
+        # lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
         axicon = Axis(
             fig[ax.pos...],
             width=Relative(0.22), height=Relative(0.22),
@@ -123,189 +156,83 @@ function plot_taylor(;
         hidedecorations!(axicon)
         hidespines!(axicon)
     end
-    
-    return fig
-    
-    
-    # for i in eachindex(DIRECTORIES)
-    #     #/ Taylor's law
-    #     tldf = CSV.read(DIR*DIRECTORIES[i]*BASETLFILENAME, DataFrame)
-    #     m = tldf[!,:meanfrequency]
-    #     s = tldf[!,:varfrequency]
-    #     x = log.(m)
-    #     y = log.(s)
 
-    #     #~ Compute rescaled moments using the occupancy        
-    #     tldf = @chain tldf begin 
-    #         @transform(:omeanfrequency = :meanfrequency .* :occupancy)
-    #         @transform(:ovarfrequency = :varfrequency .+ (1 .- :occupancy) .* :meanfrequency.^2)
-    #         @transform(:ovarfrequency = :ovarfrequency .* :occupancy)
-    #     end
-    #     #~ Use them if `rescale=true`
-    #     if rescale
-    #         x = log.(tldf[!,:omeanfrequency])
-    #         y = log.(tldf[!,:ovarfrequency])
-    #     end
-        
-    #     #/ Fix a straight line using York's method
-    #     #/ Calculate weights using the errors
-    #     #~ Calculate how much of the total variation comes from presence-absence
-    #     #  recall (σ′)² ← o⋅[σ²+μ²(1-o)], and so the ratio R = (σ′)² / (o⋅σ²) 
-    #     o = tldf[!,:occupancy] .* (1 .- tldf[!,:occupancy])
-    #     R = o .* tldf[!,:meanfrequency].^2 ./ tldf[!,:ovarfrequency]
-    #     #~ filter those with ratio 0 [occupancy 0]
-    #     sidxs = findall(x -> x > 0, R)
-    #     x = x[sidxs]
-    #     y = y[sidxs]
-    #     #~ extract the errors on the mean and variance [see `taylor.jl`]
-    #     #! note: use the δ-method to get the error on the log-transformed variables
-    #     σx = m[sidxs] ./ m[sidxs].^2
-    #     σy = s[sidxs] ./ s[sidxs].^2
-    #     logcov = tldf[!,:errorcov][sidxs] ./ (m[sidxs] .* s[sidxs])
-    #     logρ = logcov ./ sqrt.(σx .* σy)
-    #     #~ specify the weights
-    #     #! note: As for the line fitting only the relative weights are relevant, one could in
-    #     #        principle scale the weights such that they are numerically more 'stable'. Yet,
-    #     #        this may distort the error on the slope and intercept, as these are now
-    #     #        'artificially' inflated by the weights. To bring them into a reasonable scale,
-    #     #        we here specify the scale specifically, such that errors are reflecting the
-    #     #        actual scatter of the means and variances and not the artificial weights.
-    #     wx = 1.0 ./ σx
-    #     wy = 1.0 .* sqrt.(1.0 .- R[sidxs]) ./ σy
-    #     wscale = length(sidxs) / sum(wy)
-    #     wx = wx .* wscale
-    #     wy = wy .* wscale
-    #     #~ Fit
-    #     straightlinefit = SL.weightedyorkfit(x, y, wx, wy, ρ=logρ)
-    #     @info "fit" DIRECTORIES[i] straightlinefit
-    #     #~ Reshuffle before plotting so it goes through (0,0)        
-    #     xs = -20:1.0:0.0
-    #     bs = round(straightlinefit.b, sigdigits=3)
-    #     σs = round(straightlinefit.σb, sigdigits=2)
-    #     blabel = L"b = %$(bs)\,(%$(σs))"
-    #     l = lines!(
-    #         axtl, xs, straightlinefit.b .* xs, label=blabel,
-    #         linestyle=(:dash,:dense), linewidth=.8, color=colors[i]
-    #     )
-    #     #~ Scatter w.r.t. to their weight
-    #     minwidth = .33
-    #     maxwidth = 1.0
-    #     strokewidth = (maxwidth - minwidth) .* wx./sum(wx) .+ minwidth
-    #     #~ shift so that they go through the origin
-    #     yshifted = y .- straightlinefit.a
-    #     stl = scatter!(axtl, x, yshifted, markersize=4, strokewidth=strokewidth)
-    #     # _mean, _var = tldf[!,:meanfrequency].^2, tldf[!,:varfrequency]
-    #     # stl = scatter!(axtl, log.(_mean), log.(_var), markersize=4, strokewidth=.7)
-    # end
+    m, s = log10.(gtex_df[gtex_df.occupancy .> 0.99999, :][!, :omeanfrequency]), log10.(gtex_df[gtex_df.occupancy .> 0.99999, :][!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    gtextl = scatter!(
+        axtl, m[1:400], s[1:400],
+        color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4, label=L"\text{GTEx}"
+    )
 
+    m, s = log10.(otu_df[otu_df.occupancy .> 0.8, :][!, :omeanfrequency]), log10.(otu_df[otu_df.occupancy .> 0.8, :][!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    otutl = scatter!(
+        axtl, m, s,
+        color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4, label=L"\text{OTUs}"
+    )
     
-    # axislegend(
-    #     ax,
-    #     position=:lt, labelsize=9, patchsize=(8,20),
-    #     margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
-    # )
-    # axislegend(
-    #     axtl,
-    #     position=:lt, labelsize=9, patchsize=(8,20),
-    #     margin=(8,0,0,0), patchlabelgap=2, padding=(0,0,0,0)
-    # )
+    m, s = log10.(rfc_df[rfc_df.occupancy .> 0.8, :][!, :omeanfrequency]), log10.(rfc_df[rfc_df.occupancy .> 0.8, :][!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    rfctl = scatter!(
+        axtl, m, s,
+        color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4, label=L"\text{RFCs}"
+    )
+
+    m, s = log10.(lego_df[lego_df.occupancy .> 0.1, :][!, :omeanfrequency]), log10.(lego_df[lego_df.occupancy .> 0.1, :][!, :ovarfrequency])
+    m .-= mean(m)
+    s .-= mean(s)
+    legotl = scatter!(
+        axtl, m, s,
+        color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4, label=L"\text{LEGO}"
+    )
+
+    lines!(axtl, xtl, 2 .* xtl, linewidth=1, color=:black, linestyle=(:dash,:dense))
+    axislegend(axtl, position=:rb, visibleframe=true)
+
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
 
-function plot_synthetictaylor(;
-    TLDIR = DATADIR * "taylor/synthetic/",
-    filename = "synthetic-taylor.jld2",
-    savefig = false,
-    figname = nothing,
-    n = 42,
-    rng = Random.Xoshiro(42)
-)
-    sc = Cycle([:color=>:markercolor, :strokecolor=>:color, :marker], covary=true)
-    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true,true])
-    set_theme!(__theme)
-    colors = MakiePublication.COLORS[begin]
-
-    width = .45 * 246
-    height = width
-    fig = Figure(; size=(width,height), figure_padding=(2,4,2,14))
-    
-    #/ Plot Taylor's law for synthetic data
-    ax = Axis(
-        fig[1,1], aspect=1,
-        xlabel=L"\textrm{mean}\;\log_{10}\,\mu", xlabelsize=11,
-        ylabel=L"\textrm{variance}\;\log_{10}\,\sigma^2", ylabelsize=11,
-        xminorticks=IntervalsBetween(4),
-        yminorticks=IntervalsBetween(4),
-        limits=(-4,4,-4,6)
-    )
-
-    (xmin, xmax, ymin, ymax) = ax.limits[]
-    xband = [0, 4]
-    band!(
-        ax, xband, ymin .* ones(length(xband)), ymax .* ones(length(xband)),
-        color=(:gray, 0.2)
-    )
-
-    #~ Load data
-    db = JLD2.load(TLDIR*filename)
-    logm = log10.(filter(x->x>0, db["mean"]))
-    logs = log10.(filter(x->x>0, db["var"]))
-    #~ Take a [small] subsample
-    nsamples = length(logm)
-    _order = sortperm(logm)
-    logm = logm[_order]
-    logs = logs[_order]
-    mmin, mmax = extrema(logm)
-    idxs = Array{Int}(undef, n)
-    for (i, m) in enumerate(range(mmin, mmax, n))
-        (m == mmin) && (idxs[begin] = 1; continue)
-        (m == mmax) && (idxs[end] = nsamples; break)
-        idxs[i] = min(idxs[i-1] + findfirst(x -> x > m, logm[idxs[i-1]:end]), nsamples)
-    end
-    idxs = unique(idxs)
-    mplot = logm[idxs]
-    splot = logs[idxs]
-    
-    #/ Scatter synthetic data
-    scatter!(
-        ax, mplot, splot,
-        color=(colors[1],0.7), strokecolor=:black, markersize=4, strokewidth=.3
-    )
-    #/ Lines    
-    #~ Determine and plot line with b=1
-    a1 = minimum(logs) - minimum(logm)
-    line1 = lines!(
-        ax, [xmin, xmax], [ymin-a1, ymin + (xmax-xmin)],
-        linewidth=.6, linestyle=:dot, color=:black
-    )
-    #~ Determine and plot line with b=2
-    a2 = maximum(logs) - 2*maximum(logm)
-    line2 = lines!(
-        ax, [(ymin-a2)/2, (ymax-a2)/2], [ymin, ymax],
-        linewidth=.6, linestyle=:dash, color=:black
-    )
-
-    #/ Add clarifying labels
-    #~ compute rotation in "screen space"
-    sx = 1 / (xmax - xmin)
-    sy = 1 / (ymax - ymin)
-    angle = atan(sy, sx)
-    text!(1.5, 1.5+a1, rotation=angle, text=L"b=1", align=(:left,:top), fontsize=10)
-    sx = 1 / (xmax - xmin)
-    sy = 2 / (ymax - ymin)
-    angle = atan(sy, sx)
-    text!(1.2, 1.5*2+a2, rotation=angle, text=L"b=2", align=(:left,:bottom), fontsize=10)
-
-    vlines!(ax, [0.], color=:gray, linestyle=:dash, linewidth=.5)
-    # text!(0., ymax, rotation=π/2, text=L"Np=1", align=(:right,:bottom), color=:gray, fontsize=10)
-    #~ Rare / common text
-    text!(0.05,0.98, space=:relative, fontsize=9, text=L"\textrm{rare}", align=(:left,:top))
-    text!(0.98,0.05, space=:relative, fontsize=9, text=L"\textrm{common}", align=(:right,:bottom))
-    
-    #~ Save
-    (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
-    return fig
+### HELPER ###
+function fit(tldf)
+    m = tldf[!,:meanfrequency]
+    s = tldf[!,:varfrequency]
+    x = log.(m)
+    y = log.(s)
+     #/ Fix a straight line using York's method
+    #/ Calculate weights using the errors
+    #~ Calculate how much of the total variation comes from presence-absence
+    #  recall (σ′)² ← o⋅[σ²+μ²(1-o)], and so the ratio R = (σ′)² / (o⋅σ²) 
+    o = tldf[!,:occupancy] .* (1 .- tldf[!,:occupancy])
+    R = o .* tldf[!,:meanfrequency].^2 ./ tldf[!,:ovarfrequency]
+    #~ filter those with ratio 0 [occupancy 0]
+    sidxs = findall(x -> x > 0, R)
+    x = x[sidxs]
+    y = y[sidxs]
+    #~ extract the errors on the mean and variance [see `taylor.jl`]
+    #! note: use the δ-method to get the error on the log-transformed variables
+    σx = m[sidxs] ./ m[sidxs].^2
+    σy = s[sidxs] ./ s[sidxs].^2
+    logcov = tldf[!,:errorcov][sidxs] ./ (m[sidxs] .* s[sidxs])
+    logρ = logcov ./ sqrt.(σx .* σy)
+    #~ specify the weights
+    #! note: As for the line fitting only the relative weights are relevant, one could in
+    #        principle scale the weights such that they are numerically more 'stable'. Yet,
+    #        this may distort the error on the slope and intercept, as these are now
+    #        'artificially' inflated by the weights. To bring them into a reasonable scale,
+    #        we here specify the scale specifically, such that errors are reflecting the
+    #        actual scatter of the means and variances and not the artificial weights.
+    wx = 1.0 ./ σx
+    wy = 1.0 .* sqrt.(1.0 .- R[sidxs]) ./ σy
+    wscale = length(sidxs) / sum(wy)
+    wx = wx .* wscale
+    wy = wy .* wscale
+    #~ Fit
+    straightlinefit = Meris.StraightLine.weightedyorkfit(x, y, wx, wy, ρ=logρ)
+    return straightlinefit
 end
 
 end # module AFDPlotter

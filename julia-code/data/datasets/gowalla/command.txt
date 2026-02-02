@@ -1,0 +1,3 @@
+### RUN FROM THIS FOLDER ###
+chmod +x download.sh
+./download.sh
