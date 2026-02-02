@@ -29,8 +29,7 @@ const STOPWORDS = Set([
 "Load all papers, put them into a single DataFrame"
 function load(;
     DIR=ARXIVDIR * "processed/",
-    stopwords=false,
-    tokenize=false
+    stopwords=true
 )
 
     # Make a dictionary with a structure that reflects the filesystem as in Luca's laptop:
