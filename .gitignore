@@ -14,6 +14,7 @@ julia-code/Manifest.toml
 /julia-code/data/datasets/gaia/processed/*
 /julia-code/data/datasets/gowalla/raw-data/*
 /julia-code/data/datasets/gtex/raw-data/*
+/julia-code/data/datasets/gtex/processed/*
 /julia-code/data/datasets/gutenberg/raw-data/*
 /julia-code/data/datasets/lego/raw-data/*
 /julia-code/data/datasets/otu/raw-data/*
