@@ -7,6 +7,7 @@ const FIGDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
 const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"
 const BRIGHTKITEDIR = DATADIR * "datasets/brightkite/"
+const FINANCEDIR = DATADIR * "datasets/finance/"
 const GAIADIR = DATADIR * "datasets/gaia/"
 const GOWALLADIR = DATADIR * "datasets/gowalla/"
 const GTEXDIR = DATADIR * "datasets/gtex/"

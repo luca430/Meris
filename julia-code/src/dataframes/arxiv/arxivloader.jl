@@ -92,6 +92,6 @@ function load(;
     return big_df
 end
 
-end # module arXivSampler
+end # module arXivLoader
 #/ End module
 
