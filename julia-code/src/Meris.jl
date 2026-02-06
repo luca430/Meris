@@ -22,6 +22,7 @@ const TARADIR = DATADIR * "datasets/taraocean/"
 include("dataframes/arxiv/arxivloader.jl")
 include("dataframes/bci.tree/bcitreeloader.jl")
 include("dataframes/brightkite/brightkiteloader.jl")
+include("dataframes/finance/financeloader.jl")
 include("dataframes/gaia/gaialoader.jl")
 include("dataframes/gowalla/gowallaloader.jl")
 include("dataframes/GTEx/gtexloader.jl")
@@ -41,6 +42,7 @@ include("fits/straight-line.jl")
 include("fits/power-law.jl")
 include("fits/double-power-law.jl")
 include("fits/mle.jl")
+include("fits/heapsmodel.jl")
 
 #~ Utilities
 include("dataframes/afd.jl")

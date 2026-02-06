@@ -21,8 +21,10 @@ function compute(
 
     heaps_d = Dict()
     pl_d = Dict()
+    ple_d = Dict()
     cad_d = Dict()
     for class in classes
+        println(class)
         sdf = df[df.class .== class, :]
         rdf = deepcopy(sdf)
         rdf.counts .= rdf.counts ./ rdf.nreads
@@ -41,9 +43,14 @@ function compute(
         x = filter ? log10.(agg_df.counts[agg_df.counts .> mean(ε_vec)]) : log10.(agg_df.counts)
         h = Meris.DataTools.make_hist(x, nbins=nbins)
         cad_d[class] = (x = h[1], y = h[2])
+
+        # Compute power law effective exponents
+        agg_df.sample_id .= "s"
+        α_eff, ε_eff = fit_samples(agg_df; xmins=xmins, pareto_type=pareto_type)
+        ple_d[class] = (α = α_eff, ε = ε_eff)
     end
 
-    out = (heaps = heaps_d, pl = pl_d, cad = cad_d)
+    out = (heaps = heaps_d, pl = pl_d, cad = cad_d, ple = ple_d)
     (save) && (@save filename out)
     
     return out

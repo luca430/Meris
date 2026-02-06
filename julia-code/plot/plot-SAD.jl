@@ -22,6 +22,9 @@ function plot!(parent;
         color_shades=4,
         palette=nothing,
         ZIPFDIR=Meris.DATADIR * "macro/sad/",
+        ax1limits=(nothing, nothing, nothing, nothing),
+        ax2limits=(nothing, nothing, nothing, nothing),
+        ax3limits=(nothing, nothing, nothing, nothing)
     )
 
     # Theme (you may want to set this ONCE outside when doing 4 panels)
@@ -55,7 +58,8 @@ function plot!(parent;
         xminorticksvisible = false,
         xticksvisible = false,
         ygridvisible=true,
-        ygridwidth = 0.3
+        ygridwidth = 0.3,
+        limits=ax1limits
     )
 
     ax2 = Axis(
@@ -65,16 +69,17 @@ function plot!(parent;
         xlabelsize=9,
         ylabelsize=9,
         xscale=log10, yscale=log10,
+        limits=ax2limits
     )
 
     ax3 = Axis(
         bottom[1,2],
         xlabel = L"\text{sample size } N",
-        ylabel = L"\eta = \gamma - 1",
+        ylabel = L"\text{sample size } N",
         xlabelsize = 9,
         ylabelsize = 9,
         xscale = log10, yscale=log10,
-        yticksmirrored = true
+        limits=ax3limits
     )
 
     # sizes INSIDE the panel (not the global figure)
@@ -90,8 +95,9 @@ function plot!(parent;
     # ---- Data + plotting (unchanged)
     out = JLD2.load(ZIPFDIR)["out"]
 
-    labels = collect(keys(out.pl))
-    pl_vals = collect(values(out.pl))
+    ### AX1 ###
+    labels = sort(collect(keys(out.pl)))
+    pl_vals = [out.pl[k] for k in labels]
 
     min_vals = Float64[]
     max_vals = Float64[]
@@ -118,35 +124,93 @@ function plot!(parent;
     end
     ax1.xticks = (1:length(labels), labels)
 
-    cad_vals = collect(values(out.cad))
+    ### AX2 ###
+    cad_vals = [out.cad[k] for k in labels]
+    ple_vals = [out.ple[k] for k in labels]
     x_min = Float64[]
     x_max = Float64[]
-    for (i, (v, p)) in enumerate(zip(cad_vals, pl_vals))
+    for (i, (v, p, pe)) in enumerate(zip(cad_vals, pl_vals, ple_vals))
         push!(x_min, minimum(v.x))
         push!(x_max, maximum(v.x))
-        α = mean(p.α)
-        ε = mean(p.ε)
-        scatter!(ax2, 10 .^ (v.x), (v.y ./ (α * ε ^ α .* log(10))) .^ (1 / α),
+        scatter!(ax2, 10 .^ (v.x), (v.y ./ (pe.α[1] * mean(p.ε) ^ pe.α[1] .* log(10))) .^ (1 / pe.α[1]),
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
     end
     xrange = minimum(x_min)*1.05:1e-2:maximum(x_max)/1.1
-    lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1)
+    lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5)
 
-    heaps_vals = collect(values(out.heaps))
+    ### AX3 ###
+    heaps_vals = [out.heaps[k] for k in labels]
+    α_vals = Float64[]
+    xmax = []
     for (i, (v,p)) in enumerate(zip(heaps_vals, pl_vals))
-        α = mean(p.α)
-        z, t = log10.(v.N), log10.(v.V)
-        g = diff(t) ./ diff(z)
-        c = (g[end] - 1) / (α - 1)
-        etas = (g .- 1) ./ c .+ 1
-        idx = round.(Int, 10 .^ range(0, log10(length(etas)), length = 60))
+        push!(α_vals, mean(p.α))
+        push!(xmax, maximum(v.N))
+        idx = round.(Int, 10 .^ range(0, log10(length(v.V)), length = 60))
         scatter!(ax3, v.N[idx], v.V[idx],
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
-            # hlines!(ax3, α, color=colors[i], linestyle=:dot, linewidth=0.5, xmin=(log10(v.N[idx][end])-1) / 6)
     end
-    # hlines!(ax3, 1, color=:black, linestyle=:dash, linewidth=0.5)
+
+    parss = []
+    for (i, v) in enumerate(heaps_vals)
+        a = minimum([α_vals[i], 1])
+        fit, pars, which = Meris.HeapsModel.fit_regimes(v.N, v.V; a=a)
+        push!(parss, pars)
+    end
+
+    text!(ax3, 5e1, 5e1 * 2, text=L"V \sim N", color=colors[1], rotation = π/4, fontsize=10)
+    xp = maximum(xmax) / 500
+    yp = Meris.HeapsModel.predict_regimes(xp, parss[argmax(α_vals)])
+    text!(ax3, xp , yp * 1.5, text=L"V \sim N^{\eta}", color=colors[1], rotation = atan(minimum([maximum(α_vals),1])), fontsize=10)
+
+    # --- INSET in ax3: zoom on the tail (end of curves) ---
+    # place a small axis on top of ax3 (relative to ax3 cell)
+    inset = Axis(
+        bottom[1,2],
+        width  = Relative(0.43),
+        height = Relative(0.43),
+        halign = 0.95,   # right
+        valign = 0.12,   # bottom
+        xscale = log10,
+        yscale = log10,
+        xticklabelsize = 5,
+        yticklabelsize = 5,
+        xlabelsize = 7,
+        ylabelsize = 7,
+        xgridvisible = false,
+        ygridvisible = false,
+        yminorticksvisible = false,
+        xminorticksvisible = false,
+        limits=ax3limits
+    )
+
+    # choose what "end" means (last decade by default)
+    x_hi = maximum(xmax)
+    x_lo = 10            # last decade; change to /30, /100 if you want
+
+    # compute corresponding y-lims from the fitted curves (robust and consistent)
+    yy = Float64[]
+    for (i, v) in enumerate(heaps_vals)
+        xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
+        yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
+        append!(yy, yhat)
+    end
+
+    # replot tail points + tail fit lines into the inset
+    for (i, v) in enumerate(heaps_vals)
+        # tail indices
+        idx_tail = findall(n -> n ≥ x_lo, v.N)
+        xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
+        yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
+        lines!(inset, xr, yhat, color=colors[i], linestyle=:dash, linewidth=0.7)
+    end
+
+    # optional: hide labels (usually nicer for insets)
+    inset.xlabel = ""
+    inset.ylabel = ""
+    inset.xticklabelsvisible = false
+    inset.yticklabelsvisible = false
 
     return (ax1=ax1, ax2=ax2, ax3=ax3, panel=panel)
 end
