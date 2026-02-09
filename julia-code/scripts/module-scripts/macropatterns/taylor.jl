@@ -17,6 +17,7 @@ function compute(
         println(class)
         sub = df[df.class .== class, :]
         _tldf = Meris.Taylor.compute(sub, :component_id)
+        _tldf.class .= class
         push!(dfs, _tldf) 
     end
 

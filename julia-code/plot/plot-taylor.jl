@@ -1,4 +1,4 @@
-#= Module to plot Heap's law for some processes and/or data =#
+#= Module to plot Taylor's law panels (flexible, embeddable like plot-SAD.jl) =#
 #/ Start module
 module TaylorPlotter
 
@@ -6,229 +6,291 @@ using CairoMakie
 using MakiePublication
 using LaTeXStrings
 using FileIO, ImageTransformations
+using StatsBase, Random
 
-using StatsBase
 using JLD2
+using Colors, ColorTypes
 
 #/ Modules
-using Meris
+import Meris
 
-const ICONDIR = normpath(joinpath(@__DIR__, "..", "icons/"))
+const ICONDIR = normpath(joinpath(@__DIR__, "..", "icons"))
+Random.seed!(1234) 
+
+#################
+### INTERNALS ###
+
+"""Return a Vector of NamedTuples describing the default datasets."""
+function _default_taylor_datasets(TLDIR)
+    return [
+        (;
+            key=:linguistic,
+            file=joinpath(TLDIR, "linguistic.jld2"),
+            icon=joinpath(ICONDIR, "documents.png"),
+            occ_small=0.0,
+            occ_big=0.9,
+            take=400,
+            # small panels: shift the reference lines a bit (kept from your original)
+            ref_shift=-0.5,
+        ),
+        (;
+            key=:microbial,
+            file=joinpath(TLDIR, "microbial.jld2"),
+            icon=joinpath(ICONDIR, "bacteria.png"),
+            occ_small=0.0,   # show all in small panel
+            occ_big=0.9,
+            take=200,
+            ref_shift=-0.6,
+        ),
+        (;
+            key=:social,
+            file=joinpath(TLDIR, "social.jld2"),
+            icon=joinpath(ICONDIR, "lego.png"),
+            occ_small=0.0,
+            occ_big=0.5,
+            take=400,
+            ref_shift=-0.9,
+        ),
+        (;
+            key=:biology,
+            file=joinpath(TLDIR, "biology.jld2"),
+            icon=joinpath(ICONDIR, "gene.png"),
+            occ_small=0.0,
+            occ_big=0.99999,
+            take=400,
+            ref_shift=-1.3,
+        ),
+    ]
+end
+
+"""Build a set of colors.
+
+- If `palette` is provided, it is parsed and cycled if needed.
+- Otherwise, it mimics plot-SAD.jl: base color from MakiePublication.COLORS, then HSL shades.
+"""
+function _make_colors(; palette, n::Int, color_num::Int=1, color_shades::Int=8)
+    if !isnothing(palette)
+        cols = parse.(Colorant, palette)
+        return [cols[mod1(i, length(cols))] for i in 1:length(cols)]
+    end
+
+    base = MakiePublication.COLORS[1][color_num]
+    base_hsl = HSL(base)
+    shades = [HSL(base_hsl.h, base_hsl.s, l) for l in range(0.20, 0.80, length=max(color_shades, n))]
+    return shades[1:n]
+end
+
+"""Load a JLD2 file and return the expected Taylor DataFrame under key "tldf"."""
+function _load_tldf(path::AbstractString)
+    return JLD2.load(path)["tldf"]
+end
+
+"""Compute centered log10 mean/var vectors (and drop nonpositive variance)."""
+function _centered_logs(df; mean_col=:omeanfrequency, var_col=:ovarfrequency)
+    dff = df[df[!, var_col] .> 0.0, :]
+    m = log10.(dff[!, mean_col])
+    s = log10.(dff[!, var_col])
+    m .-= mean(m)
+    s .-= mean(s)
+    return dff, m, s
+end
+
+"""Add a small icon Axis into a given grid cell."""
+function _add_icon!(parent_cell, icon_path; width=Relative(0.22), height=Relative(0.22), halign=0.072, valign=0.95)
+    axicon = Axis(parent_cell; width=width, height=height, halign=halign, valign=valign)
+    icon = FileIO.load(icon_path)
+    icon_small = imresize(icon, (256, 256))
+    image!(axicon, rotr90(icon_small))
+    hidedecorations!(axicon)
+    hidespines!(axicon)
+    return axicon
+end
+
+"""Safe getter for NamedTuple fields."""
+_ntget(nt::NamedTuple, field::Symbol, default) = hasproperty(nt, field) ? getproperty(nt, field) : default
 
 #################
 ### FUNCTIONS ###
-function plot_taylor(;
-    TLDIR=Meris.DATADIR * "macro/taylor/",
-    savefig=false,
-    figname="tl.png"
+
+"""
+    plot!(parent; kwargs...)
+
+Create a Taylor's-law panel inside `parent` (a figure cell or GridLayout slot),
+mirroring the embeddable style of `SADPlotter.plot!`.
+
+Key knobs (similar spirit to plot-SAD.jl):
+- `palette`: custom palette (hex strings) to control dataset colors.
+- `color_num`, `color_shades`: fallback color generation when palette is `nothing`.
+- `datasets`: override which datasets to plot (vector of NamedTuples like `_default_taylor_datasets`).
+- `show_icons`: toggle the small icons.
+- `big_limits`: limits for the big axis.
+"""
+function plot!(parent;
+    TLDIR = Meris.DATADIR * "macro/taylor/",
+    datasets = _default_taylor_datasets(TLDIR),
+    palettes = [nothing, nothing, nothing, nothing],
+    color_num = [1,2,3,4],
+    color_shades = fill(8, 4),
+    show_icons::Bool = true,
+    big_limits = (-2, 2, -4, 4),
+    small_limits = nothing,  # set to a 4-tuple, or keep auto
+    panel_rowgap = 8,
+    panel_colgap = 10,
+    markersize_small = 6,
+    markersize_big = 6,
+    strokewidth = 0.4,
 )
+    # Theme: keep the same MakiePublication look as SADPlotter
     sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
     set_theme!(__theme)
 
-    colors = MakiePublication.COLORS[begin]
+    markers = [:circle, :rect, :diamond, :cross, :x, :utriangle, :dtriangle, :star4, :star6, :pentagon, :hexagon, :octagon]
 
-    width = 1.9 * 246
-    height = width
-    fig = Figure(; size=(width, height / 2), figure_padding=(2, 4, 2, 14))
-
-    #/ Plot
-    xtl = -10:0.1:10.0
-    icons = []
-    axes = []
-
-    #/ RFC
-    axrfc = Axis(
-        fig[1, 3],
-        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-3, 4, -3, 5)
-    )
-    rfc_df = JLD2.load(TLDIR * "rfc.jld2")["tldf"]
-    fitrfc = fit(rfc_df)
-    m, s = log10.(rfc_df[!, :omeanfrequency]), log10.(rfc_df[!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    # s .-= fitrfc.a
-    rfctl = scatter!(
-        axrfc, m, s,
-        color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4, label=L"\text{RFCs}"
-    )
-    lines!(axrfc, xtl .- minimum(m) .- 0.5, 2 .* (xtl .- minimum(m)), linewidth=1, color=:black, linestyle=(:dash,:dense))
-    lines!(axrfc, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
-    # axislegend(axrfc, position=:rb)
-    push!(icons, ICONDIR*"documents.png")
-    push!(axes, (; ax=axrfc, pos=[1,3]))
-
-    # #/ OTU
-    axotu = Axis(
-        fig[2, 3],
-        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-2, 4, -4, 6)
-    )
-    otu_df = JLD2.load(TLDIR * "otu.jld2")["tldf"]
-    fitotu = fit(otu_df)
-    m, s = log10.(otu_df[!, :omeanfrequency]), log10.(otu_df[!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    # s .-= fitotu.a
-    otutl = scatter!(
-        axotu, m, s,
-        color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4, label=L"\text{OTUs}"
-    )
-    lines!(axotu, xtl .- minimum(m) .- 0.5, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
-    lines!(axotu, xtl .- minimum(m) .- 0.5, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
-    # axislegend(axotu, position=:rb)
-    push!(icons, ICONDIR*"bacteria.png")
-    push!(axes, (; ax=axotu, pos=[2,3]))
-
-    # #/ Lego
-    axlego = Axis(
-        fig[1, 4],
-        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-1, 2, -2, 3)
-    )
-    lego_df = JLD2.load(TLDIR * "lego.jld2")["tldf"]
-    fitlego = fit(lego_df)
-    m, s = log10.(lego_df[!, :omeanfrequency]), log10.(lego_df[!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    # s .-= fitlego.a
-    legotl = scatter!(
-        axlego, m, s,
-        color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4, label=L"\text{LEGO}"
-    )
-    lines!(axlego, xtl .- minimum(m) .- 0.3, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
-    lines!(axlego, xtl .- minimum(m) .- 0.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
-    # axislegend(axlego, position=:rb)
-    push!(icons, ICONDIR*"lego.png")
-    push!(axes, (; ax=axlego, pos=[1,4]))
-
-    # #/ GTEx
-    axgtex = Axis(
-        fig[2, 4],
-        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-6, 8, -10, 12)
-    )
-    gtex_df = JLD2.load(TLDIR * "gtex.jld2")["tldf"]
-    fitgtex = fit(gtex_df)
-    m, s = log10.(gtex_df[!, :omeanfrequency]), log10.(gtex_df[!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    # s .-= fitgtex.a
-    gtextl = scatter!(
-        axgtex, m, s,
-        color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4, label=L"\text{GTEx}"
-    )
-    lines!(axgtex, xtl .- minimum(m) .- 1.3, 2 .* (xtl .- minimum(m)) , linewidth=1, color=:black, linestyle=(:dash,:dense))
-    lines!(axgtex, xtl .- minimum(m) .- 1.3, xtl, linewidth=1, color=:grey, linestyle=(:dash,:dense))
-    # axislegend(axgtex, position=:rb)
-    push!(icons, ICONDIR*"gene.png")
-    push!(axes, (; ax=axgtex, pos=[2,4]))
-
-    # Plot high occupancy TL
-    axtl = Axis(
-        fig[1:2, 1:2],
-        xlabel=L"\textrm{sample mean}\;m", xlabelsize=11,
-        ylabel=L"\textrm{sample variance}\;s^2", ylabelsize=11,
-        limits=(-2, 2, -4, 4)
-    )
-
-    for (i, ax) in enumerate(axes)
-        (xmin, xmax, ymin, ymax) = ax.ax.limits[]
-        # lines!(ax.ax, [xmin, xmax], [ymin, ymax], linestyle=(:dash,:dense), color=:gray)
-        axicon = Axis(
-            fig[ax.pos...],
-            width=Relative(0.22), height=Relative(0.22),
-            halign=0.072, valign=0.95
-        )
-        icon = FileIO.load(icons[i])
-        icon_small = imresize(icon, (256, 256))
-        image!(axicon, rotr90(icon))
-        hidedecorations!(axicon)
-        hidespines!(axicon)
+    nsets = length(datasets)
+    cols = []
+    for (i,palette) in enumerate(palettes)
+        push!(cols, _make_colors(; palette=palette, n=nsets, color_num=color_num[i], color_shades=color_shades[i]))
     end
 
-    m, s = log10.(gtex_df[gtex_df.occupancy .> 0.99999, :][!, :omeanfrequency]), log10.(gtex_df[gtex_df.occupancy .> 0.99999, :][!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    gtextl = scatter!(
-        axtl, m[1:400], s[1:400],
-        color=:white, strokecolor=colors[4], markersize=4, strokewidth=0.4, label=L"\text{GTEx}"
+    # Layout inside the provided parent
+    panel = GridLayout(parent)
+
+    # Left: big axis spans two rows; Right: 2x2 grid of small axes
+    ax_big = Axis(
+        panel[1:2, 1],
+        xlabel=L"\log_{10} \, \mu", xlabelsize=12,
+        ylabel=L"\log_{10} \, \sigma^2", ylabelsize=12,
+        xticklabelsize=12, yticklabelsize=12,
+        limits=big_limits,
     )
 
-    m, s = log10.(otu_df[otu_df.occupancy .> 0.8, :][!, :omeanfrequency]), log10.(otu_df[otu_df.occupancy .> 0.8, :][!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    otutl = scatter!(
-        axtl, m, s,
-        color=:white, strokecolor=colors[2], markersize=4, strokewidth=0.4, label=L"\text{OTUs}"
-    )
+    right = GridLayout()
+    panel[1:2, 2] = right
+
+    rowsize!(panel, 1, Relative(0.5))
+    rowsize!(panel, 2, Relative(0.5))
+    colsize!(panel, 1, Relative(0.4))
+    colsize!(panel, 2, Relative(0.55))
+    rowgap!(panel, panel_rowgap)
+    colgap!(panel, panel_colgap)
+
+    # Create the 2x2 axes in the right grid
+    axs_small = Axis[]
+    grid_positions = [(2, 2), (2, 1), (1, 2), (1, 1)]
+    for (i, (r, c)) in enumerate(grid_positions)
+        i > nsets && break
+        ax = Axis(
+            right[r, c],
+            xlabel=L"\log_{10} \, \mu", xlabelsize=12,
+            ylabel=L"\log_{10} \, \sigma^2", ylabelsize=12,
+            xticklabelsize=12, yticklabelsize=12,
+        )
+        if !isnothing(small_limits)
+            xlims!(ax, small_limits[1], small_limits[2])
+            ylims!(ax, small_limits[3], small_limits[4])
+        end
+        push!(axs_small, ax)
+    end
+
+    xtl = -10:0.1:10.0
+    datasets = reverse(datasets)
+    cols = reverse(cols)
+
+    # Plot each dataset
+    for (i, spec) in enumerate(datasets)
+        i > length(axs_small) && break
+        ax = axs_small[i]
+
+        df = _load_tldf(spec.file)
+        classes = unique(df.class)
+        m_small_vec = []
+        s_small_vec = []
+        for (c,class) in enumerate(classes)
+            sdf = df[df.class .== class, :]
+            df_small = spec.occ_small > 0 ? sdf[sdf.occupancy .> spec.occ_small, :] : sdf
+            df_small, m_small, s_small = _centered_logs(df_small)
+
+            take = _ntget(spec, :take, :all)
+            if take isa Integer
+                n = min(take, length(m_small))
+                idx = rand(1:length(m_small), n)
+                m_small = m_small[idx]
+                s_small = s_small[idx]
+            end
+
+            append!(m_small_vec, m_small)
+            append!(s_small_vec, s_small)
     
-    m, s = log10.(rfc_df[rfc_df.occupancy .> 0.8, :][!, :omeanfrequency]), log10.(rfc_df[rfc_df.occupancy .> 0.8, :][!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    rfctl = scatter!(
-        axtl, m, s,
-        color=:white, strokecolor=colors[1], markersize=4, strokewidth=0.4, label=L"\text{RFCs}"
-    )
+            scatter!(
+                ax, m_small, s_small;
+                color=(:white, 1.0),
+                strokecolor=cols[i][c],
+                marker=markers[c],
+                markersize=markersize_small,
+                strokewidth=strokewidth,
+            )
+        end
 
-    m, s = log10.(lego_df[lego_df.occupancy .> 0.1, :][!, :omeanfrequency]), log10.(lego_df[lego_df.occupancy .> 0.1, :][!, :ovarfrequency])
-    m .-= mean(m)
-    s .-= mean(s)
-    legotl = scatter!(
-        axtl, m, s,
-        color=:white, strokecolor=colors[3], markersize=4, strokewidth=0.4, label=L"\text{LEGO}"
-    )
+        # same guide lines you used: y=2x and y=x, with the slight x-shift
+        shift = _ntget(spec, :ref_shift, 0.0)
+        lines!(ax, xtl .- minimum(m_small_vec) .+ shift, 2 .* (xtl .- minimum(m_small_vec)); linewidth=2, color=:black, linestyle=(:dash, :dense))
+        lines!(ax, xtl .- minimum(m_small_vec) .+ shift, xtl; linewidth=2, color=:grey, linestyle=(:dash, :dense))
 
-    lines!(axtl, xtl, 2 .* xtl, linewidth=1, color=:black, linestyle=(:dash,:dense))
-    axislegend(axtl, position=:rb, visibleframe=true)
+        # auto limits: your original scaling
+        xlims!(ax, minimum(m_small_vec) * 1.5, maximum(m_small_vec) * 1.3)
+        ylims!(ax, minimum(s_small_vec) * 1.5, maximum(s_small_vec) * 1.3)
+
+        # icon overlay
+        if show_icons && isfile(spec.icon)
+            _add_icon!(right[grid_positions[i]...], spec.icon)
+        end
+
+        # big axis: occupancy filter + optional truncation
+        for (c,class) in enumerate(classes)
+            sdf = df[df.class .== class, :]
+            df_big = spec.occ_big > 0 ? sdf[sdf.occupancy .> spec.occ_big, :] : sdf
+            df_big, m_big, s_big = _centered_logs(df_big)
+    
+            take = _ntget(spec, :take, :all)
+            if take isa Integer
+                n = min(take, length(m_big))
+                idx = rand(1:length(m_big), n)
+                m_big = m_big[idx]
+                s_big = s_big[idx]
+            end
+    
+            scatter!(
+                ax_big, m_big, s_big;
+                color=(:white, 1.0),
+                strokecolor=cols[i][c],
+                marker=markers[c],
+                markersize=markersize_big,
+                strokewidth=strokewidth,
+            )
+        end
+    end
+
+    # Reference lines in all axes
+    lines!(ax_big, xtl, 2 .* xtl; linewidth=2, color=:black, linestyle=(:dash, :dense))
+
+    return (;
+        panel,
+        ax_big,
+        axs_small,
+        colors=cols,
+    )
+end
+
+"""Backward-compatible wrapper that creates a standalone Figure."""
+function plot_taylor(; TLDIR=Meris.DATADIR * "macro/taylor/", savefig=false, figname="tl.png", kwargs...)
+    width = 1.9 * 246
+    fig = Figure(; size=(width, width / 2), figure_padding=(2, 4, 2, 14))
+
+    plot!(fig[1, 1]; TLDIR=TLDIR, kwargs...)
 
     (savefig && !isnothing(figname)) && (CairoMakie.save(figname, fig, pt_per_unit=1))
     return fig
 end
 
-### HELPER ###
-function fit(tldf)
-    m = tldf[!,:meanfrequency]
-    s = tldf[!,:varfrequency]
-    x = log.(m)
-    y = log.(s)
-     #/ Fix a straight line using York's method
-    #/ Calculate weights using the errors
-    #~ Calculate how much of the total variation comes from presence-absence
-    #  recall (σ′)² ← o⋅[σ²+μ²(1-o)], and so the ratio R = (σ′)² / (o⋅σ²) 
-    o = tldf[!,:occupancy] .* (1 .- tldf[!,:occupancy])
-    R = o .* tldf[!,:meanfrequency].^2 ./ tldf[!,:ovarfrequency]
-    #~ filter those with ratio 0 [occupancy 0]
-    sidxs = findall(x -> x > 0, R)
-    x = x[sidxs]
-    y = y[sidxs]
-    #~ extract the errors on the mean and variance [see `taylor.jl`]
-    #! note: use the δ-method to get the error on the log-transformed variables
-    σx = m[sidxs] ./ m[sidxs].^2
-    σy = s[sidxs] ./ s[sidxs].^2
-    logcov = tldf[!,:errorcov][sidxs] ./ (m[sidxs] .* s[sidxs])
-    logρ = logcov ./ sqrt.(σx .* σy)
-    #~ specify the weights
-    #! note: As for the line fitting only the relative weights are relevant, one could in
-    #        principle scale the weights such that they are numerically more 'stable'. Yet,
-    #        this may distort the error on the slope and intercept, as these are now
-    #        'artificially' inflated by the weights. To bring them into a reasonable scale,
-    #        we here specify the scale specifically, such that errors are reflecting the
-    #        actual scatter of the means and variances and not the artificial weights.
-    wx = 1.0 ./ σx
-    wy = 1.0 .* sqrt.(1.0 .- R[sidxs]) ./ σy
-    wscale = length(sidxs) / sum(wy)
-    wx = wx .* wscale
-    wy = wy .* wscale
-    #~ Fit
-    straightlinefit = Meris.StraightLine.weightedyorkfit(x, y, wx, wy, ρ=logρ)
-    return straightlinefit
-end
-
-end # module AFDPlotter
-#/ End module
+end # module
