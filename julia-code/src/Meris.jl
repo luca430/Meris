@@ -6,7 +6,9 @@ const FIGDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
 
 const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"
+const BIOTIMEDIR = DATADIR * "datasets/biotime/"
 const BRIGHTKITEDIR = DATADIR * "datasets/brightkite/"
+const EMAILSDIR = DATADIR * "datasets/emails/"
 const FINANCEDIR = DATADIR * "datasets/finance/"
 const GAIADIR = DATADIR * "datasets/gaia/"
 const GOWALLADIR = DATADIR * "datasets/gowalla/"
@@ -21,7 +23,9 @@ const TARADIR = DATADIR * "datasets/taraocean/"
 #~ Data handlers, loaders, and samplers
 include("dataframes/arxiv/arxivloader.jl")
 include("dataframes/bci.tree/bcitreeloader.jl")
+include("dataframes/biotime/biotimeloader.jl")
 include("dataframes/brightkite/brightkiteloader.jl")
+include("dataframes/emails/emailoader.jl")
 include("dataframes/finance/financeloader.jl")
 include("dataframes/gaia/gaialoader.jl")
 include("dataframes/gowalla/gowallaloader.jl")

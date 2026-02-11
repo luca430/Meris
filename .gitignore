@@ -10,7 +10,9 @@ julia-code/Manifest.toml
 /julia-code/data/datasets/arxiv/raw-data/*
 /julia-code/data/datasets/arxiv/processed/*
 /julia-code/data/datasets/bci.tree/raw-data/*
+/julia-code/data/datasets/biotime/raw-data/*
 /julia-code/data/datasets/brightkite/raw-data/*
+/julia-code/data/datasets/emails/raw-data/*
 /julia-code/data/datasets/finance/raw-data/*
 /julia-code/data/datasets/gaia/raw-data/*
 /julia-code/data/datasets/gaia/processed/*

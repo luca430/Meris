@@ -25,7 +25,7 @@ function _default_taylor_datasets(TLDIR)
     return [
         (;
             key=:linguistic,
-            file=joinpath(TLDIR, "linguistic.jld2"),
+            file=joinpath(TLDIR, "biotime.jld2"),
             icon=joinpath(ICONDIR, "documents.png"),
             occ_small=0.0,
             occ_big=0.9,

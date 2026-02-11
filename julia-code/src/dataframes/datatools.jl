@@ -1,6 +1,6 @@
 module DataTools
 
-using DataFrames, FHist, Distributions
+using DataFrames, FHist, Distributions, DataFramesMeta
 
 #################
 ### FUNCTIONS ###
@@ -13,27 +13,28 @@ function df_filter!(
     min_species::Int = 1,
     min_samples::Int = 1,
 )
+    # 1) Filter by total reads (this really mutates df)
+    filter!(row -> row.nreads >= min_nreads, df)
 
-    # 1. Filter by total reads
-    filter!(row -> row.nreads ≥ min_nreads, df)
-
-    # 2. Remove samples with too few unique species
-    g = groupby(df, [:class, :sample_id])
-    species_per_sample = combine(g) do sdf
-        (; n_species = count(>(0), sdf.counts))
+    # 2) Compute unique species per (class, sample_id)
+    sdf = @chain df begin
+        @groupby(:class, :sample_id)
+        @combine(:n_species = length(unique(:component_id)))
     end
 
-    good_samples = species_per_sample[
-        species_per_sample.n_species .≥ min_species,
-        [:class, :sample_id],
-    ]
+    sdf = sdf[sdf.n_species .>= min_species, :]
+    df2 = innerjoin(df, sdf[:, [:class, :sample_id]], on=[:class, :sample_id])
 
-    df = innerjoin(df, good_samples, on = [:class, :sample_id])
+    # overwrite original df in-place (this is the key)
+    empty!(df)
+    append!(df, df2)
 
-    # 3. Keep only classes with enough samples
-    gclass = groupby(df, :class)
-    good_classes = combine(gclass, nrow => :nsamples)
-    good_classes = good_classes.class[good_classes.nsamples .≥ min_samples]
+    # 3) Keep only classes with enough samples
+    good_classes = @chain df begin
+        groupby(:class)
+        combine(nrow => :nsamples)
+    end
+    good_classes = good_classes.class[good_classes.nsamples .>= min_samples]
 
     filter!(row -> row.class in good_classes, df)
 
