@@ -22,6 +22,7 @@ julia-code/Manifest.toml
 /julia-code/data/datasets/gutenberg/raw-data/*
 /julia-code/data/datasets/lego/raw-data/*
 /julia-code/data/datasets/otu/raw-data/*
+/julia-code/data/datasets/plantae/raw-data/*
 /julia-code/data/datasets/rfc/raw-data/*
 /julia-code/data/datasets/taraocean/raw-data/*
 
