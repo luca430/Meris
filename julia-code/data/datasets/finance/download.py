@@ -16,21 +16,24 @@ import yfinance as yf
 import warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='pandas')
 
-"""
-Get NYSE and NASDAQ tickers
-"""
-def get_tickers(filename: str = "tickers/nyse-tickers.csv"):
-    tickers = pd.read_csv(filename).Symbol.dropna().astype(str).tolist()
+"Get NASDAQ tickers"
+def get_nasdaq_tickers(filename: str = "tickers/nasdaq-tickers.csv"):
+    tickers = pd.read_csv(filename)["ACT Symbol"].dropna().astype(str).tolist()
+    return tickers
+
+"Get NYSE tickers"
+def get_nyse_tickers(filename: str = "tickers/nyse-tickers.csv"):
+    tickers = pd.read_csv(filename)["ACT Symbol"].dropna().astype(str).tolist()
     return tickers
 
 """
 Euronext tickers are a bit special as they need to be augmented with a suffix that specifies
 the market. For example, Paris exchange gets suffix ".PA".
 """
-def get_euronext_tickers(tickerlst: str):
+def get_euronext_tickers(filename: str = "tickers/euronext-tickers.csv"):
     euronext_suffix = {"Paris": ".PA", "Milan": ".MI", "Amsterdam": ".AS"}
     
-    with open(tickerlst) as f:
+    with open(filename) as f:
         #~ Skip some lines that do not contain the separator
         lines = [line for line in f if ";" in line]
         #~ Load
@@ -99,7 +102,7 @@ def get_volumes(tickers: str):
 def main(save: bool = True, out: str = "raw-data/") -> pd.DataFrame:
     #~ Note: to get tickers, see `tickers/get-tickers.sh`
     markets = ["euronext", "nasdaq", "nyse"]
-    tickerfunctions = [get_euronext_tickers, get_tickers, get_tickers]
+    tickerfunctions = [get_euronext_tickers, get_nasdaq_tickers, get_nyse_tickers]
     for (i, market) in enumerate(markets):
         tickers = tickerfunctions[i](f"tickers/{market}-tickers.csv")
         #~ Extract volumes
@@ -110,7 +113,6 @@ def main(save: bool = True, out: str = "raw-data/") -> pd.DataFrame:
             for period in volumedf.keys():
                 _df = volumedf[period]
                 _df.to_csv(out + f"{market}-{period}-volumes.csv", sep=",", index=False)
-            return volumedf
 
 if __name__ == "__main__":
     main()
