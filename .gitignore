@@ -39,3 +39,6 @@ tmp.*/
 /.projectile
 **.ipynb
 **.Rhistory
+**.pyc
+**poetry.lock
+**__init__.py

@@ -1,0 +1,23 @@
+[project]
+name = "finance"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Johannes Nauta",email = "johannes.nauta@ugent.be"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas (>=3.0.0,<4.0.0)",
+    "numpy (>=2.4.2,<3.0.0)",
+    "ptpython (>=3.0.32,<4.0.0)",
+    "yfinance (>=1.1.0,<2.0.0)",
+    "ipython (>=9.10.0,<10.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "finance", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
