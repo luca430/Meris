@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore', category=UserWarning, module='pandas')
 
 "Get NASDAQ tickers"
 def get_nasdaq_tickers(filename: str = "tickers/nasdaq-tickers.csv"):
-    tickers = pd.read_csv(filename)["ACT Symbol"].dropna().astype(str).tolist()
+    tickers = pd.read_csv(filename)["Symbol"].dropna().astype(str).tolist()
     return tickers
 
 "Get NYSE tickers"
