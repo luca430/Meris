@@ -132,7 +132,6 @@ palette3 = reverse(["#F3CBD3FF", "#EAA9BDFF", "#DD88ACFF", "#CA699DFF", "#B14D8E
 palette4 = ["#E65100FF", "#EF6C00FF", "#F57C00FF", "#FB8C00FF", "#FF9800FF",
     "#2E7D32FF", "#388E3CFF", "#43A047FF", "#4CAF50FF"]
 
-# Example data sources (adjust paths)
 zipfdirs = [
     Meris.DATADIR * "macro/sad/linguistic.jld2",
     Meris.DATADIR * "macro/sad/microbial.jld2",
