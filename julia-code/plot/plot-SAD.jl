@@ -10,10 +10,13 @@ using CSV, DataFrames, DataFramesMeta
 using StatsBase, JLD2
 using Colors, ColorTypes
 using LsqFit
+using FileIO, ImageTransformations
 
 #/ Modules
 import Meris
 import Meris.MDistributions as MDist
+
+const ICONDIR = Meris.FIGDIR .* "icons"
 
 #################
 ### FUNCTIONS ###
@@ -24,7 +27,10 @@ function plot!(parent;
         ZIPFDIR=Meris.DATADIR * "macro/sad/",
         ax1limits=(nothing, nothing, nothing, nothing),
         ax2limits=(nothing, nothing, nothing, nothing),
-        ax3limits=(nothing, nothing, nothing, nothing)
+        ax3limits=(nothing, nothing, nothing, nothing),
+        reverse_panel=false,
+        icon_name=nothing,
+        icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
     )
 
     # Theme (you may want to set this ONCE outside when doing 4 panels)
@@ -43,17 +49,28 @@ function plot!(parent;
     panel = GridLayout(parent)
 
     # Top + bottom sublayouts
+    top_row = reverse_panel ? 2 : 1
+    bottom_row = reverse_panel ? 1 : 2
+
     top = GridLayout()
-    panel[1, 1] = top
+    panel[top_row, 1] = top
 
     bottom = GridLayout()
-    panel[2, 1] = bottom
+    panel[bottom_row, 1] = bottom
 
-    ax1 = Axis(top[1,1],
-        xticklabelsize=6,
-        xaxisposition = :top,
-        xlabel="", ylabel=L"\text{CAD exponent } \gamma",
-        ylabelsize=9,
+    ax1_cell = top[1,1]
+    ax2_cell = bottom[1,1]
+    ax3_cell = bottom[1,2]
+
+    ax1 = Axis(ax1_cell,
+        xaxisposition = reverse_panel ? :bottom : :top,
+        xlabel="", ylabel=L"\text{CAD } \gamma",
+        ylabelsize=12,
+        xticklabelalign = (:right, :center),
+        xticklabelrotation = reverse_panel ? π/6 : -π/6,
+        xticklabelpad = 5,
+        xticklabelsize=9,
+        yticklabelsize=10,
         yminorticksvisible = false,
         xminorticksvisible = false,
         xticksvisible = false,
@@ -63,28 +80,37 @@ function plot!(parent;
     )
 
     ax2 = Axis(
-        bottom[1,1],
+        ax2_cell,
         xlabel=L"\text{rel. abundance } \nu",
         ylabel=L"p(\nu)",
-        xlabelsize=9,
-        ylabelsize=9,
+        xlabelsize=12,
+        ylabelsize=12,
+        xticklabelsize=10,
+        yticklabelsize=10,
         xscale=log10, yscale=log10,
         limits=ax2limits
     )
 
     ax3 = Axis(
-        bottom[1,2],
+        ax3_cell,
         xlabel = L"\text{sample size } N",
         ylabel = L"\text{sample size } N",
-        xlabelsize = 9,
-        ylabelsize = 9,
+        xlabelsize = 12,
+        ylabelsize = 12,
+        xticklabelsize=10,
+        yticklabelsize=10,
         xscale = log10, yscale=log10,
         limits=ax3limits
     )
 
     # sizes INSIDE the panel (not the global figure)
-    rowsize!(panel, 1, Relative(0.4))
-    rowsize!(panel, 2, Relative(0.6))
+    if reverse_panel
+        rowsize!(panel, 1, Relative(0.6))
+        rowsize!(panel, 2, Relative(0.4))
+    else
+        rowsize!(panel, 1, Relative(0.4))
+        rowsize!(panel, 2, Relative(0.6))
+    end
     rowgap!(panel, 15)
 
     colsize!(top, 1, Relative(0.91))
@@ -109,9 +135,23 @@ function plot!(parent;
             medianlinewidth=0.6, width=0.4)
     end
 
-    ymin, ymax = minimum(min_vals), maximum(max_vals)
+    data_ymin = minimum(min_vals)
+    data_ymax = maximum(max_vals)
+
+    user_ymin = ax1limits[3]
+    user_ymax = ax1limits[4]
+    ymin = isnothing(user_ymin) ? data_ymin * 0.8 : user_ymin
+    ymax = isnothing(user_ymax) ? data_ymax * 1.2 : user_ymax
+    if ymax <= ymin
+        ymax = ymin + max(abs(ymin) * 0.1, 1e-3)
+    end
     ylims!(ax1, ymin, ymax)
-    ypos = ymax - 0.1*(ymax - ymin)
+
+    ax1_lims = ax1.limits[]
+    ax1_ymin = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[3])) ? ax1_lims[3] : ymin
+    ax1_ymax = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[4])) ? ax1_lims[4] : ymax
+    span = ax1_ymax - ax1_ymin
+    ypos = reverse_panel ? (ax1_ymin + 0.08 * span) : (ax1_ymax - 0.08 * span)
 
     for i in 1:length(labels)
         scatter!(ax1, [i], [ypos];
@@ -138,6 +178,11 @@ function plot!(parent;
     end
     xrange = minimum(x_min)*1.05:1e-2:maximum(x_max)/1.1
     lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5)
+
+    if !isnothing(icon_name)
+        icon_path = joinpath(ICONDIR, icon_name)
+        add_icon!(ax2_cell, icon_path; icon_kw...)
+    end
 
     ### AX3 ###
     heaps_vals = [out.heaps[k] for k in labels]
@@ -167,7 +212,7 @@ function plot!(parent;
     # --- INSET in ax3: zoom on the tail (end of curves) ---
     # place a small axis on top of ax3 (relative to ax3 cell)
     inset = Axis(
-        bottom[1,2],
+        ax3_cell,
         width  = Relative(0.43),
         height = Relative(0.43),
         halign = 0.95,   # right
@@ -226,6 +271,27 @@ end
 
 
 ### HELPER ###
+function add_icon!(cell, icon_path;
+    width=Relative(0.20), height=Relative(0.20),
+    halign=0.90, valign=0.90,
+    rotate=true, pixels=256
+)
+    axicon = Axis(cell;
+        width=width, height=height,
+        halign=halign, valign=valign,
+        tellwidth=false, tellheight=false,   # <-- key to free positioning
+    )
+
+    img = FileIO.load(icon_path)
+    img = imresize(img, (pixels, pixels))
+    rotate && (img = rotr90(img))
+
+    image!(axicon, img)
+    hidedecorations!(axicon)
+    hidespines!(axicon)
+    return axicon
+end
+
 function plot4(;
         ZIPFDIR=Meris.DATADIR * "macro/sad/",
         savefig=false,

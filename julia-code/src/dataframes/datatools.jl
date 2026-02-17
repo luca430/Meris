@@ -11,28 +11,33 @@ function df_filter!(
     df::DataFrame;
     min_nreads::Int = 1,
     min_species::Int = 1,
-    min_samples::Int = 1,
+    min_samples::Int = 30,
 )
-    # 1) Filter by total reads (this really mutates df)
-    filter!(row -> row.nreads >= min_nreads, df)
+    # --- 1) keep samples with nreads > min_nreads (sample-level, not row-level) ---
+    good_samples_reads = @chain df begin
+        @groupby(:class, :sample_id)
+        @combine(:nreads = first(:nreads))   # nreads is constant within a sample
+    end
+    good_samples_reads = good_samples_reads[good_samples_reads.nreads .> min_nreads, :]
+    df1 = innerjoin(df, good_samples_reads[:, [:class, :sample_id]], on=[:class, :sample_id])
 
-    # 2) Compute unique species per (class, sample_id)
-    sdf = @chain df begin
+    # overwrite df
+    empty!(df); append!(df, df1)
+
+    # --- 2) keep samples with enough unique components ---
+    good_samples_species = @chain df begin
         @groupby(:class, :sample_id)
         @combine(:n_species = length(unique(:component_id)))
     end
+    good_samples_species = good_samples_species[good_samples_species.n_species .>= min_species, :]
+    df2 = innerjoin(df, good_samples_species[:, [:class, :sample_id]], on=[:class, :sample_id])
 
-    sdf = sdf[sdf.n_species .>= min_species, :]
-    df2 = innerjoin(df, sdf[:, [:class, :sample_id]], on=[:class, :sample_id])
+    empty!(df); append!(df, df2)
 
-    # overwrite original df in-place (this is the key)
-    empty!(df)
-    append!(df, df2)
-
-    # 3) Keep only classes with enough samples
+    # --- 3) keep classes with at least min_samples samples ---
     good_classes = @chain df begin
         groupby(:class)
-        combine(nrow => :nsamples)
+        @combine(:nsamples = length(unique(:sample_id)))
     end
     good_classes = good_classes.class[good_classes.nsamples .>= min_samples]
 

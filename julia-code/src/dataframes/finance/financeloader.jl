@@ -27,7 +27,8 @@ function load(;
         tmp = CSV.read(f, DataFrame)
 
         # use filename (without extension) as class
-        tmp.class .= split(splitext(basename(f))[1], "-")[1]
+        class = split(splitext(basename(f))[1], "-")
+        tmp.class .= class[1] .* "-" .* class[2]
 
         push!(dfs, tmp)
     end

@@ -18,7 +18,7 @@ import Meris.BIOTIMEDIR as BIOTIMEDIR
 
 #################
 ### FUNCTIONS ###
-function load(; DIR=BIOTIMEDIR * "/raw-data/", nclasses=6)
+function load(; DIR=BIOTIMEDIR * "/raw-data/")
     zip_path = DIR * "biotime_v2_rawdata_2025.zip"
     
     z = ZipFile.Reader(zip_path)
@@ -46,10 +46,8 @@ function load(; DIR=BIOTIMEDIR * "/raw-data/", nclasses=6)
         @groupby(:class, :sample_id)
         @combine(:component_id, :counts, :nreads=sum(:counts))
     end
-    
-    top = first(sort(combine(groupby(df, :class), :nreads => sum => :total), :total, rev=true), nclasses)
-    
-    return semijoin(df, top[:, [:class]], on=:class)
+
+    return df
 end
 
 end # module BioTIMESampler

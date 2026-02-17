@@ -85,7 +85,7 @@ def get_volumes(tickers: str):
                     category=UserWarning,
                 )
                 df = pd.DataFrame({
-                    "sample-id": volumes.index.tz_localize(None).to_period(period),
+                    "sample_id": volumes.index.tz_localize(None).to_period(period),
                     "ticker": ticker,
                     "total_volume": volumes.values,
                 })
