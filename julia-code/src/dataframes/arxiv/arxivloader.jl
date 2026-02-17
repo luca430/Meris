@@ -5,6 +5,7 @@
 module arXivLoader
 
 #/ Packages
+using CSV: makeunique
 using Glob
 using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
@@ -14,50 +15,78 @@ import Meris.ARXIVDIR as ARXIVDIR
 
 #/ STOPWORDS
 const STOPWORDS = Set([
-    "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself",
-    "she", "her", "hers", "herself", "it", "its", "itself", "hey", "them", "their", "theirs", "themselves", "what", "which", "who", "whom",
-    "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did",
-    "doing", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between",
-    "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again",
-    "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some",
-    "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "can", "will", "just", "don", "should", "now",
-    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"
+    "me", "my", "myself", "we", "our", "ours", "ourselves",
+    "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself",
+    "she", "her", "hers", "herself", "it", "its", "itself",
+    "hey", "them", "their", "theirs", "themselves", "what", "which", "who", "whom",
+    "this", "that", "these", "those",
+    "am", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "having", "do", "does", "did",
+    "doing", "an", "the", "and", "but", "if", "or", "because", "as",
+    "until", "while", "of", "at", "by", "for", "with", "about", "against", "between",
+    "into", "through", "during", "before", "after", "above", "below", "to", "from",
+    "up", "down", "in", "out", "on", "off", "over", "under", "again",
+    "further", "then", "once", "here", "there", "when", "where",
+    "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some",
+    "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very",
+    "can", "will", "just", "don", "should", "now",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"
 ])
 
 #################
 ### FUNCTIONS ###
-"Load all papers, put them into a single DataFrame"
-function load(;
+"
+    load()
+
+Load *all* articles and put them into a single DataFrame. The DataFrame will be constructed so
+that it can be used further in the analysis pipelines. It should contains [at least] the columns
+    `component_id`, `sample_id`, `counts`, `nreads`
+"
+function load(
+    ;
     DIR=ARXIVDIR * "processed/",
-    stopwords=true
-)
+    stopwords=true,
+    filterdata=true,
+    minreads::Int=10_000,
+    mincomponents::Int=100,
+    minsamples::Int=30
+    )
+    #~ Allocate a dictionary as
+    #  (arXiv domain) -> (topic) -> (samples [article])
+    domaindict = Dict{String,Dict{String,Vector{Vector{String}}}}()
 
-    # Make a dictionary with a structure that reflects the filesystem as in Luca's laptop:
-    # domain -> topic -> samples (each sample = Vector{String} lines)
-    domains = Dict{String,Dict{String,Vector{Vector{String}}}}()
+    #~ Loop through all subdirectories, load all articles, and store their information
+    for DOMAINDIR in filter(isdir, readdir(DIR; join=true))
+        domainname = splitpath(DOMAINDIR)[end]
+        #~ Allocate another dictionary that collects the subdomain(s)
+        subdomaindict = Dict{String,Vector{Vector{String}}}()
 
-    for domain_dir in filter(isdir, readdir(DIR; join=true))
-        domain = splitpath(domain_dir)[end]
-        topic_map = Dict{String,Vector{Vector{String}}}()
+        for SUBDOMAINDIR in filter(isdir, readdir(DOMAINDIR; join=true))
+            topic = splitpath(SUBDOMAINDIR)[end]
 
-        for topic_dir in filter(isdir, readdir(domain_dir; join=true))
-            topic = splitpath(topic_dir)[end]
-
-            txt_files = filter(f -> endswith(f, ".txt"), readdir(topic_dir; join=true))
-            if isempty(txt_files)
-                continue
+            TXTFILES = filter(f -> endswith(f, ".txt"), readdir(SUBDOMAINDIR; join=true))
+            #~ Filter (skip) subdomains that have insuffient no. of articles
+            (length(TXTFILES) < minsamples) && (continue)
+            #~ Extract articles;
+            #  here, ARTICLES contains a list of lists with the secondary list containing all
+            #  the words of a single article, which can be filtered (when desired)
+            ARTICLES = [readlines(f) for f in TXTFILES]
+            if filterdata
+                #~ Filter articles that have insufficient total. no of [distinct] words
+                filter!(article -> length(article) > minreads, ARTICLES)
+                filter!(article -> length(unique(article)) > mincomponents, ARTICLES)
             end
-
-            topic_map[topic] = [readlines(f) for f in txt_files]
+            (!isempty(ARTICLES)) && (subdomaindict[topic] = ARTICLES)
         end
-
-        if !isempty(topic_map)
-            domains[domain] = topic_map
+        #~ Add subdomain to domain dictionary
+        if !isempty(subdomaindict)
+            domaindict[domainname] = subdomaindict
         end
     end
 
     # Create a DataFrame with words counts for all domains and topics
-    big_df = DataFrame(
+    df = DataFrame(
         domain=String[],
         topic=String[],
         component_id=String[],
@@ -66,30 +95,53 @@ function load(;
         nreads=Int[]
     )
 
-    for (domain, topics) in domains
-        for (topic, samples) in topics
-            for (i, sample) in enumerate(samples)
-                # Clean each word: keep only letters/numbers
-                clean_sample = [replace(w, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") for w in sample]
-
-                # Remove empty or short words
-                clean_sample = filter(!isempty, clean_sample)
-
-                # Count words
-                cnt_map = countmap(clean_sample)
-                for (k, v) in cnt_map
-                    push!(big_df, (domain, topic, k, domain[1:3] * topic * string(i), v, sum(values(cnt_map))))
+    #/ Loop through the domain dictionary and add components [words] for each topic
+    for (domain, subdomains) in domaindict
+        for (subdomain, articles) in subdomains
+            for (i, article) in enumerate(articles)
+                #~ Clean each word: keep only letters/numbers
+                _article = [
+                    replace(word, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") for word in article
+                ]
+                #~ Remove empty or short words
+                _sample = filter(!isempty, _article)
+                #~ Count words
+                cm = countmap(_sample)
+                #~ Push them into the DataFrame
+                for (component_id, counts) in cm
+                    push!(
+                        df,
+                        (
+                            domain,
+                            subdomain,
+                            component_id,
+                            #~ Construct `component_id` from domain, subdomain, and index
+                            domain[1:3] * subdomain * string(i),
+                            counts,
+                            sum(values(cm))
+                        )
+                    )
                 end
             end
         end
     end
 
-    # Remove stopwords
-    if !stopwords
-        filter!(row -> !(row.component_id in STOPWORDS), big_df)
-    end
+    #/ Finally, remove stopwords
+    (!stopwords) && (filter!(row -> !(row.component_id in STOPWORDS), df))
+    return df
+end
 
-    return big_df
+########################
+### HELPER FUNCTIONS ###
+"""
+Print some stats of interest
+These stats are mostly used within the context of manuscripts, presentations, etc.
+"""
+function printstats(df::DataFrame)
+    ncomponents = nrow(df)
+    narticles = length(unique(df.sample_id))
+    ntopics = length(unique(df.topic))
+    @info "Stats:" ncomponents narticles ntopics
 end
 
 end # module arXivLoader
