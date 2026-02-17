@@ -61,7 +61,7 @@ function _default_taylor_datasets(TLDIR)
             occ_small=0.0,
             occ_big=0.99999,
             take=400,
-            ref_shift=-1.3,
+            ref_shift=-0.5,
         ),
     ]
 end
@@ -250,8 +250,8 @@ function plot!(parent;
 
         # same guide lines you used: y=2x and y=x, with the slight x-shift
         shift = _ntget(spec, :ref_shift, 0.0)
-        lines!(ax, xtl .- minimum(m_small_vec) .+ shift, 2 .* (xtl .- minimum(m_small_vec)); linewidth=2, color=:black, linestyle=(:dash, :dense))
-        lines!(ax, xtl .- minimum(m_small_vec) .+ shift, xtl; linewidth=2, color=:grey, linestyle=(:dash, :dense))
+        lines!(ax, xtl, 2 .* (xtl .- minimum(m_small_vec).*1.5) .+ minimum(s_small_vec).*1.5; linewidth=2, color=:black, linestyle=(:dash, :dense))
+        lines!(ax, xtl, (xtl .- minimum(m_small_vec).*1.5) .+ minimum(s_small_vec).*1.5; linewidth=2, color=:grey, linestyle=(:dash, :dense))
 
         # icon overlay
         if show_icons && isfile(spec.icon)

@@ -8,7 +8,7 @@ using DataFrames, DataFramesMeta, StatsBase
 using CairoMakie, MakiePublication, LaTeXStrings
 using JLD2
 
-include("./../scripts/module-scripts//macropatterns/taylor.jl")
+include("./../scripts/module-scripts/macropatterns/taylor.jl")
 using .Taylor
 
 include("./../plot/plot-taylor.jl")
@@ -109,7 +109,7 @@ height = 3 * width / 4.67
 
 fig = Figure(size = (2.5 * width, 1.75 * height), figure_padding = (8, 8, 8, 8))
 TaylorPlotter.plot!(fig[1,1]; palettes=palettes,
-    small_limits=reverse([[-2,4,-3,6], [-3,5,-5,10], [-6,6,-12,12], [-5,5,-9,10]])
+    small_limits=reverse([[-2,4,-3,6], [-3,5,-5,10], [-7,6,-14,12], [-5,5,-9,10]])
     )
 save(Meris.FIGDIR * "fig2.pdf", fig, pt_per_unit=2)
 
