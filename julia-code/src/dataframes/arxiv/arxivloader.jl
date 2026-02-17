@@ -48,8 +48,8 @@ function load(
     DIR=ARXIVDIR * "processed/",
     stopwords=true,
     filterdata=true,
-    minreads::Int=10_000,
-    mincomponents::Int=100,
+    minreads::Int=4_000,
+    mincomponents::Int=10_000,
     minsamples::Int=30
     )
     #~ Allocate a dictionary as
@@ -64,23 +64,36 @@ function load(
 
         for SUBDOMAINDIR in filter(isdir, readdir(DOMAINDIR; join=true))
             topic = splitpath(SUBDOMAINDIR)[end]
-
+            
             TXTFILES = filter(f -> endswith(f, ".txt"), readdir(SUBDOMAINDIR; join=true))
-            #~ Filter (skip) subdomains that have insuffient no. of articles
-            (length(TXTFILES) < minsamples) && (continue)
             #~ Extract articles;
             #  here, ARTICLES contains a list of lists with the secondary list containing all
             #  the words of a single article, which can be filtered (when desired)
             ARTICLES = [readlines(f) for f in TXTFILES]
-            if filterdata
-                #~ Filter articles that have insufficient total. no of [distinct] words
-                filter!(article -> length(article) > minreads, ARTICLES)
-                filter!(article -> length(unique(article)) > mincomponents, ARTICLES)
-            end
-            (!isempty(ARTICLES)) && (subdomaindict[topic] = ARTICLES)
+            
+            #~ Filter articles that have insufficient total. no of words
+            (filterdata) && (filter!(article -> length(article) > minreads, ARTICLES))
+            #     #~ Skip subdomains entirely if they do not sufficient distinct words
+            #     totalcomponents = length(unique(reduce(vcat, ARTICLES)))
+            #     (totalcomponents < mincomponents) && (continue)
+            #     #~ Skip subdomains that have insuffient no. of articles after filtering
+            #     (length(ARTICLES) < minsamples) && (continue)
+            # end
+            #~ Add the remaining articles to the subdomain dictionary
+            subdomaindict[topic] = ARTICLES
         end
         #~ Add subdomain to domain dictionary
         if !isempty(subdomaindict)
+            if filterdata
+                #~ Skip subdomains that have insuffient no. of articles after filtering
+                articlelengths = map(x -> length(x), values(subdomaindict))
+                (sum(articlelengths) < minsamples) && (continue)
+                #~ Skip subdomains entirely if they do not sufficient distinct words
+                bagsofwords = map(x -> reduce(vcat, x), values(subdomaindict))
+                bagofwords = reduce(vcat, bagsofwords)
+                totalcomponents = length(unique(bagofwords))
+                (totalcomponents < mincomponents) && (continue)
+            end
             domaindict[domainname] = subdomaindict
         end
     end
