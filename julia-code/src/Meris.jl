@@ -44,13 +44,10 @@ include("dataframes/rfc/rfcloader.jl")
 include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")
 
-#~ Fitting
-include("fits/goodness-of-fit.jl")
-include("fits/straight-line.jl")
-include("fits/power-law.jl")
-include("fits/double-power-law.jl")
-include("fits/mle.jl")
-include("fits/heapsmodel.jl")
+# include("fits/power-law.jl")
+# include("fits/double-power-law.jl")
+# include("fits/mle.jl")
+# include("fits/heapsmodel.jl")
 
 #~ Utilities
 include("dataframes/afd.jl")
@@ -58,4 +55,10 @@ include("dataframes/taylor.jl")
 include("dataframes/datatools.jl")
 include("distributions/distributions.jl")
 include("distributions/lr_distributions.jl")
+
+#~ Fitting
+include("fits/candidate-distributions.jl")
+include("fits/goodness-of-fit.jl")
+include("fits/straight-line.jl")
+
 end # module Meris

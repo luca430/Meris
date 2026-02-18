@@ -37,6 +37,11 @@ function pdf(d::ParetoI, x::Real)
     return d.α*d.ε^d.α * x^(-(d.α+1))
 end
 
+function logpdf(d::ParetoI, x::Real)
+    (x < d.ε) && (return -Inf)
+    
+end
+
 #########################
 ### SURVIVAL FUNCTION ###
 
@@ -94,17 +99,20 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
     for i in eachindex(εs)
         ε = εs[i]
         n = count(xs .> ε)
-        (n < 50) && (break)        # If less than 50 samples >xmin, break
+        (n < 256) && (break)        # If less than 256 samples >xmin, break
         #~ Filter data
         _idx = searchsortedfirst(xs, ε) + 1
         _x = xs[_idx:end]
-        _P = fit(ParetoI, _x, ε)
+        # _P = fit(ParetoI, _x, ε)
+        S = sum(log.(_x / ε))
+        α = n / S
+        _P = ParetoI(α, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
         Ftv = 1.0 .- ccdf.(_P, _x)
         Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
         distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        Dhat = maximum(distances)
+        Dhat = Base.maximum(distances)
         #~ If smaller than the current best, update
         if Dhat < D
             αhat = _P.α
@@ -113,6 +121,47 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
         end
     end
     return ParetoI(αhat, εhat)
+end
+
+"""
+Compute p-value that determines whether to reject the generalized Pareto as a candidate
+see, [Clauset et al. (2009), Power-law distribution in empirical data]
+"""
+function computepvalue(P::ParetoI, x::Array{T}; nsynth=500) where {T<:Real}
+    #~ Simulate `nsynth` synthetic datasets, and fit a generalized Pareto on each
+    #  Then, compute the (weighted) KS statistic and compare with the value for the data
+    k = length(x)
+    rng = Random.Xoshiro(42*nsynth)
+    
+    #~ Compute KS statistic in data
+    _x = sort(x[x .> P.ε])
+    Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
+    Ftv = 1.0 .- ccdf.(P, _x)
+    Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
+    distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+    KSDATA = Base.maximum(distances)
+    kscount = 0
+
+    #/ Generate synthetic datasets
+    for n in 1:nsynth
+        r = rand(rng, P, k)
+        _x = sort(r)
+        #~ Fit a ParetoI with ε given
+        #  [note: 
+        S = sum(log.(_x / P.ε))
+        α = n / S
+        _P = ParetoI(α, P.ε)
+        #~ Compute Kolmogorov-Smirnov distance as the test statistic
+        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
+        Ftv = 1.0 .- ccdf.(_P, _x)
+        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
+        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+        KSSYNTHETIC = Base.maximum(distances)
+        if KSSYNTHETIC > KSDATA
+            kscount += 1
+        end
+    end
+    return kscount / nsynth
 end
 
 ########################
@@ -130,7 +179,7 @@ function _ecdf(xs::Array{T}, t::Array{T}; sorted=false) where T<:Real
         while k ≤ n && xs[k] ≤ t[i]
             k += 1
         end
-        F[i] = (k-1) /z n
+        F[i] = (k-1) / n
     end
     return (; F=F, t=t)
 end

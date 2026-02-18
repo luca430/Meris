@@ -155,8 +155,11 @@ function fit(::Type{ParetoIV}, x::Array{T}, ε::T) where {T<:Real}
         αhat, βhat, θhat = optimres.minimizer
         return ParetoIV(exp(αhat), exp(βhat), exp(θhat), ε)
     end
-    @warn("Optimizer not converged, returning initial guesses")
-    return ParetoIV(αinit, βinit, θinit, ε)
+    #~ Throw an error here as the Optimizer did not converge
+    throw(ErrorException("Optimizer not converged"))
+    #~ When an error is undesired, it can be set as a warning as well
+    # @warn("Optimizer not converged, returning initial guesses")
+    # return ParetoIV(αinit, βinit, θinit, ε)
 end
 
 ########################

@@ -13,56 +13,6 @@ using Distributions
 
 using Meris: MDistributions
 
-#= Short-list of candidate distributions =#
-function define_candidates()
-    candidates = Dict(
-        :ParetoI => (
-            ; f = MDistributions.ParetoI,
-            fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
-            p = (f) -> MDistributions.params(f)
-        ),
-        :ParetoIV => (
-            ; f = MDistributions.ParetoIV,
-            fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
-            p = (f) -> MDistributions.params(f)
-        ),
-        :TemperedPareto => (
-            ; f = MDistributions.TemperedPareto,
-            fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
-            p = (f) -> MDistributions.params(f)
-        ),
-        :Gamma => (
-            ; f = Distributions.Gamma,
-            fit = (f, data, εs) -> Distributions.fit_mle(f, data),
-            p = (f) -> Distributions.params(f)
-        ),
-        :LogNormal => (
-            ; f = Distributions.LogNormal,
-            fit = (f, data, εs) -> Distributions.fit_mle(f, data),
-            p = (f) -> Distributions.params(f)
-        ),
-        :Weibull => (
-            ; f = Distributions.Weibull,
-            fit = (f, data, εs) -> Distributions.fit_mle(f, data),
-            p = (f) -> Distributions.params(f)
-        )
-    )
-    return candidates
-end
-
-function initialize_dataframe()
-    fitdf = DataFrame(
-        environment=String[], sample_id=String[],
-        ParetoI=Tuple{Float64,Float64},
-        ParetoIV=Tuple{Float64,Float64,Float64,Float64},
-        TemperedPareto=Tuple{Float64,Float64,Float64},
-        Gamma=Tuple{Float64,Float64},
-        LogNormal=Tuple{Float64,Float64},
-        Weibull=Tuple{Float64,Float64}
-    )
-    return fitdf
-end
-
 function fit_candidates(data::DataFrame; nε::Int = 64)
     #~ Get candidates and allocate
     candidates = define_candidates()
