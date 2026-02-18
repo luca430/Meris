@@ -13,10 +13,10 @@ function df_filter!(
     min_species::Int = 1,
     min_samples::Int = 1,
 )
-    # 1) Filter by total reads (this really mutates df)
+    #/ Filter by total reads
     filter!(row -> row.nreads >= min_nreads, df)
 
-    # 2) Compute unique species per (class, sample_id)
+    #/ Compute unique species per (class, sample_id)
     sdf = @chain df begin
         @groupby(:class, :sample_id)
         @combine(:n_species = length(unique(:component_id)))
@@ -25,7 +25,7 @@ function df_filter!(
     sdf = sdf[sdf.n_species .>= min_species, :]
     df2 = innerjoin(df, sdf[:, [:class, :sample_id]], on=[:class, :sample_id])
 
-    # overwrite original df in-place (this is the key)
+    #/ Overwrite original DataFrame in-place
     empty!(df)
     append!(df, df2)
 

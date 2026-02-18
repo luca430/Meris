@@ -84,7 +84,7 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
     εs = isnothing(εs) ? unique(xs) : εs
     
     αhat = 1.0
-    εhat = 1e-20
+    εhat = 1e-24
     D = Inf
     n = 0
     #/ For each possible xmin in xmins;
@@ -130,7 +130,7 @@ function _ecdf(xs::Array{T}, t::Array{T}; sorted=false) where T<:Real
         while k ≤ n && xs[k] ≤ t[i]
             k += 1
         end
-        F[i] = (k-1) / n
+        F[i] = (k-1) /z n
     end
     return (; F=F, t=t)
 end

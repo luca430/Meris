@@ -139,7 +139,7 @@ function load(
         end
     end
 
-    #/ Finally, remove stopwords
+    #/ Finally, remove stopwords (if desired)
     (!stopwords) && (filter!(row -> !(row.component_id in STOPWORDS), df))
     return df
 end
