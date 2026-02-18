@@ -14,7 +14,7 @@ import Meris.GUTENBERGDIR as GUTENBERGDIR
 
 #################
 ### FUNCTIONS ###
-function load(;root=GUTENBERGDIR * "raw-data", marker=r"\*\*\*.*\*\*\*")
+function load(; root=GUTENBERGDIR * "raw-data", marker=r"\*\*\*.*\*\*\*")
     df = DataFrame(
         class=String[],
         component_id=String[],

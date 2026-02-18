@@ -15,7 +15,7 @@ using Meris: Candies   #~ candidate distributions
 Fit a set of candidate distributions to the data
 """
 function fit_candidates(
-    data::DataFrame;
+    data::DataFrame, classcolname::Symbol;
     candidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto,
                   :Gamma, :LogNormal, :Weibull],
     nε::Int = 64,
@@ -30,6 +30,7 @@ function fit_candidates(
     n = 0
     nrejects = 0
     for sampledf in groupby(data, :sample_id)
+        (n > 10) && (break)
         n += 1
         __id = first(sampledf.sample_id)
         frequencies = collect(sampledf.frequency)
@@ -41,10 +42,9 @@ function fit_candidates(
         try
             # println("Checking whether heavy-tailed distributions are appropriate...")
             ht = candidates[:ParetoI]
-            paretofit = ht.fit(ht.f, frequencies, εs)
+            paretofit = ht.fit(ht.f, frequencies, εs)            
             pval = ht.computepvalue(paretofit, frequencies)
             if pval < preject
-                n += 1
                 nrejects += 1
                 continue
             end
@@ -78,11 +78,14 @@ function fit_candidates(
                 AICs[name] = missing
             end
         end
-        fitmrg = merge((environment = first(sampledf.domain), sample_id = __id), fits)        
+        fitmrg = merge(
+            (environment = first(sampledf[!,classcolname]), sample_id = __id), fits
+        )
         push!(fitdf, fitmrg, promote=true)
-        aicmrg = merge((environment = first(sampledf.domain), sample_id = __id), AICs)
+        aicmrg = merge(
+            (environment = first(sampledf[!,classcolname]), sample_id = __id), AICs
+        )
         push!(aicdf, aicmrg, promote=true)
-        # (n > 50) && (break)
     end
     return fitdf, aicdf
 end

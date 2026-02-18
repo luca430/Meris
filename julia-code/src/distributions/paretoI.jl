@@ -56,7 +56,7 @@ end
 ### SAMPLING ###
 
 function xval(d::ParetoI, u::Real)
-    return d.ε / u^(1/(1-d.α))
+    return d.ε / u^(1/d.α)
 end
 rand(rng::AbstractRNG, d::ParetoI{T}) where {T<:Real} = xval(d, Random.rand(rng,float(T)))
 function rand(rng::AbstractRNG, d::ParetoI{T}, n::Int) where {T<:Real}
@@ -74,7 +74,7 @@ end
 function fit(::Type{ParetoI}, x::Array{T}, ε::Float64) where {T<:Real}
     xs = sort(x)
     n = count(x .>= ε)
-    (n < 30) && (@warn("Very little data in the tail with ε=$(ε) [only $(n) data points]"))
+    (n < 256) && (@warn("Very little data in the tail with ε=$(ε) [only $(n) data points]"))
     #~ Filter data
     idx = searchsortedfirst(xs, ε)
     xfit = xs[idx:end]
@@ -140,14 +140,15 @@ function computepvalue(P::ParetoI, x::Array{T}; nsynth=500) where {T<:Real}
     Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
     distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
     KSDATA = Base.maximum(distances)
+    @info "hm" KSDATA
     kscount = 0
 
     #/ Generate synthetic datasets
-    for n in 1:nsynth
+    for _ in 1:nsynth
         r = rand(rng, P, k)
         _x = sort(r)
+        n = length(_x)
         #~ Fit a ParetoI with ε given
-        #  [note: 
         S = sum(log.(_x / P.ε))
         α = n / S
         _P = ParetoI(α, P.ε)
@@ -157,6 +158,7 @@ function computepvalue(P::ParetoI, x::Array{T}; nsynth=500) where {T<:Real}
         Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
         distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
         KSSYNTHETIC = Base.maximum(distances)
+        @info "hm" KSSYNTHETIC
         if KSSYNTHETIC > KSDATA
             kscount += 1
         end
