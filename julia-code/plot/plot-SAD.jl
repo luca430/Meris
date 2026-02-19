@@ -94,7 +94,7 @@ function plot!(parent;
     ax3 = Axis(
         ax3_cell,
         xlabel = L"\text{sample size } N",
-        ylabel = L"\text{sample size } N",
+        ylabel = L"\text{vocabulary size } V",
         xlabelsize = 12,
         ylabelsize = 12,
         xticklabelsize=10,
