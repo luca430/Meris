@@ -22,7 +22,7 @@ function getcandidates(
             fit = (f, data, εs) -> MDistributions.fit(f, data, εs),
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> MDistributions.logpdf.(f, x),
-            computepvalue = (f, x) -> MDistributions.computepvalue(f, x),
+            computepvalue = (f, x, ε) -> MDistributions.computepvalue(f, x, ε),
             dataframeentry = Tuple{Float64,Float64,Float64}
         ),
         :ParetoI => (
@@ -30,7 +30,7 @@ function getcandidates(
             fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> log.(MDistributions.pdf.(f, x)),
-            computepvalue = (f, x) -> MDistributions.computepvalue(f, x),
+            computepvalue = (f, x, ε) -> MDistributions.computepvalue(f, x, ε),
             dataframeentry = Tuple{Float64,Float64}
         ),
         :ParetoIV => (

@@ -1,4 +1,8 @@
-#= Goodness of fit for Barro-Colorato Island tree counts =#
+#= Goodness of fit for Gutenberg book data =#
+@info "Fits and comparisons for Gutenberg Project book data..."
+#~ Parse command-line args
+using Meris: MArgParse as Args
+args = Args.parsegof()
 #~ Load some packages
 using DataFrames, DataFramesMeta
 using Distributions
@@ -12,12 +16,10 @@ OUTDIR = DATADIR*"goodness-of-fit/gutenberg/"
 mkpath(OUTDIR)
 FILENAME = "gutenberg-candidatefits.jld2"
 
-#/ Specify parameters
-nε = 64
-
-bookdf = GutenbergLoader.load()
-@transform!(bookdf, :frequency = :counts ./ :nreads)
-fitdf = OhMyGoodness.fit_candidates(bookdf, :class; nε=nε)
+#/ Load and fit candidates [see `candidates.jl`]
+df = GutenbergLoader.load()
+@transform!(df, :frequency = :counts ./ :nreads)
+fitdf = OhMyGoodness.fit_candidates(df, :class; nε=args["numeps"])
 
 #/ Store
 jldsave(OUTDIR*FILENAME; fitdf=fitdf)

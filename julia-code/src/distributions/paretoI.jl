@@ -84,7 +84,7 @@ function fit(::Type{ParetoI}, x::Array{T}, ε::Float64) where {T<:Real}
     return ParetoI(αhat, ε)
 end
 
-function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where {T<:Real}
+function fit(::Type{ParetoI}, x::Array{T}; εs=nothing, weighted=false) where {T<:Real}
     xs = sort(x)
     εs = isnothing(εs) ? unique(xs) : εs
     
@@ -107,11 +107,7 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where {T<:Real}
         α = n / S
         _P = ParetoI(α, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
-        Ftv = 1.0 .- ccdf.(_P, _x)
-        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        Dhat = Base.maximum(distances)
+        Dhat = KolmogorovSmirnov(_P, _x; weighted=weighted)
         #~ If smaller than the current best, update
         if Dhat < D
             αhat = _P.α
@@ -119,7 +115,6 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where {T<:Real}
             D = Dhat
         end
     end
-    @info "hm" D
     return ParetoI(αhat, εhat)
 end
 
@@ -127,46 +122,60 @@ end
 Compute p-value that determines whether to reject the generalized Pareto as a candidate
 see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
-function computepvalue(P::ParetoI, x::Array{T}; nsynth=500) where {T<:Real}
+function computepvalue(
+    P::ParetoI, x::Array{T}, εs::Array{T};
+    nsynth=500, weighted=false
+    ) where {T<:Real}
     #~ Simulate `nsynth` synthetic datasets, and fit a generalized Pareto on each
     #  Then, compute the (weighted) KS statistic and compare with the value for the data
     rng = Random.Xoshiro(42*nsynth)
     
-    #~ Compute KS statistic in data
+    #~ Filter data
     xs = sort(x[x .>= P.ε])
+    #~ Choose admissible ε
+    logx = log.(xs)
+    εsynth = exp.(range(logx[begin], logx[end], length(εs)))
     k = length(xs)
-    Fv = _ecdf(xs, xs, sorted=true).F     # Values of empirical CDF
-    Ftv = 1.0 .- ccdf.(P, xs)
-    # Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-    # distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-    distances = abs.(Fv .- Ftv)
-    KSDATA = Base.maximum(distances)
+    #~ Compute Kolmogorov-Smirnov distance in data
+    KSDATA = KolmogorovSmirnov(P, xs; weighted=weighted)
     kscount = 0
 
     #/ Generate synthetic datasets
     for _ in 1:nsynth
         #~ Sample synthetic dataset
-        _x = sort(rand(rng, P, k))
-        #~ Fit a ParetoI with ε given
-        S = sum(log.(_x / P.ε))
-        α = k / S
-        _P = ParetoI(α, P.ε)
-        #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
-        Ftv = 1.0 .- ccdf.(_P, _x)
-        # Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        # distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        distances = abs.(Fv .- Ftv)
-        KSSYNTHETIC = Base.maximum(distances)
+        synthx = sort(rand(rng, P, k))
+        _Pfit = fit(ParetoI, synthx; εs=εsynth)
+        #~ filter
+        _idx = searchsortedfirst(xs, _Pfit.ε)
+        _x = synthx[_idx:end]
+        #~ Compute Kolmogorov-Smirnov distance in synthetic data
+        KSSYNTHETIC = KolmogorovSmirnov(_Pfit, _x; weighted=weighted)
         if KSSYNTHETIC > KSDATA
             kscount += 1
         end
     end
+    #~ return p value
     return kscount / nsynth
 end
 
 ########################
 ### HELPER FUNCTIONS ###
+function KolmogorovSmirnov(P::ParetoI, x::Array{T}; weighted=false) where {T<:Real}
+    (!issorted(x)) && (sort!(x))
+    Fv = _ecdf(x, x, sorted=true).F     # Values of empirical CDF
+    Ftv = 1.0 .- ccdf.(P, x)            # Values of survival function
+    if weighted
+        Z = sqrt.(Ftv .* (1 .- Ftv))    # Weight
+        KS = abs.(Fv .- Ftv) ./ Z       # Weighted KS distance
+        return maximum(KS)
+    end
+    KS = abs.(Fv .- Ftv)
+    return maximum(KS)
+end
+
+
+
+
 """
 Compute empirical CDF at points t where F[t] = (no. elements ≤ t) / n
 """

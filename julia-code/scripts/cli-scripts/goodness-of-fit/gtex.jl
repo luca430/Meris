@@ -1,4 +1,8 @@
-#= Goodness of fit for Barro-Colorato Island tree counts =#
+#= Goodness of fit for GTEx data =#
+@info "Fits and comparisons for genetic (GTEx) data..."
+#~ Parse command-line args
+using Meris: MArgParse as Args
+args = Args.parsegof()
 #~ Load some packages
 using DataFrames, DataFramesMeta
 using Distributions
@@ -12,12 +16,10 @@ OUTDIR = DATADIR*"goodness-of-fit/gtex/"
 mkpath(OUTDIR)
 FILENAME = "gtex-candidatefits.jld2"
 
-#/ Specify parameters
-nε = 64
-
+#/ Load and fit candidates [see `candidates.jl`]
 gtexdf = GTExLoader.load()
 @transform!(gtexdf, :frequency = :counts ./ :nreads)
-fitdf = OhMyGoodness.fit_candidates(gtexdf, :class; nε=nε)
+fitdf, aicdf = OhMyGoodness.fit_candidates(gtexdf, :class; nε=args["numeps"])
 
 #/ Store
 jldsave(OUTDIR*FILENAME; fitdf=fitdf)

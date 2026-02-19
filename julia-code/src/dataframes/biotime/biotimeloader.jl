@@ -18,14 +18,16 @@ import Meris.BIOTIMEDIR as BIOTIMEDIR
 
 #################
 ### FUNCTIONS ###
-function load(; DIR=BIOTIMEDIR * "/raw-data/", nclasses=6)
+function load(; DIR=BIOTIMEDIR * "/raw-data/", nclasses=6, verbose=false)
     zip_path = DIR * "biotime_v2_rawdata_2025.zip"
     
     z = ZipFile.Reader(zip_path)
     
-    # list files inside zip (optional, useful)
-    for f in z.files
-        println(f.name)
+    # list files inside zip (optional)
+    if verbose
+        for f in z.files
+            println(f.name)
+        end
     end
     
     # find the main CSV file (example name, adjust if needed)
@@ -47,7 +49,10 @@ function load(; DIR=BIOTIMEDIR * "/raw-data/", nclasses=6)
         @combine(:component_id, :counts, :nreads=sum(:counts))
     end
     
-    top = first(sort(combine(groupby(df, :class), :nreads => sum => :total), :total, rev=true), nclasses)
+    top = first(
+        sort(combine(groupby(df, :class), :nreads => sum => :total), :total, rev=true),
+        nclasses
+    )
     
     return semijoin(df, top[:, [:class]], on=:class)
 end

@@ -25,6 +25,9 @@ const RFCDIR = DATADIR * "datasets/rfc/"
 const TARADIR = DATADIR * "datasets/taraocean/"
 
 ## SUBMODULES
+#~ CLI argument parser
+include("args/argparse.jl")
+
 #~ Data handlers, loaders, and samplers
 include("dataframes/arxiv/arxivloader.jl")
 include("dataframes/bci.tree/bcitreeloader.jl")

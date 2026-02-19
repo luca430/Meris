@@ -163,10 +163,12 @@ function write_long_stream_to_csv_gz(path::AbstractString, out_csv_gz::AbstractS
     return out_csv_gz
 end
 
-function gtex_tree_to_many_csv_gz(root::AbstractString;
-        header_row::Int=3,
-        max_samples::Int=200,
-        flush_n::Int=200_000
+function gtex_tree_to_many_csv_gz(
+    root::AbstractString;
+    header_row::Int=3,
+    max_samples::Int=200,
+    flush_n::Int=200_000,
+    verbose=false                             
     )
 
     files = glob("**/*.nonzero_cols.gz", root)
@@ -175,7 +177,7 @@ function gtex_tree_to_many_csv_gz(root::AbstractString;
     outs = String[]
 
     for f in files
-        println("[file] ", f)
+        (verbose) && (println("[file] ", f))
 
         # build output path in SAME directory
         out = replace(f, ".nonzero_cols.gz" => ".long.csv.gz")

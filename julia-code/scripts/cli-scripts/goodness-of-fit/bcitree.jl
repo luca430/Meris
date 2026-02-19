@@ -1,4 +1,5 @@
 #= Goodness of fit for Barro-Colorato Island tree counts =#
+exit()
 #~ Load some packages
 using DataFrames, DataFramesMeta
 using Distributions

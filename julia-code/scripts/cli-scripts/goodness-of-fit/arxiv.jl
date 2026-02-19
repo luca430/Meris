@@ -1,4 +1,8 @@
 #= Goodness of fit for arXiv papers =#
+@info "Fits and comparisons for arXiv articles..."
+#~ Parse command-line args
+using Meris: MArgParse as Args
+args = Args.parsegof()
 #~ Load some packages
 using DataFrames, DataFramesMeta
 using Distributions
@@ -16,32 +20,15 @@ FILENAME = "arxiv-candidatefits.jld2"
 minsamples    = 30      #~ min. no. of articles per "class"
 minreads      = 4_000   #~ min. no. of words per article
 mincomponents = 10_000  #~ min. no. of distinct components per "class"
-nε = 64
-
-"Simple (private) function to load arXiv data"
-function _load()
-    #  note: data is filtered [using the parameters above]
-    arxivdf = arXivLoader.load(
-        stopwords=true, filterdata=true;
-        minsamples=minsamples, minreads=minreads, mincomponents=mincomponents
-    )
-    #~ For each `domain`, fit CADs for each `sample_id` specifically, and store their parameters
-    @transform!(arxivdf, :frequency = :counts ./ :nreads)
-    return arxivdf
-end
 
 #/ Load and fit candidates [see `candidates.jl`]
-arxivdf = _load()
-fitdf = OhMyGoodness.fit_candidates(arxivdf; nε=nε)
+arxivdf = arXivLoader.load(
+    stopwords=true, filterdata=true;
+    minsamples=minsamples, minreads=minreads, mincomponents=mincomponents
+)
+@transform!(arxivdf, :frequency = :counts ./ :nreads)
+fitdf, aicdf = OhMyGoodness.fit_candidates(arxivdf, :domain; nε=args["numeps"])
 
 #/ Store
-jldsave(OUTDIR*FILENAME; fitdf = fitdf)
-
-# cols = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto, :Gamma, :LogNormal]
-# @rtransform! adf begin
-#     :likely = begin
-#         vals = Tuple(AsTable(cols))
-#         cols[argmin(vals)]
-#     end
-# end
+jldsave(OUTDIR*FILENAME; fitdf = fitdf, aicdf = aicdf)
 

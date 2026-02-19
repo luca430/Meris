@@ -30,24 +30,27 @@ function fit_candidates(
     n = 0
     nrejects = 0
     for sampledf in groupby(data, :sample_id)
-        (n > 10) && (break)
+        p = missing
         n += 1
         __id = first(sampledf.sample_id)
         frequencies = collect(sampledf.frequency)
         #~ Compute [log-spaced] admissible ε for distributions from the Pareto family
         νs = log.(unique(sort(frequencies)))
+        (length(νs) < 3) && (continue)
         εs = exp10.(range(νs[2], νs[end], nε) |> collect)
         xmin = nothing
         #~ Establish heavy-tail by fitting generalized Pareto distribution
         try
             # println("Checking whether heavy-tailed distributions are appropriate...")
             ht = candidates[:ParetoI]
-            paretofit = ht.fit(ht.f, frequencies, εs)            
-            pval = ht.computepvalue(paretofit, frequencies)
-            if pval < preject
+            paretofit = ht.fit(ht.f, frequencies, εs)
+            #~ Compute p value
+            p = ht.computepvalue(paretofit, frequencies, εs)
+            if p < preject
                 nrejects += 1
                 continue
             end
+            
             #~ Filter data w.r.t. ε onwards, otherwise (i)
             #  - the log-likelihood blows up
             #  - the comparison is unfair as candidates have different domains
@@ -62,7 +65,7 @@ function fit_candidates(
         #  compare it with the other remaining candidate distributions.
         #  So from this point on, we filter frequencies by ε of the test distribution
         #~ Fit candidate distributions
-        print("Fitting candidate distributions for $(__id) [$(n)/$(nsamples)]...\r")
+        print("Fitting candidate distributions for sample $(__id) [$(n)/$(nsamples)]...\r")
         fits = Dict{Symbol,Any}()
         AICs = Dict{Symbol,Any}()
         for (name, distribution) in candidates
@@ -83,10 +86,11 @@ function fit_candidates(
         )
         push!(fitdf, fitmrg, promote=true)
         aicmrg = merge(
-            (environment = first(sampledf[!,classcolname]), sample_id = __id), AICs
+            (environment = first(sampledf[!,classcolname]), sample_id = __id, pvalue=p), AICs
         )
         push!(aicdf, aicmrg, promote=true)
     end
+    println("\nDone.")
     return fitdf, aicdf
 end
 
@@ -102,7 +106,7 @@ function initialize_fitdataframe(candidates::Dict)
 end
 
 function initialize_aicdataframe(candidates::Dict)
-    df = DataFrame(environment=String[], sample_id=String[])
+    df = DataFrame(environment=String[], sample_id=String[], pvalue=Float64[])
     for (candidate, _) in candidates
         df[:, candidate] = Vector{Float64}(undef, nrow(df))
     end
