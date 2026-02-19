@@ -39,14 +39,14 @@ end
 
 function logpdf(d::ParetoI, x::Real)
     (x < d.ε) && (return -Inf)
-    
+    return d.α * log(d.α * d.ε) - (d.α + 1) * log(x)
 end
 
 #########################
 ### SURVIVAL FUNCTION ###
 
 function ccdf(d::ParetoI, x::Real)
-	  if x <= d.ε
+	  if x < d.ε
         return 1.0
     end
     return (d.ε / x)^d.α
@@ -84,7 +84,7 @@ function fit(::Type{ParetoI}, x::Array{T}, ε::Float64) where {T<:Real}
     return ParetoI(αhat, ε)
 end
 
-function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
+function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where {T<:Real}
     xs = sort(x)
     εs = isnothing(εs) ? unique(xs) : εs
     
@@ -98,12 +98,11 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
     #  - extract the xmin for which the MLE γ gives the smallest KS distance
     for i in eachindex(εs)
         ε = εs[i]
-        n = count(xs .> ε)
-        (n < 256) && (break)        # If less than 256 samples >xmin, break
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε) + 1
+        _idx = searchsortedfirst(xs, ε)
         _x = xs[_idx:end]
-        # _P = fit(ParetoI, _x, ε)
+        n = length(_x)
+        (n < 256) && (break)        # If less than 256 samples >xmin, break
         S = sum(log.(_x / ε))
         α = n / S
         _P = ParetoI(α, ε)
@@ -120,6 +119,7 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing) where T<:Real
             D = Dhat
         end
     end
+    @info "hm" D
     return ParetoI(αhat, εhat)
 end
 
@@ -130,35 +130,34 @@ see, [Clauset et al. (2009), Power-law distribution in empirical data]
 function computepvalue(P::ParetoI, x::Array{T}; nsynth=500) where {T<:Real}
     #~ Simulate `nsynth` synthetic datasets, and fit a generalized Pareto on each
     #  Then, compute the (weighted) KS statistic and compare with the value for the data
-    k = length(x)
     rng = Random.Xoshiro(42*nsynth)
     
     #~ Compute KS statistic in data
-    _x = sort(x[x .> P.ε])
-    Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
-    Ftv = 1.0 .- ccdf.(P, _x)
-    Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-    distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+    xs = sort(x[x .>= P.ε])
+    k = length(xs)
+    Fv = _ecdf(xs, xs, sorted=true).F     # Values of empirical CDF
+    Ftv = 1.0 .- ccdf.(P, xs)
+    # Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
+    # distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+    distances = abs.(Fv .- Ftv)
     KSDATA = Base.maximum(distances)
-    @info "hm" KSDATA
     kscount = 0
 
     #/ Generate synthetic datasets
     for _ in 1:nsynth
-        r = rand(rng, P, k)
-        _x = sort(r)
-        n = length(_x)
+        #~ Sample synthetic dataset
+        _x = sort(rand(rng, P, k))
         #~ Fit a ParetoI with ε given
         S = sum(log.(_x / P.ε))
-        α = n / S
+        α = k / S
         _P = ParetoI(α, P.ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
         Ftv = 1.0 .- ccdf.(_P, _x)
-        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+        # Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
+        # distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+        distances = abs.(Fv .- Ftv)
         KSSYNTHETIC = Base.maximum(distances)
-        @info "hm" KSSYNTHETIC
         if KSSYNTHETIC > KSDATA
             kscount += 1
         end
@@ -172,6 +171,8 @@ end
 Compute empirical CDF at points t where F[t] = (no. elements ≤ t) / n
 """
 function _ecdf(xs::Array{T}, t::Array{T}; sorted=false) where T<:Real
+    #~ ensure `t` is sorted
+    (!issorted(t)) && (sort!(t))
     (!sorted) && (xs = sort(xs))
     n = length(xs)
     F = similar(t, Float64)
@@ -189,10 +190,10 @@ end
 """
 Compute empirical CDF at equally distributed points t
 """
-function _ecdf(x::Array{T}, t::Int; sorted=false) where T<:Real
-    (!sorted) && (xs = sort(x))
+function _ecdf(xs::Array{T}, t::Int; sorted=false) where T<:Real
+    (!sorted) && (xs = sort(xs))
     edges = range(xs[begin], xs[end], length=t) |> collect
-    return _ecdf(x, edges, sorted=true)
+    return _ecdf(xs, edges, sorted=true)
 end
 
 
