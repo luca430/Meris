@@ -14,14 +14,14 @@ import Meris.GTEXDIR as GTEXDIR
 
 #################
 ### FUNCTIONS ###
-function load(; DIR=GTEXDIR * "processed/")
+function load(; DIR=GTEXDIR * "processed/", verbose=false)
     files = glob("**/*.long.csv.gz", DIR)
     isempty(files) && error("No *.long.csv.gz files found under $DIR")
 
     dfs = DataFrame[]
 
     for f in files
-        println("Loading $f")
+        (verbose) && (println("Loading $f"))
         df = CSV.read(f, DataFrame)
         push!(dfs, df)
     end
@@ -163,23 +163,23 @@ function write_long_stream_to_csv_gz(path::AbstractString, out_csv_gz::AbstractS
     return out_csv_gz
 end
 
-function gtex_tree_to_many_csv_gz(root::AbstractString;
-        header_row::Int=3,
-        max_samples::Int=200,
-        flush_n::Int=200_000
+function gtex_tree_to_many_csv_gz(
+    root::AbstractString;
+    header_row::Int=3,
+    max_samples::Int=200,
+    flush_n::Int=200_000,
+    verbose=false                             
     )
 
     files = glob("**/*.nonzero_cols.gz", root)
     isempty(files) && error("No *.nonzero_cols.gz under $root")
 
     outs = String[]
-
     for f in files
-        println("[file] ", f)
-
-        # build output path in SAME directory
+        (verbose) && (println("[file] ", f))
+        #~ Build output path in SAME directory
         out = replace(f, ".nonzero_cols.gz" => ".long.csv.gz")
-
+        #~ Write to DataFrame
         push!(outs,
             write_long_stream_to_csv_gz(
                 f,
@@ -190,10 +190,8 @@ function gtex_tree_to_many_csv_gz(root::AbstractString;
                 append=false
             )
         )
-
-        println("  -> ", out)
+        (verbose) && (println("  -> ", out))
     end
-
     return outs
 end
 

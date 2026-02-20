@@ -70,14 +70,54 @@ end
 
 ###############
 ### FITTING ###
+"""
+Fit ParetoIV with for an array (Vector) of candidate minimum values εs
+"""
+function fit(::Type{ParetoIV}, x::Array{T}; εs::Vector{T}=unique(x)) where {T<:Real}
+    xs = sort(x)
+
+    αhat = eps()
+    βhat = eps()
+    θhat = eps()
+    εhat = 1e-24
+    D = Inf
+    n = 0
+    #/ For each possible xmin in xmins;
+    #  - compute the max.-likelihood estimate of the power law exponent γ
+    #  - compute the Kolmogorov-Smirnov distance
+    #  - extract the xmin for which the MLE γ gives the smallest KS distance
+    k = 0
+    for i in eachindex(εs)
+        ε = εs[i]
+        n = count(xs .> ε)
+        (n < 100) && (break)        # If less than 256 samples >xmin, break
+        #~ Filter data
+        _idx = searchsortedfirst(xs, ε) + 1
+        _x = xs[_idx:end]
+        _P = fit(ParetoIV, _x, ε)
+        #~ Compute Kolmogorov-Smirnov distance as the test statistic
+        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
+        Ftv = 1.0 .- ccdf.(_P, _x)
+        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
+        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
+        Dhat = maximum(distances)
+        #~ If smaller than the current best, update
+        if Dhat < D
+            αhat = _P.α
+            βhat = _P.β
+            θhat = _P.θ
+            εhat = _P.ε
+            D = Dhat
+        end
+        k += 1
+    end
+    return ParetoIV(αhat, βhat, θhat, εhat)
+end
 
 """
-    @TODO Ensure some parameters remain fixed when subtypes are called
-          Most likely, we need seperate structures for this anyways, and then
-          write `fit` functions for each.
+Fit ParetoIV with a fixed minimum value ε
 """
-function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
-	  (isnothing(ε)) && (ε = minimum(x))
+function fit(::Type{ParetoIV}, x::Array{T}, ε::T) where {T<:Real}
 
     function negloglikelihood(x, params)
         logα, logβ, logθ = params
@@ -92,18 +132,20 @@ function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
     #~ Quantile estimator for θ
     #  θ determines the "distance" from ε to the start of the heavy tail.
     #  So taking a 10% quantile seems a decent educated guess.
-    θinit = quantile(x .- ε, 0.1)
-    #~ Hill estimator for α for the top 16% of values
-    αinit = 1.0 / hills_estimator(x, sorted=false)[end]
+    # θinit = quantile(x .- ε, 0.1)
+    θinit = iqr(x .- ε)
+    #~ Hill estimator for α
+    # hill = hills_estimator(x, sorted=false)
+    # αinit = max(1e-3, 1 / hill[end])
+    αinit = 0.5
+    # αinit = 1 / StatsBase.mean(hill[end-42:end])
     #~ Guess of β, typically β∈[0.5,1.0]
-    βinit = 0.75
-
+    βinit = 1.0
     params = [log(αinit), log(βinit), log(θinit)]
-
     #~ Optimize
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
-        [log(1e-3), log(1e-3), log(minimum(x) .- ε)],
+        [log(1e-3), log(1e-3), log(1e-8)],
         [log(10.0), log(10.0), log(maximum(x))],
         params,
         Fminbox(LBFGS()),
@@ -113,8 +155,11 @@ function fit(::Type{ParetoIV}, x::Array{T}; ε=nothing) where {T<:Real}
         αhat, βhat, θhat = optimres.minimizer
         return ParetoIV(exp(αhat), exp(βhat), exp(θhat), ε)
     end
-    @warn("Optimizer not converged, returning initial guesses")
-    return ParetoIV(αinit, βinit, θinit, ε)
+    #~ Throw an error here as the Optimizer did not converge
+    throw(ErrorException("Optimizer not converged"))
+    #~ When an error is undesired, it can be set as a warning as well
+    # @warn("Optimizer not converged, returning initial guesses")
+    # return ParetoIV(αinit, βinit, θinit, ε)
 end
 
 ########################

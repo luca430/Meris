@@ -118,7 +118,7 @@ function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing) where T<:Real
     
     αhat = 1.0
     βhat = 1.0
-    εhat = 1e-20
+    εhat = 1e-24
     D = Inf
     n = 0
     #/ For each possible xmin in xmins;
