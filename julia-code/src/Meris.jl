@@ -50,7 +50,7 @@ include("processes/pitman-yor.jl")
 # include("fits/power-law.jl")
 # include("fits/double-power-law.jl")
 # include("fits/mle.jl")
-# include("fits/heapsmodel.jl")
+include("fits/heapsmodel.jl")
 
 #~ Utilities
 include("dataframes/afd.jl")

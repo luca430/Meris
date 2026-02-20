@@ -28,7 +28,8 @@ function load(
     savedata=true,  #~ Store filtered data for easy retrieval
     minsamples=30,
     minreads=5_000,
-    mincomponents=100,
+    mincomponents=200,
+    minsamplecomponents=100,
     verbose=false
 )
     if !fromparsed
@@ -68,12 +69,15 @@ function load(
             #~ filter data
             @subset!(df, :nreads .> minreads)
             summarydf = @chain df begin
-                @by(
-                    :class,
-                    :nsamples = length(:sample_id),
-                    :ncomponents = length(unique(:component_id))
-                )
-                @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+                @groupby(:class)
+                @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
+                @subset(:ncomponents .> mincomponents)
+                @groupby(:class, :sample_id)
+                @combine(:sample_id, :component_id, :counts, :nreads, :ncomponentspersample = length(unique(:component_id)))
+                @subset(:ncomponentspersample .> minsamplecomponents)
+                @groupby(:class)
+                @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
+                @subset(:nsamples .> minsamples)
             end
             @subset!(df, :class .∈ Ref(summarydf.class))
         end

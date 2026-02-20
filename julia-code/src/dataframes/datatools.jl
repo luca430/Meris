@@ -9,35 +9,25 @@ Filter standardized DataFrame based on min_samples and min_nreads.
 """
 function df_filter!(
     df::DataFrame;
-    min_nreads::Int=1,
-    min_species::Int=1,
-    min_samples::Int=30,
+    minreads::Int=1,
+    mincomponents::Int=1,
+    minsamplecomponents::Int=1,
+    minsamples::Int=30,
 )
-    #/ Filter by total reads
-    filter!(row -> row.nreads >= min_nreads, df)
-
-    #/ Compute unique species per (class, sample_id)
-    good_samples_species = @chain df begin
+    #~ filter data
+    @subset!(df, :nreads .> minreads)
+    summarydf = @chain df begin
+        @groupby(:class)
+        @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
+        @subset(:ncomponents .> mincomponents)
         @groupby(:class, :sample_id)
-        @combine(:n_species = length(unique(:component_id)))
+        @combine(:sample_id, :component_id, :counts, :nreads, :ncomponentspersample = length(unique(:component_id)))
+        @subset(:ncomponentspersample .> minsamplecomponents)
+        @groupby(:class)
+        @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
+        @subset(:nsamples .> minsamples)
     end
-    good_samples_species = good_samples_species[good_samples_species.n_species.>=min_species, :]
-    df2 = innerjoin(df, good_samples_species[:, [:class, :sample_id]], on=[:class, :sample_id])
-
-    #/ Overwrite original DataFrame in-place
-    empty!(df)
-    append!(df, df2)
-
-    # 3) Keep only classes with enough samples
-    good_classes = @chain df begin
-        groupby(:class)
-        @combine(:nsamples = length(unique(:sample_id)))
-    end
-    good_classes = good_classes.class[good_classes.nsamples.>=min_samples]
-
-    filter!(row -> row.class in good_classes, df)
-
-    return df
+    @subset!(df, :class .∈ Ref(summarydf.class))
 end
 
 """
