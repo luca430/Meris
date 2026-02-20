@@ -5,6 +5,7 @@ module OhMyGoodness
 #/ Packages
 using Distributions
 using DataFrames, DataFramesMeta
+using Random
 
 #~ Local Meris modules
 using Meris: Candies   #~ candidate distributions
@@ -21,6 +22,7 @@ function fit_candidates(
     nε::Int = 100,
     preject = 0.1
     )
+    rng = Random.Xoshiro(42*nε)
     candidates = Candies.getcandidates(; candidates=candidates)
     fitdf = initialize_fitdataframe(candidates)
     aicdf = initialize_aicdataframe(candidates)
@@ -45,7 +47,7 @@ function fit_candidates(
             ht = candidates[:ParetoI]
             paretofit = ht.fit(ht.f, frequencies, εs)
             #~ Compute p value
-            p = ht.computepvalue(paretofit, frequencies, εs)
+            p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
             if p < preject
                 nrejects += 1
                 continue
@@ -56,7 +58,8 @@ function fit_candidates(
             frequencies = frequencies[frequencies .>= paretofit.ε]
             xmin = paretofit.ε
             ntail = length(frequencies)
-        catch DomainError
+        catch e
+            (e isa AssertionError) && (rethrow(e))
             # Sometimes fitting a Pareto-like distribution is troublesome, so catch
             # any potential errors here and simply skip the source.
             continue

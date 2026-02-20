@@ -87,9 +87,9 @@ end
 function fit(::Type{ParetoI}, x::Array{T}; εs=nothing, weighted=false) where {T<:Real}
     xs = sort(x)
     εs = isnothing(εs) ? unique(xs) : εs
-    
+
     αhat = 1.0
-    εhat = 1e-24
+    εhat = minimum(x)
     D = Inf
     n = 0
     #/ For each possible xmin in xmins;
@@ -102,10 +102,10 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing, weighted=false) where {T
         _idx = searchsortedfirst(xs, ε)
         _x = xs[_idx:end]
         n = length(_x)
-        (n < 128) && (break)        # If less than 256 samples >xmin, break
         #~ Estimate α
         S = sum(log.(_x / ε))
         α = n / S
+        (isnan(α) || α < zero(α)) && (continue)
         _P = ParetoI(α, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         #  note: within the function data is filtered, so no need to do it here
@@ -131,11 +131,9 @@ function computepvalue(
     #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
     xhead = filter(z -> z < P.ε, x)
     nhead = length(xhead) / length(x)
-    #~ Filter data
-    # xs = sort(x[x .>= P.ε])
     k = length(x)
     #~ Compute Kolmogorov-Smirnov distance in data
-    KSDATA = KolmogorovSmirnov(P, x[x .> P.ε]; weighted=weighted)
+    KSDATA = KolmogorovSmirnov(P, x; weighted=weighted)
     kscount = 0
 
     #/ Generate synthetic datasets
@@ -143,16 +141,17 @@ function computepvalue(
     while ns < nsynth
         ns += 1
         #~ Sample synthetic dataset
-        synthx = sort(rand(rng, P, k))
+        synthx = rand(rng, P, k)
         #~ augment synthetic data [see Clauset et al. (2009), Section 4.1]
         u = Base.rand(rng, length(x))
-        for i in eachindex(x)
+        for i in eachindex(synthx)
             (u[i] < nhead) && (synthx[i] = StatsBase.sample(rng, xhead))
         end        
         #~ Choose admissible ε
-        _logx = log.(synthx)
-        # εsynth = exp.(range(_logx[begin], _logx[end], length(εs)))
-        Psynthfit = fit(ParetoI, synthx, P.ε)
+        logsynthx = log.(synthx)
+        logxmin, logxmax = extrema(logsynthx)
+        εsynth = exp.(range(logxmin, logxmax, length(εs)))
+        Psynthfit = fit(ParetoI, synthx; εs=εsynth, weighted=weighted)
         #~ Compute Kolmogorov-Smirnov distance in synthetic data
         KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
         if KSSYNTHETIC > KSDATA
@@ -165,9 +164,9 @@ end
 
 ########################
 ### HELPER FUNCTIONS ###
-function KolmogorovSmirnov(P::ParetoI, x::Array{T}; weighted=false) where {T<:Real}
+function KolmogorovSmirnov(P::ParetoI, data::Array{T}; weighted=false) where {T<:Real}
     #~ We care only about data within the functions domain, so first filter
-    filter!(z -> z >= P.ε, x)
+    x = filter(z -> z >= P.ε, data)
     #~ Sort, if not already
     (!issorted(x)) && (sort!(x))
     Fv = _ecdf(x, x).F            # Values of empirical CDF
