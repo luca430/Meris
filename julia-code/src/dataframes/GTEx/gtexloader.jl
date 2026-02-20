@@ -14,14 +14,14 @@ import Meris.GTEXDIR as GTEXDIR
 
 #################
 ### FUNCTIONS ###
-function load(; DIR=GTEXDIR * "processed/")
+function load(; DIR=GTEXDIR * "processed/", verbose=false)
     files = glob("**/*.long.csv.gz", DIR)
     isempty(files) && error("No *.long.csv.gz files found under $DIR")
 
     dfs = DataFrame[]
 
     for f in files
-        println("Loading $f")
+        (verbose) && (println("Loading $f"))
         df = CSV.read(f, DataFrame)
         push!(dfs, df)
     end
@@ -175,13 +175,11 @@ function gtex_tree_to_many_csv_gz(
     isempty(files) && error("No *.nonzero_cols.gz under $root")
 
     outs = String[]
-
     for f in files
         (verbose) && (println("[file] ", f))
-
-        # build output path in SAME directory
+        #~ Build output path in SAME directory
         out = replace(f, ".nonzero_cols.gz" => ".long.csv.gz")
-
+        #~ Write to DataFrame
         push!(outs,
             write_long_stream_to_csv_gz(
                 f,
@@ -192,10 +190,8 @@ function gtex_tree_to_many_csv_gz(
                 append=false
             )
         )
-
-        println("  -> ", out)
+        (verbose) && (println("  -> ", out))
     end
-
     return outs
 end
 

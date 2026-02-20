@@ -22,4 +22,4 @@ gtexdf = GTExLoader.load()
 fitdf, aicdf = OhMyGoodness.fit_candidates(gtexdf, :class; nε=args["numeps"])
 
 #/ Store
-jldsave(OUTDIR*FILENAME; fitdf=fitdf)
+jldsave(OUTDIR*FILENAME; fitdf=fitdf, aicdf=aicdf)

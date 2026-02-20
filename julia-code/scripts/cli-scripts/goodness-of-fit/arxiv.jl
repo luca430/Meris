@@ -3,6 +3,7 @@
 #~ Parse command-line args
 using Meris: MArgParse as Args
 args = Args.parsegof()
+
 #~ Load some packages
 using DataFrames, DataFramesMeta
 using Distributions
@@ -23,7 +24,7 @@ mincomponents = 10_000  #~ min. no. of distinct components per "class"
 
 #/ Load and fit candidates [see `candidates.jl`]
 arxivdf = arXivLoader.load(
-    stopwords=true, filterdata=true;
+    stopwords=true, filterdata=args["filter"];
     minsamples=minsamples, minreads=minreads, mincomponents=mincomponents
 )
 @transform!(arxivdf, :frequency = :counts ./ :nreads)

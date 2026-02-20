@@ -19,7 +19,7 @@ FILENAME = "gutenberg-candidatefits.jld2"
 #/ Load and fit candidates [see `candidates.jl`]
 df = GutenbergLoader.load()
 @transform!(df, :frequency = :counts ./ :nreads)
-fitdf = OhMyGoodness.fit_candidates(df, :class; nε=args["numeps"])
+fitdf, aicdf = OhMyGoodness.fit_candidates(df, :class; nε=args["numeps"])
 
 #/ Store
-jldsave(OUTDIR*FILENAME; fitdf=fitdf)
+jldsave(OUTDIR*FILENAME; fitdf=fitdf, aicdf=aicdf)
