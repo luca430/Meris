@@ -83,22 +83,22 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
     end
 
     #~ Initial estimates
-    #  uses standard Pareto MLE for α
+    #  uses standard ParetoI MLE for α
     Ex = StatsBase.mean(x)
     xs = sort(x)
     idx = searchsortedfirst(xs, ε)
     xfit = xs[idx:end]
     S = sum(log.(xfit / ε))
-    αinit = length(x) / S
-    βinit = max(2/maximum(x), 1 / (Ex + ε))
-    params = [log(αinit), log(βinit)]    
+    αinit = max(5.0, length(x) / S)         #~ α above 5.0 makes no sense
+    βinit = max(2/maximum(x), 1 / (Ex + ε))  #~ β below ~1/maximum(x) makes no sense
+    params = [log(αinit), log(βinit)]
 
     #~ Optimize
     #!note: ranges wherein to search are rather arbitrary
     #@TODO: is there a way this can be made more robust?
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
-        [-3.0, log(1/maximum(x))],
+        [-4.0, log(1/maximum(x))],
         [3.0, log(100/minimum(x))],
         params,
         Fminbox(LBFGS());
@@ -108,8 +108,9 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
         αhat, βhat = optimres.minimizer
         return TemperedPareto(exp(αhat), exp(βhat), ε)
     end
-    @warn("Optimizer not converged, returning initial guesses [method of moments]")
-    return TemperedPareto(αinit, βinit, ε)
+    @warn("Optimizer not converged, returning `DomainError`")
+    return DomainError
+    # return TemperedPareto(αinit, βinit, ε)
 end
 
 function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing, weighted=false) where {T<:Real}
