@@ -13,7 +13,7 @@ using Meris: DATADIR
 using JLD2
 
 #/ Specify output directory and filename
-OUTDIR = DATADIR*"goodness-of-fit/rfc/"
+OUTDIR = DATADIR*"goodness-of-fit/"
 mkpath(OUTDIR)
 FILENAME = "rfc-candidatefits.jld2"
 

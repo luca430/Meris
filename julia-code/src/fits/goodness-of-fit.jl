@@ -33,7 +33,6 @@ function fit_candidates(
     n = 0
     nrejects = 0
     for sampledf in groupby(data, :sample_id)
-        (n > 10) && (break)
         p = missing
         xmin = nothing
         ntail = nothing
