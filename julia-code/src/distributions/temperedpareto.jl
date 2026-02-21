@@ -89,7 +89,7 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
     idx = searchsortedfirst(xs, ε)
     xfit = xs[idx:end]
     S = sum(log.(xfit / ε))
-    αinit = max(5.0, length(x) / S)         #~ α above 5.0 makes no sense
+    αinit = min(5.0, length(x) / S)         #~ α above 5.0 makes no sense
     βinit = max(2/maximum(x), 1 / (Ex + ε))  #~ β below ~1/maximum(x) makes no sense
     params = [log(αinit), log(βinit)]
 
