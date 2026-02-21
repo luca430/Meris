@@ -17,6 +17,7 @@ Fit a set of candidate distributions to the data
 """
 function fit_candidates(
     data::DataFrame, classcolname::Symbol;
+    testcandidate = :ParetoI,
     candidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto,
                   :Gamma, :LogNormal, :Weibull],
     nε::Int = 100,
@@ -32,6 +33,7 @@ function fit_candidates(
     n = 0
     nrejects = 0
     for sampledf in groupby(data, :sample_id)
+        (n > 10) && (break)
         p = missing
         xmin = nothing
         ntail = nothing
@@ -39,19 +41,19 @@ function fit_candidates(
         __id = first(sampledf.sample_id)
         frequencies = collect(sampledf.frequency)
         #~ Compute [log-spaced] admissible ε for distributions from the Pareto family
-        νs = log.(unique(sort(frequencies)))
+        νs = log10.(unique(sort(frequencies)))
         (length(νs) < 3) && (continue)
         εs = exp10.(range(νs[2], νs[end], nε) |> collect)
         #~ Establish heavy-tail by fitting generalized Pareto distribution
         try
-            ht = candidates[:ParetoI]
+            ht = candidates[testcandidate]
             paretofit = ht.fit(ht.f, frequencies, εs)
             #~ Compute p value
             p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
             if p < preject
                 nrejects += 1
                 continue
-            end            
+            end
             #~ Filter data w.r.t. ε onwards, otherwise (i)
             #  - the log-likelihood blows up
             #  - the comparison is unfair as candidates have different domains
@@ -59,7 +61,7 @@ function fit_candidates(
             xmin = paretofit.ε
             ntail = length(frequencies)
         catch e
-            (e isa AssertionError) && (rethrow(e))
+            !(e isa DomainError) && (rethrow(e))
             # Sometimes fitting a Pareto-like distribution is troublesome, so catch
             # any potential errors here and simply skip the source.
             continue

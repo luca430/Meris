@@ -14,7 +14,15 @@ import Meris.GTEXDIR as GTEXDIR
 
 #################
 ### FUNCTIONS ###
-function load(; DIR=GTEXDIR * "processed/", verbose=false)
+function load(
+    ;
+    DIR=GTEXDIR * "processed/",
+    verbose=false,    
+    filterdata    = true,
+    minsamples    = 30,
+    minreads      = 10^8,
+    mincomponents = 100
+    )
     files = glob("**/*.long.csv.gz", DIR)
     isempty(files) && error("No *.long.csv.gz files found under $DIR")
 
@@ -25,9 +33,23 @@ function load(; DIR=GTEXDIR * "processed/", verbose=false)
         df = CSV.read(f, DataFrame)
         push!(dfs, df)
     end
-
     df = vcat(dfs...)
+    #~ Rename for consistency
     rename!(df, :tissue => :class, :gene_id => :component_id)
+    
+    if filterdata
+        #~ filter data
+        @subset!(df, :nreads .> minreads)
+        summarydf = @chain df begin
+            @by(
+                :class,
+                :nsamples = length(:sample_id),
+                :ncomponents = length(unique(:component_id))
+            )
+            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+        end
+        @subset!(df, :class .∈ Ref(summarydf.class))
+    end
 
     return df
 end

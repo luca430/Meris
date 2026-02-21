@@ -121,12 +121,12 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing, weighted=false) where {T
 end
 
 """
-Compute p-value that determines whether to reject the generalized Pareto as a candidate
+Compute p-value that determines whether to reject the ParetoI as a candidate
 see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
 function computepvalue(
     P::ParetoI, x::Array{T}, εs::Array{T};
-    nsynth=500, weighted=false, rng=Random.Xoshiro(42)
+    nsynth=1000, weighted=false, rng=Random.Xoshiro(42)
     ) where {T<:Real}
     #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
     xhead = filter(z -> z < P.ε, x)

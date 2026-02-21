@@ -90,7 +90,7 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
     xfit = xs[idx:end]
     S = sum(log.(xfit / ε))
     αinit = length(x) / S
-    βinit = 1 / (Ex + ε)
+    βinit = max(2/maximum(x), 1 / (Ex + ε))
     params = [log(αinit), log(βinit)]    
 
     #~ Optimize
@@ -112,7 +112,7 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
     return TemperedPareto(αinit, βinit, ε)
 end
 
-function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing) where T<:Real
+function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing, weighted=false) where {T<:Real}
     xs = sort(x)
     εs = isnothing(εs) ? unique(xs) : εs
     
@@ -127,18 +127,15 @@ function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing) where T<:Real
     #  - extract the xmin for which the MLE γ gives the smallest KS distance
     for i in eachindex(εs)
         ε = εs[i]
-        n = count(xs .> ε)
-        (n < 50) && (break)        # If less than 50 samples >xmin, break
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε) + 1
+        _idx = searchsortedfirst(xs, ε)
         _x = xs[_idx:end]
+        n = length(_x)
+        (n < 64) && (break)    #~ `break` if not enough samples remain
         _P = fit(TemperedPareto, _x, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
-        Ftv = max.(0.0, 1.0 .- ccdf.(_P, _x))
-        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        Dhat = maximum(distances)
+        #  note: within the function data is filtered, so no need to do it here
+        Dhat = KolmogorovSmirnov(_P, x; weighted=weighted)
         #~ If smaller than the current best, update
         if Dhat < D
             αhat = _P.α
@@ -150,39 +147,62 @@ function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing) where T<:Real
     return TemperedPareto(αhat, βhat, εhat)
 end
 
+"""
+Compute p-value that determines whether to reject the tempered Pareto as a candidate
+see, [Clauset et al. (2009), Power-law distribution in empirical data]
+"""
+function computepvalue(
+    P::TemperedPareto, x::Array{T}, εs::Array{T};
+    nsynth = 1000, weighted=false, rng=Random.Xoshiro(42)
+    ) where {T<:Real}
+    #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
+    xhead = filter(z -> z < P.ε, x)
+    nhead = length(xhead) / length(x)
+    k = length(x)
+    #~ Compute Kolmogorov-Smirnov distance in data
+    KSDATA = KolmogorovSmirnov(P, x; weighted=weighted)
+    kscount = 0
+    #/ Generate synthetic datasets
+    ns = 0
+    while ns < nsynth
+        ns += 1
+        #~ Sample synthetic dataset
+        synthx = rand(rng, P, k)
+        #~ augment synthetic data [see Clauset et al. (2009), Section 4.1]
+        u = Base.rand(rng, length(x))
+        for i in eachindex(synthx)
+            (u[i] < nhead) && (synthx[i] = StatsBase.sample(rng, xhead))
+        end        
+        #~ Choose admissible ε
+        logsynthx = log.(synthx)
+        logxmin, logxmax = extrema(logsynthx)
+        εsynth = exp.(range(logxmin, logxmax, length(εs)))
+        Psynthfit = fit(ParetoI, synthx; εs=εsynth, weighted=weighted)
+        #~ Compute Kolmogorov-Smirnov distance in synthetic data
+        KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
+        if KSSYNTHETIC > KSDATA
+            kscount += 1
+        end
+    end
+    #~ return p value
+    return kscount / nsynth
+end
+
+
 ########################
 ### HELPER FUNCTIONS ###
-# """
-# Compute empirical CDF at points t where F[t] = (no. elements ≤ t) / n
-# """
-# function _ecdf(xs::Array{T}, t::Array{T}; sorted=false) where T<:Real
-#     (!sorted) && (xs = sort(xs))
-#     n = length(xs)
-#     F = similar(t, Float64)
-#     k = 1
-#     for i in eachindex(t)
-#         #~ Move k until xs[k] > edges[k]
-#         while k ≤ n && xs[k] ≤ t[i]
-#             k += 1
-#         end
-#         F[i] = (k-1) / n
-#     end
-#     return (; F=F, t=t)
-# end
-
-# """
-# Compute empirical CDF at equally distributed points t
-# """
-# function _ecdf(x::Array{T}, t::Int; sorted=false) where T<:Real
-#     (!sorted) && (xs = sort(x))
-#     edges = range(xs[begin], xs[end], length=t) |> collect
-#     return _ecdf(x, edges, sorted=true)
-# end
-
-
-# """
-# Compute empirical CDF at data points themselves
-# """
-# function _ecdf(x::Array{T}) where T<:Real
-#     return _ecdf(x, sort(x), sorted=false)
-# end
+function KolmogorovSmirnov(P::TemperedPareto, data::Array{T}; weighted=false) where {T<:Real}
+    #~ We care only about data within the functions domain, so first filter
+    x = filter(z -> z >= P.ε, data)
+    #~ Sort, if not already
+    (!issorted(x)) && (sort!(x))
+    Fv = _ecdf(x, x).F            # Values of empirical CDF
+    Ftv = 1.0 .- ccdf.(P, x)      # Values of survival function
+    if weighted
+        Z = sqrt.(Ftv .* (1 .- Ftv))    # Weight
+        KS = abs.(Fv .- Ftv) ./ Z       # Weighted KS distance
+        return maximum(KS)
+    end
+    KS = abs.(Fv .- Ftv)
+    return maximum(KS)
+end

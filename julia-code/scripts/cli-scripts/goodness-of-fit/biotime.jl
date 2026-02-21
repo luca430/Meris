@@ -1,5 +1,4 @@
 #= Goodness of fit for BioTIME species counts =#
-@info "Fits and comparisons for BioTIME data..."
 #~ Parse command-line args
 using Meris: MArgParse as Args
 args = Args.parsegof()
@@ -16,10 +15,14 @@ OUTDIR = DATADIR*"goodness-of-fit/"
 mkpath(OUTDIR)
 FILENAME = "biotime-candidatefits.jld2"
 
+@info "Fits and comparisons for BioTIME data..."
 #/ Load and fit candidates [see `candidates.jl`]
 df = BioTIMELoader.load(; filterdata=true, fromparsed=true)
 @transform!(df, :frequency = :counts ./ :nreads)
-fitdf, aicdf = OhMyGoodness.fit_candidates(df, :class; nε=args["numeps"])
+fitdf, aicdf = OhMyGoodness.fit_candidates(
+    df, :class;
+    testcandidate=:TemperedPareto, nε=args["numeps"]
+)
 
 #/ Store
 jldsave(OUTDIR*FILENAME; fitdf = fitdf, aicdf = aicdf)

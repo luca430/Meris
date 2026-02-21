@@ -14,7 +14,15 @@ import Meris.GUTENBERGDIR as GUTENBERGDIR
 
 #################
 ### FUNCTIONS ###
-function load(; root=GUTENBERGDIR * "raw-data", marker=r"\*\*\*.*\*\*\*")
+function load(
+    ;
+    root=GUTENBERGDIR * "raw-data",
+    marker=r"\*\*\*.*\*\*\*",    
+    filterdata    = true,
+    minsamples    = 30,
+    minreads      = 100_000,
+    mincomponents = 100
+    )
     df = DataFrame(
         class=String[],
         component_id=String[],
@@ -22,7 +30,7 @@ function load(; root=GUTENBERGDIR * "raw-data", marker=r"\*\*\*.*\*\*\*")
         counts=Int[],
         nreads=Int[]
     )
-
+    #~ Load data
     for (dirpath, _dirs, files) in walkdir(root)
         for f in files
             endswith(lowercase(f), ".txt") || continue
@@ -44,7 +52,21 @@ function load(; root=GUTENBERGDIR * "raw-data", marker=r"\*\*\*.*\*\*\*")
         end
     end
 
-    df
+    if filterdata
+        #~ filter data
+        @subset!(df, :nreads .> minreads)
+        summarydf = @chain df begin
+            @by(
+                :class,
+                :nsamples = length(:sample_id),
+                :ncomponents = length(unique(:component_id))
+            )
+            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+        end
+        @subset!(df, :class .∈ Ref(summarydf.class))
+    end
+
+    return df
 end
 
 ##############

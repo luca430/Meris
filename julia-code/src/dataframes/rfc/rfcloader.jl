@@ -12,14 +12,21 @@ import Meris.RFCDIR as RFCDIR
 #################
 ### FUNCTIONS ###
 "Collect all tokens of all RFCs in a single DataFrame for post-processing"
-function load(;
+function load(
+    ;
     DIR=RFCDIR * "raw-data/",
-    mintokens=512,      #~ Min. no of tokens in text to be counted
-    maxfiles=5000,      #~ Max. no of parsed files
-    maxrows=1_000_000  #~ Max. no of rows allowed in DataFrame
+    mintokens     = 512,       #~ Min. no of tokens in text to be counted
+    maxfiles      = 5000,      #~ Max. no of parsed files
+    maxrows       = 2_000_000, #~ Max. no of rows allowed in DataFrame
+    filterdata    = true,
+    minsamples    = 30,
+    minreads      = 10_000,
+    mincomponents = 100          
 )
     #~ Allocate DataFrame
-    df = DataFrame(sample_id=String[], component_id=String[], counts=Int[], nreads=Int[], class=String[])
+    df = DataFrame(
+        sample_id=String[], component_id=String[], counts=Int[], nreads=Int[], class=String[]
+    )
     nfiles = 0
     #~ Loop through all files in DIR, and extract tokens
     for FILE in readdir(DIR)
@@ -39,8 +46,22 @@ function load(;
         end
         #~ Stop if max. files have been tokenized or if maximum no. of rows is reached
         (has_reached(nfiles, maxfiles) || has_reached(nrow(df), maxrows)) && (break)
-
     end
+
+    if filterdata
+        #~ filter data
+        @subset!(df, :nreads .> minreads)
+        summarydf = @chain df begin
+            @by(
+                :class,
+                :nsamples = length(:sample_id),
+                :ncomponents = length(unique(:component_id))
+            )
+            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+        end
+        @subset!(df, :class .∈ Ref(summarydf.class))
+    end
+    
     return df
 end
 

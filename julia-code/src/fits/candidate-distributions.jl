@@ -45,6 +45,7 @@ function getcandidates(
             fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> MDistributions.logpdf.(f, x),
+            computepvalue = MDistributions.computepvalue,
             dataframeentry = Tuple{Float64,Float64,Float64}
         ),
         :Gamma => (

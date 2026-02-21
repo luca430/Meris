@@ -1,6 +1,6 @@
 #= Module to sample from the OTU dataset
-   OTU data can be obtained from https://github.com/jacopogrilli/lawsdiv, which has an `.RData`
-   file that contains the information that is needed.
+   OTU data can be obtained from https://github.com/jacopogrilli/lawsdiv,
+   which has an `.RData` file that contains all data that is needed for analysis.
 =#
 #/ Start module
 module OTULoader
@@ -60,8 +60,29 @@ function standardized(df)
     return df
 end
 
-function load(; datafilename = OTUDIR * "/raw-data/crosssecdata.RData")
+"Load all EBI Metagenomics OTU data into a single DataFrame"
+function load(
+    ;
+    datafilename = OTUDIR * "/raw-data/crosssecdata.RData",    
+    filterdata    = true,
+    minsamples    = 30,
+    minreads      = 10_000,
+    mincomponents = 100    
+    )
     df = load_rdata(; rdatafilename = datafilename)
+    if filterdata
+        #~ filter data
+        @subset!(df, :nreads .> minreads)
+        summarydf = @chain df begin
+            @by(
+                :class,
+                :nsamples = length(:sample_id),
+                :ncomponents = length(unique(:component_id))
+            )
+            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+        end
+        @subset!(df, :class .∈ Ref(summarydf.class))
+    end
     return standardized(df)
 end
 

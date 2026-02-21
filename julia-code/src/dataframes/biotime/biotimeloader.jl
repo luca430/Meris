@@ -20,10 +20,10 @@ import Meris.BIOTIMEDIR as BIOTIMEDIR
 ### FUNCTIONS ###
 function load(
     ;
-    DIR = BIOTIMEDIR * "raw-data/",
+    DIR = BIOTIMEDIR,
     FILENAME = "biotime_v2_rawdata_2025",
     fromzip       = true,
-    fromparsed    = false, #~ Load data that already has been parsed [by `savedata=true`]
+    fromparsed    = true,  #~ Load data that already has been parsed [by `savedata=true`]
     filterdata    = true,  #~ Filter data
     savedata      = true,  #~ Store filtered data for easy retrieval
     minsamples    = 30,
@@ -31,9 +31,14 @@ function load(
     mincomponents = 100,
     verbose       = false
     )
-    if !fromparsed
+    #~ Load already parsed CSV if it exists
+    FILTEREDFILENAME = "filtered_" * FILENAME * ".csv"
+    if isfile(DIR*FILTEREDFILENAME) && fromparsed
+        savedata = false    #~ No need to save again
+        df = CSV.read(DIR*FILTEREDFILENAME, DataFrame)
+    else
         if fromzip
-            zip_path = DIR * "$(FILENAME).zip"
+            zip_path = DIR * "raw-data/$(FILENAME).zip"
             z = ZipFile.Reader(zip_path)
             
             # List files inside zip (if verbose=true)
@@ -49,7 +54,7 @@ function load(
             close(z)
         else
             #~ Load raw [extracted] CSV directly
-            FILENAME = "$(FILENAME).csv"
+            FILENAME = "raw-data/$(FILENAME).csv"
             df = CSV.read(DIR * FILENAME, DataFrame)
         end
 
@@ -77,11 +82,6 @@ function load(
             end
             @subset!(df, :class .∈ Ref(summarydf.class))
         end
-    else
-        #~ Load already parsed CSV
-        savedata = false    #~ No need to save again
-        FILENAME = "filtered_" * FILENAME * ".csv"
-        df = CSV.read(DIR*FILENAME, DataFrame)
     end
 
     #~ Store for easy retrieval later

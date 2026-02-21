@@ -17,9 +17,11 @@ mkpath(OUTDIR)
 FILENAME = "gtex-candidatefits.jld2"
 
 #/ Load and fit candidates [see `candidates.jl`]
-gtexdf = GTExLoader.load()
+gtexdf = GTExLoader.load(; filterdata=true)
 @transform!(gtexdf, :frequency = :counts ./ :nreads)
-fitdf, aicdf = OhMyGoodness.fit_candidates(gtexdf, :class; nε=args["numeps"])
+fitdf, aicdf = OhMyGoodness.fit_candidates(
+    gtexdf, :class; testcandidate=:ParetoI, nε=args["numeps"]
+)
 
 #/ Store
 jldsave(OUTDIR*FILENAME; fitdf=fitdf, aicdf=aicdf)
