@@ -85,7 +85,7 @@ function load(
     end
 
     #~ Store for easy retrieval later
-    (savedata) && (CSV.write(DIR * "filtered_$(FILENAME).csv", df))
+    (savedata) && (CSV.write(DIR * "$(FILTEREDFILENAME)", df))
     return df
 end
 
