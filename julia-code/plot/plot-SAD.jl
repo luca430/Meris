@@ -3,6 +3,7 @@
 module SADPlotter
 
 using CairoMakie
+using Makie: Point2f, apply_transform, transformationmatrix
 using MakiePublication
 using LaTeXStrings
 
@@ -10,10 +11,13 @@ using CSV, DataFrames, DataFramesMeta
 using StatsBase, JLD2
 using Colors, ColorTypes
 using LsqFit
+using FileIO, ImageTransformations
 
 #/ Modules
 import Meris
 import Meris.MDistributions as MDist
+
+const ICONDIR = Meris.FIGDIR .* "icons"
 
 #################
 ### FUNCTIONS ###
@@ -24,7 +28,13 @@ function plot!(parent;
         ZIPFDIR=Meris.DATADIR * "macro/sad/",
         ax1limits=(nothing, nothing, nothing, nothing),
         ax2limits=(nothing, nothing, nothing, nothing),
-        ax3limits=(nothing, nothing, nothing, nothing)
+        ax3limits=(nothing, nothing, nothing, nothing),
+        reverse_panel=false,
+        icon_name=nothing,
+        icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
+        ax2_text_offset=(1.0, 4.0),
+        ax3_text_color=nothing,
+        ax3_text_offset=(1.0, 1.5)
     )
 
     # Theme (you may want to set this ONCE outside when doing 4 panels)
@@ -43,17 +53,28 @@ function plot!(parent;
     panel = GridLayout(parent)
 
     # Top + bottom sublayouts
+    top_row = reverse_panel ? 2 : 1
+    bottom_row = reverse_panel ? 1 : 2
+
     top = GridLayout()
-    panel[1, 1] = top
+    panel[top_row, 1] = top
 
     bottom = GridLayout()
-    panel[2, 1] = bottom
+    panel[bottom_row, 1] = bottom
 
-    ax1 = Axis(top[1,1],
-        xticklabelsize=6,
-        xaxisposition = :top,
-        xlabel="", ylabel=L"\text{CAD exponent } \gamma",
-        ylabelsize=9,
+    ax1_cell = top[1,1]
+    ax2_cell = bottom[1,1]
+    ax3_cell = bottom[1,2]
+
+    ax1 = Axis(ax1_cell,
+        xaxisposition = reverse_panel ? :bottom : :top,
+        xlabel="", ylabel=L"\text{CAD } \gamma",
+        ylabelsize=12,
+        xticklabelalign = (:right, :center),
+        xticklabelrotation = reverse_panel ? π/6 : -π/6,
+        xticklabelpad = 5,
+        xticklabelsize=9,
+        yticklabelsize=10,
         yminorticksvisible = false,
         xminorticksvisible = false,
         xticksvisible = false,
@@ -63,28 +84,37 @@ function plot!(parent;
     )
 
     ax2 = Axis(
-        bottom[1,1],
+        ax2_cell,
         xlabel=L"\text{rel. abundance } \nu",
         ylabel=L"p(\nu)",
-        xlabelsize=9,
-        ylabelsize=9,
+        xlabelsize=12,
+        ylabelsize=12,
+        xticklabelsize=10,
+        yticklabelsize=10,
         xscale=log10, yscale=log10,
         limits=ax2limits
     )
 
     ax3 = Axis(
-        bottom[1,2],
+        ax3_cell,
         xlabel = L"\text{sample size } N",
-        ylabel = L"\text{sample size } N",
-        xlabelsize = 9,
-        ylabelsize = 9,
+        ylabel = L"\text{vocabulary size } V",
+        xlabelsize = 12,
+        ylabelsize = 12,
+        xticklabelsize=10,
+        yticklabelsize=10,
         xscale = log10, yscale=log10,
         limits=ax3limits
     )
 
     # sizes INSIDE the panel (not the global figure)
-    rowsize!(panel, 1, Relative(0.4))
-    rowsize!(panel, 2, Relative(0.6))
+    if reverse_panel
+        rowsize!(panel, 1, Relative(0.6))
+        rowsize!(panel, 2, Relative(0.4))
+    else
+        rowsize!(panel, 1, Relative(0.4))
+        rowsize!(panel, 2, Relative(0.6))
+    end
     rowgap!(panel, 15)
 
     colsize!(top, 1, Relative(0.91))
@@ -109,9 +139,23 @@ function plot!(parent;
             medianlinewidth=0.6, width=0.4)
     end
 
-    ymin, ymax = minimum(min_vals), maximum(max_vals)
+    data_ymin = minimum(min_vals)
+    data_ymax = maximum(max_vals)
+
+    user_ymin = ax1limits[3]
+    user_ymax = ax1limits[4]
+    ymin = isnothing(user_ymin) ? data_ymin * 0.8 : user_ymin
+    ymax = isnothing(user_ymax) ? data_ymax * 1.2 : user_ymax
+    if ymax <= ymin
+        ymax = ymin + max(abs(ymin) * 0.1, 1e-3)
+    end
     ylims!(ax1, ymin, ymax)
-    ypos = ymax - 0.1*(ymax - ymin)
+
+    ax1_lims = ax1.limits[]
+    ax1_ymin = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[3])) ? ax1_lims[3] : ymin
+    ax1_ymax = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[4])) ? ax1_lims[4] : ymax
+    span = ax1_ymax - ax1_ymin
+    ypos = reverse_panel ? (ax1_ymin + 0.08 * span) : (ax1_ymax - 0.08 * span)
 
     for i in 1:length(labels)
         scatter!(ax1, [i], [ypos];
@@ -136,8 +180,55 @@ function plot!(parent;
             marker=markers[i], color=:white, strokecolor=colors[i],
             markersize=5, strokewidth=0.4)
     end
-    xrange = minimum(x_min)*1.05:1e-2:maximum(x_max)/1.1
-    lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5)
+
+    ax2_lims = ax2.limits[]
+    ax2_xmin = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[1])) ? ax2_lims[1] : xmin
+    ax2_xmax = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[2])) ? ax2_lims[2] : xmax
+    xrange = log10(ax2_xmin)/1.1:1e-2:-0.5
+    lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5, label=L"y \sim x^{-1}")
+    axislegend(ax2,
+        position=:rt,
+        labelsize=12,
+        markersize=2,
+        patchsize=(12, 5)  # reduces height → thinner appearance
+    )
+
+    # # axis pixel size
+    # area = ax2.scene.viewport[]
+    # W = area.widths[1]
+    # H = area.widths[2]
+    
+    # # log ranges
+    # ulo, uhi = log10(ax2_lims[1]), log10(ax2_lims[2])
+    # vlo, vhi = log10(ax2_lims[3]), log10(ax2_lims[4])
+    
+    # # two close points on the curve
+    # xt = 10 ^ ((log10(ax2_xmax) + log10(ax2_xmin)) / 2)
+    # x1 = xt
+    # x2 = xt * 2
+    # y1 = x1^(-1)
+    # y2 = x2^(-1)
+    
+    # u1, u2 = log10(x1), log10(x2)
+    # v1, v2 = log10(y1), log10(y2)
+    
+    # # pixels-per-log-unit
+    # sx = W / (uhi - ulo)
+    # sy = H / (vhi - vlo)
+    
+    # θ = atan((v2 - v1) * sy, (u2 - u1) * sx)
+    
+    # text!(ax2, xt * ax2_text_offset[1], xt^(-1) * ax2_text_offset[2];
+    #     text = L"y = x^{-1}",
+    #     color = :black,
+    #     rotation = θ,
+    #     fontsize = 11
+    # )
+
+    if !isnothing(icon_name)
+        icon_path = joinpath(ICONDIR, icon_name)
+        add_icon!(ax2_cell, icon_path; icon_kw...)
+    end
 
     ### AX3 ###
     heaps_vals = [out.heaps[k] for k in labels]
@@ -159,58 +250,82 @@ function plot!(parent;
         push!(parss, pars)
     end
 
-    text!(ax3, 5e1, 5e1 * 2, text=L"V \sim N", color=colors[1], rotation = π/4, fontsize=10)
+    ax3_text_color = isnothing(ax3_text_color) ? colors[1] : ax3_text_color
+    text!(ax3, 5e1, 5e1 * 2, text=L"V \sim N", color=ax3_text_color, rotation = π/4, fontsize=10)
     xp = maximum(xmax) / 500
-    yp = Meris.HeapsModel.predict_regimes(xp, parss[argmax(α_vals)])
-    text!(ax3, xp , yp * 1.5, text=L"V \sim N^{\eta}", color=colors[1], rotation = atan(minimum([maximum(α_vals),1])), fontsize=10)
-
-    # --- INSET in ax3: zoom on the tail (end of curves) ---
-    # place a small axis on top of ax3 (relative to ax3 cell)
-    inset = Axis(
-        bottom[1,2],
-        width  = Relative(0.43),
-        height = Relative(0.43),
-        halign = 0.95,   # right
-        valign = 0.12,   # bottom
-        xscale = log10,
-        yscale = log10,
-        xticklabelsize = 5,
-        yticklabelsize = 5,
-        xlabelsize = 7,
-        ylabelsize = 7,
-        xgridvisible = false,
-        ygridvisible = false,
-        yminorticksvisible = false,
-        xminorticksvisible = false,
-        limits=ax3limits
+    # pick two nearby x points on the curve (in DATA coordinates): this is because we need to express data slope in terms of axis dimensions
+    x1 = xp
+    x2 = xp * 1.15
+    
+    p  = parss[argmax(α_vals)]
+    y1 = Meris.HeapsModel.predict_regimes(x1, p)
+    y2 = Meris.HeapsModel.predict_regimes(x2, p)
+    
+    M = Makie.transformationmatrix(ax3.scene)[]
+    v1 = Vec4f(Float32(x1), Float32(y1), 0f0, 1f0)
+    v2 = Vec4f(Float32(x2), Float32(y2), 0f0, 1f0)
+    
+    p1 = M * v1
+    p2 = M * v2
+    
+    θ = atan(p2[2] - p1[2], p2[1] - p1[1])  # atan(dy, dx)
+    
+    text!(ax3, x1 * ax3_text_offset[1], y1 * ax3_text_offset[2];
+        text=L"V \sim N^{\eta}",
+        rotation=θ,
+        color=ax3_text_color,
+        fontsize=10
     )
+    # yp = Meris.HeapsModel.predict_regimes(xp, parss[argmax(α_vals)])
+    # text!(ax3, xp , yp * 1.5, text=L"V \sim N^{\eta}", color=text_color, rotation = atan(minimum([maximum(α_vals),1])), fontsize=10)
 
-    # choose what "end" means (last decade by default)
-    x_hi = maximum(xmax)
-    x_lo = 10            # last decade; change to /30, /100 if you want
+    # # --- INSET in ax3
+    # # place a small axis on top of ax3 (relative to ax3 cell)
+    # inset = Axis(
+    #     ax3_cell,
+    #     width  = Relative(0.43),
+    #     height = Relative(0.43),
+    #     halign = 0.95,   # right
+    #     valign = 0.12,   # bottom
+    #     xscale = log10,
+    #     yscale = log10,
+    #     xticklabelsize = 5,
+    #     yticklabelsize = 5,
+    #     xlabelsize = 7,
+    #     ylabelsize = 7,
+    #     xgridvisible = false,
+    #     ygridvisible = false,
+    #     yminorticksvisible = false,
+    #     xminorticksvisible = false,
+    #     limits=ax3limits
+    # )
 
-    # compute corresponding y-lims from the fitted curves (robust and consistent)
-    yy = Float64[]
-    for (i, v) in enumerate(heaps_vals)
-        xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
-        yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
-        append!(yy, yhat)
-    end
+    # # choose what "end" means (last decade by default)
+    # x_hi = maximum(xmax)
+    # x_lo = 10            # last decade; change to /30, /100 if you want
 
-    # replot tail points + tail fit lines into the inset
-    for (i, v) in enumerate(heaps_vals)
-        # tail indices
-        idx_tail = findall(n -> n ≥ x_lo, v.N)
-        xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
-        yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
-        lines!(inset, xr, yhat, color=colors[i], linestyle=:dash, linewidth=0.7)
-    end
+    # # compute corresponding y-lims from the fitted curves (robust and consistent)
+    # yy = Float64[]
+    # for (i, v) in enumerate(heaps_vals)
+    #     xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
+    #     yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
+    #     append!(yy, yhat)
+    # end
 
-    # optional: hide labels (usually nicer for insets)
-    inset.xlabel = ""
-    inset.ylabel = ""
-    inset.xticklabelsvisible = false
-    inset.yticklabelsvisible = false
+    # # replot tail points + tail fit lines into the inset
+    # for (i, v) in enumerate(heaps_vals)
+    #     # tail indices
+    #     idx_tail = findall(n -> n ≥ x_lo, v.N)
+    #     xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
+    #     yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
+    #     lines!(inset, xr, yhat, color=colors[i], linestyle=:dash, linewidth=0.7)
+    # end
+
+    # # optional: hide labels (usually nicer for insets)
+    # inset.xlabel = ""
+    # inset.ylabel = ""
+    # inset.xticklabelsvisible = false
+    # inset.yticklabelsvisible = false
 
     return (ax1=ax1, ax2=ax2, ax3=ax3, panel=panel)
 end
@@ -226,6 +341,27 @@ end
 
 
 ### HELPER ###
+function add_icon!(cell, icon_path;
+    width=Relative(0.20), height=Relative(0.20),
+    halign=0.90, valign=0.90,
+    rotate=true, pixels=256
+)
+    axicon = Axis(cell;
+        width=width, height=height,
+        halign=halign, valign=valign,
+        tellwidth=false, tellheight=false,   # <-- key to free positioning
+    )
+
+    img = FileIO.load(icon_path)
+    img = imresize(img, (pixels, pixels))
+    rotate && (img = rotr90(img))
+
+    image!(axicon, img)
+    hidedecorations!(axicon)
+    hidespines!(axicon)
+    return axicon
+end
+
 function plot4(;
         ZIPFDIR=Meris.DATADIR * "macro/sad/",
         savefig=false,

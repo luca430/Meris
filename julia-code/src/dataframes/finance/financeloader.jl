@@ -6,21 +6,23 @@ module FinanceLoader
 using Glob
 using CSV, DataFrames, DataFramesMeta
 
+using Meris
+
 #/ Modules, directories
 import Meris.FINANCEDIR as FINANCEDIR
 
 #################
 ### FUNCTIONS ###
-"Load all financial stock volume data into a single DataFrame"
+"Load all financial data, put them into a single DataFrame"
 function load(
-    ;
-    DIR = FINANCEDIR * "raw-data/",
-    filterdata    = true,
-    minsamples    = 30,
-    minreads      = 100_000,
-    mincomponents = 100
+        ;
+        DIR=FINANCEDIR * "raw-data/",
+        filterdata=true,
+        minreads::Int=10_000,
+        mincomponents::Int=1_000,
+        minsamplecomponents::Int=1_000,
+        minsamples::Int=30,
     )
-    #~ Gather list of files
     files = filter(f -> endswith(f, ".csv"), readdir(DIR, join=true))
     dfs = DataFrame[]
 
@@ -28,7 +30,9 @@ function load(
     for f in files
         tmp = CSV.read(f, DataFrame)
         # use filename (without extension) as class
-        tmp.class .= split(splitext(basename(f))[1], "-")[1]
+        class = split(splitext(basename(f))[1], "-")
+        tmp.class .= class[1] .* "-" .* class[2]
+
         push!(dfs, tmp)
     end
     df = vcat(dfs...)
@@ -54,6 +58,14 @@ function load(
             @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
         end
         @subset!(df, :class .∈ Ref(summarydf.class))
+    end
+    if filterdata
+        Meris.DataTools.df_filter!(df,
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples,
+        )
     end
     #~ Return
     return df

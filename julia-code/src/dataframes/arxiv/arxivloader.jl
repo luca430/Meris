@@ -48,8 +48,9 @@ function load(
     DIR=ARXIVDIR * "processed/",
     stopwords=true,
     filterdata=true,
-    minreads::Int=4_000,
-    mincomponents::Int=10_000,
+    minreads::Int=8000,
+    mincomponents::Int=1000,
+    minsamplecomponents::Int=1000,
     minsamples::Int=30
     )
     #~ Allocate a dictionary as
@@ -73,6 +74,13 @@ function load(
             
             #~ Filter articles that have insufficient total. no of words
             (filterdata) && (filter!(article -> length(article) > minreads, ARTICLES))
+            #~ Remove symbols and numbers from words in each article
+            ARTICLES = [
+                [replace(word, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") for word in article]
+                for article in ARTICLES
+                ]
+            #~ Filter articles that have insufficient total. no of unique words
+            (filterdata) && (filter!(article -> length(unique(article)) > minsamplecomponents, ARTICLES))
             #     #~ Skip subdomains entirely if they do not sufficient distinct words
             #     totalcomponents = length(unique(reduce(vcat, ARTICLES)))
             #     (totalcomponents < mincomponents) && (continue)
@@ -85,14 +93,14 @@ function load(
         #~ Add subdomain to domain dictionary
         if !isempty(subdomaindict)
             if filterdata
-                #~ Skip subdomains that have insuffient no. of articles after filtering
-                articlelengths = map(x -> length(x), values(subdomaindict))
-                (sum(articlelengths) < minsamples) && (continue)
                 #~ Skip subdomains entirely if they do not sufficient distinct words
                 bagsofwords = map(x -> reduce(vcat, x), values(subdomaindict))
                 bagofwords = reduce(vcat, bagsofwords)
                 totalcomponents = length(unique(bagofwords))
                 (totalcomponents < mincomponents) && (continue)
+                #~ Skip subdomains that have insuffient no. of articles after filtering
+                articlelengths = map(x -> length(x), values(subdomaindict))
+                (sum(articlelengths) < minsamples) && (continue)
             end
             domaindict[domainname] = subdomaindict
         end

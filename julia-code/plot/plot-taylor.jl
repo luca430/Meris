@@ -14,7 +14,7 @@ using Colors, ColorTypes
 #/ Modules
 import Meris
 
-const ICONDIR = normpath(joinpath(@__DIR__, "..", "icons"))
+const ICONDIR = Meris.FIGDIR .* "icons"
 Random.seed!(1234) 
 
 #################
@@ -25,19 +25,20 @@ function _default_taylor_datasets(TLDIR)
     return [
         (;
             key=:linguistic,
-            file=joinpath(TLDIR, "biotime.jld2"),
-            icon=joinpath(ICONDIR, "documents.png"),
+            file=joinpath(TLDIR, "linguistic.jld2"),
+            icon=joinpath(ICONDIR, "linguistic.png"),
+            icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
             occ_small=0.0,
             occ_big=0.9,
             take=400,
-            # small panels: shift the reference lines a bit (kept from your original)
             ref_shift=-0.5,
         ),
         (;
             key=:microbial,
             file=joinpath(TLDIR, "microbial.jld2"),
-            icon=joinpath(ICONDIR, "bacteria.png"),
-            occ_small=0.0,   # show all in small panel
+            icon=joinpath(ICONDIR, "microbial.png"),
+            icon_kw=(; width=Relative(0.3), height=Relative(0.35), halign=0.0,  valign=0.95),
+            occ_small=0.0,
             occ_big=0.9,
             take=200,
             ref_shift=-0.6,
@@ -45,7 +46,8 @@ function _default_taylor_datasets(TLDIR)
         (;
             key=:social,
             file=joinpath(TLDIR, "social.jld2"),
-            icon=joinpath(ICONDIR, "lego.png"),
+            icon=joinpath(ICONDIR, "social.png"),
+            icon_kw=(; width=Relative(0.4), height=Relative(0.45), halign=0.0,  valign=1.0),
             occ_small=0.0,
             occ_big=0.5,
             take=400,
@@ -54,11 +56,12 @@ function _default_taylor_datasets(TLDIR)
         (;
             key=:biology,
             file=joinpath(TLDIR, "biology.jld2"),
-            icon=joinpath(ICONDIR, "gene.png"),
+            icon=joinpath(ICONDIR, "biology.png"),
+            icon_kw=(; width=Relative(0.45), height=Relative(0.5), halign=0.03, valign=1.0),
             occ_small=0.0,
             occ_big=0.99999,
             take=400,
-            ref_shift=-1.3,
+            ref_shift=-0.5,
         ),
     ]
 end
@@ -96,13 +99,23 @@ function _centered_logs(df; mean_col=:omeanfrequency, var_col=:ovarfrequency)
 end
 
 """Add a small icon Axis into a given grid cell."""
-function _add_icon!(parent_cell, icon_path; width=Relative(0.22), height=Relative(0.22), halign=0.072, valign=0.95)
-    axicon = Axis(parent_cell; width=width, height=height, halign=halign, valign=valign)
+function _add_icon!(parent_cell, icon_path;
+    width=Relative(0.30), height=Relative(0.35),
+    halign=0.07, valign=0.95
+)
+    axicon = Axis(
+        parent_cell;
+        width=width, height=height,
+        halign=halign, valign=valign,
+        tellwidth=false, tellheight=false,   # <-- this is the key
+    )
+
     icon = FileIO.load(icon_path)
     icon_small = imresize(icon, (256, 256))
     image!(axicon, rotr90(icon_small))
     hidedecorations!(axicon)
     hidespines!(axicon)
+
     return axicon
 end
 
@@ -159,8 +172,8 @@ function plot!(parent;
     # Left: big axis spans two rows; Right: 2x2 grid of small axes
     ax_big = Axis(
         panel[1:2, 1],
-        xlabel=L"\log_{10} \, \mu", xlabelsize=12,
-        ylabel=L"\log_{10} \, \sigma^2", ylabelsize=12,
+        xlabel=L"\log_{10} \, \mu", xlabelsize=14,
+        ylabel=L"\log_{10} \, \sigma^2", ylabelsize=14,
         xticklabelsize=12, yticklabelsize=12,
         limits=big_limits,
     )
@@ -182,13 +195,16 @@ function plot!(parent;
         i > nsets && break
         ax = Axis(
             right[r, c],
-            xlabel=L"\log_{10} \, \mu", xlabelsize=12,
-            ylabel=L"\log_{10} \, \sigma^2", ylabelsize=12,
+            xlabel=L"\log_{10} \, \mu", xlabelsize=14,
+            ylabel=L"\log_{10} \, \sigma^2", ylabelsize=14,
             xticklabelsize=12, yticklabelsize=12,
         )
-        if !isnothing(small_limits)
-            xlims!(ax, small_limits[1], small_limits[2])
-            ylims!(ax, small_limits[3], small_limits[4])
+        if isnothing(small_limits)
+            xlims!(ax, minimum(m_small_vec) * 1.5, maximum(m_small_vec) * 1.3)
+            ylims!(ax, minimum(s_small_vec) * 1.5, maximum(s_small_vec) * 1.3)
+        else
+            xlims!(ax, small_limits[i][1], small_limits[i][2])
+            ylims!(ax, small_limits[i][3], small_limits[i][4])
         end
         push!(axs_small, ax)
     end
@@ -206,7 +222,7 @@ function plot!(parent;
         classes = unique(df.class)
         m_small_vec = []
         s_small_vec = []
-        for (c,class) in enumerate(classes)
+        for (c,class) in enumerate(reverse(classes))
             sdf = df[df.class .== class, :]
             df_small = spec.occ_small > 0 ? sdf[sdf.occupancy .> spec.occ_small, :] : sdf
             df_small, m_small, s_small = _centered_logs(df_small)
@@ -234,20 +250,17 @@ function plot!(parent;
 
         # same guide lines you used: y=2x and y=x, with the slight x-shift
         shift = _ntget(spec, :ref_shift, 0.0)
-        lines!(ax, xtl .- minimum(m_small_vec) .+ shift, 2 .* (xtl .- minimum(m_small_vec)); linewidth=2, color=:black, linestyle=(:dash, :dense))
-        lines!(ax, xtl .- minimum(m_small_vec) .+ shift, xtl; linewidth=2, color=:grey, linestyle=(:dash, :dense))
-
-        # auto limits: your original scaling
-        xlims!(ax, minimum(m_small_vec) * 1.5, maximum(m_small_vec) * 1.3)
-        ylims!(ax, minimum(s_small_vec) * 1.5, maximum(s_small_vec) * 1.3)
+        lines!(ax, xtl, 2 .* (xtl .- minimum(m_small_vec).*1.5) .+ minimum(s_small_vec).*1.5; linewidth=2, color=:black, linestyle=(:dash, :dense))
+        lines!(ax, xtl, (xtl .- minimum(m_small_vec).*1.5) .+ minimum(s_small_vec).*1.5; linewidth=2, color=:grey, linestyle=(:dash, :dense))
 
         # icon overlay
         if show_icons && isfile(spec.icon)
-            _add_icon!(right[grid_positions[i]...], spec.icon)
+            ikw = _ntget(spec, :icon_kw, (;))  # default empty NamedTuple
+            _add_icon!(right[grid_positions[i]...], spec.icon; ikw...)
         end
 
         # big axis: occupancy filter + optional truncation
-        for (c,class) in enumerate(classes)
+        for (c,class) in enumerate(reverse(classes))
             sdf = df[df.class .== class, :]
             df_big = spec.occ_big > 0 ? sdf[sdf.occupancy .> spec.occ_big, :] : sdf
             df_big, m_big, s_big = _centered_logs(df_big)
