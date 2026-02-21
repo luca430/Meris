@@ -32,7 +32,7 @@ const TARADIR = DATADIR * "datasets/taraocean/"
 include("dataframes/arxiv/arxivloader.jl")
 include("dataframes/bci.tree/bcitreeloader.jl")
 include("dataframes/biotime/biotimeloader.jl")
-ùinclude("dataframes/finance/financeloader.jl")
+include("dataframes/finance/financeloader.jl")
 include("dataframes/gowalla/gowallaloader.jl")
 include("dataframes/GTEx/gtexloader.jl")
 include("dataframes/gutenberg/gutenbergloader.jl")

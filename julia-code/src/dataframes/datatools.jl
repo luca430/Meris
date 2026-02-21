@@ -16,7 +16,7 @@ function df_filter!(
 )
     #~ filter data
     @subset!(df, :nreads .> minreads)
-    summarydf = @chain df begin
+    df = @chain df begin
         @groupby(:class)
         @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
         @subset(:ncomponents .> mincomponents)
@@ -27,7 +27,6 @@ function df_filter!(
         @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
         @subset(:nsamples .> minsamples)
     end
-    @subset!(df, :class .∈ Ref(summarydf.class))
 end
 
 """

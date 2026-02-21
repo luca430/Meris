@@ -22,7 +22,6 @@ function load(
     ;
     DIR=BIOTIMEDIR * "raw-data/",
     FILENAME="biotime_v2_rawdata_2025",
-    fromzip=true,
     fromparsed=false, #~ Load data that already has been parsed [by `savedata=true`]
     filterdata=true,  #~ Filter data
     savedata=true,  #~ Store filtered data for easy retrieval
@@ -33,26 +32,20 @@ function load(
     verbose=false
 )
     if !fromparsed
-        if fromzip
-            zip_path = DIR * "raw-data/$(FILENAME).zip"
-            z = ZipFile.Reader(zip_path)
+        zip_path = DIR * "$(FILENAME).zip"
+        z = ZipFile.Reader(zip_path)
 
-            # List files inside zip (if verbose=true)
-            if verbose
-                for f in z.files
-                    println(f.name)
-                end
+        # List files inside zip (if verbose=true)
+        if verbose
+            for f in z.files
+                println(f.name)
             end
-
-            # Find the main CSV file
-            FILENAME = only(filter(f -> endswith(f.name, ".csv"), z.files))
-            df = CSV.read(FILENAME, DataFrame)
-            close(z)
-        else
-            #~ Load raw [extracted] CSV directly
-            FILENAME = "raw-data/$(FILENAME).csv"
-            df = CSV.read(DIR * FILENAME, DataFrame)
         end
+
+        # Find the main CSV file
+        FILENAME = only(filter(f -> endswith(f.name, ".csv"), z.files))
+        df = CSV.read(FILENAME, DataFrame, select=[:ABUNDANCE, :YEAR, :MONTH, :DAY, :taxon, :STUDY_ID, :ID_SPECIES])
+        close(z)
 
         #~ Remove all "NA"
         subset!(df, All() .=> ByRow(!=("NA")))
@@ -68,7 +61,7 @@ function load(
         if filterdata
             #~ filter data
             @subset!(df, :nreads .> minreads)
-            summarydf = @chain df begin
+            df = @chain df begin
                 @groupby(:class)
                 @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
                 @subset(:ncomponents .> mincomponents)
@@ -79,7 +72,6 @@ function load(
                 @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
                 @subset(:nsamples .> minsamples)
             end
-            @subset!(df, :class .∈ Ref(summarydf.class))
         end
     else
         #~ Load already parsed CSV
