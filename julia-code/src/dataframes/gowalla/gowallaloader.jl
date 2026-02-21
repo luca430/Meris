@@ -18,10 +18,10 @@ function load(
     ;
     DIR = GOWALLADIR * "raw-data/",
     FILENAME = "loc-gowalla_totalCheckins.txt.gz",
-    filterdata    = true,
-    minsamples    = 30,
-    minreads      = 10_000,
-    mincomponents = 100          
+    minreads::Int=100_000,
+    mincomponents::Int=1_000,
+    minsamplecomponents::Int=500,
+    minsamples::Int=30,         
 )
     df = CSV.read(
         DIR*FILENAME, DataFrame, header=[:user_id, :time_z, :lat, :long, :location_id]
@@ -31,34 +31,31 @@ function load(
     # Counts are the number of people entered in that POI in that day.    
     dates = [row.time_z[1:10] for row in eachrow(df)]
     df.time = dates
-    sdf = select(df, [:user_id, :location_id, :time])
+    df = select(df, [:user_id, :location_id, :time])
     
-    sdf = transform(
-      groupby(sdf, [:time, :location_id]),
+    df = transform(
+      groupby(df, [:time, :location_id]),
       :user_id => length => :counts
     )
     
-    sdf = transform(
-      groupby(sdf, [:time]),
+    df = transform(
+      groupby(df, [:time]),
       :counts => sum => :nreads
     )
     
-    rename!(sdf, :location_id => :component_id, :time => :sample_id)
-    sdf.class .= "gowalla"
-    select!(sdf, [:class, :component_id, :sample_id, :counts, :nreads])
+    rename!(df, :location_id => :component_id, :time => :sample_id)
+    df.class .= "gowalla"
+    select!(df, [:class, :component_id, :sample_id, :counts, :nreads])
 
     if filterdata
         #~ filter data
-        @subset!(sdf, :nreads .> minreads)
-        summarydf = @chain sdf begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(sdf, :class .∈ Ref(summarydf.class))
+        Meris.DataTools.df_filter!(
+            df;
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples
+        )
     end
 
     return sdf

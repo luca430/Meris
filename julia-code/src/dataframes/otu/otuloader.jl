@@ -65,23 +65,21 @@ function load(
     ;
     datafilename = OTUDIR * "/raw-data/crosssecdata.RData",    
     filterdata    = true,
-    minsamples    = 30,
-    minreads      = 10_000,
-    mincomponents = 100    
+    minreads::Int=10_000,
+    mincomponents::Int=1_000,
+    minsamplecomponents::Int=500,
+    minsamples::Int=30,   
     )
     df = load_rdata(; rdatafilename = datafilename)
     if filterdata
         #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
+        Meris.DataTools.df_filter!(
+            df;
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples
+        )
     end
     return standardized(df)
 end

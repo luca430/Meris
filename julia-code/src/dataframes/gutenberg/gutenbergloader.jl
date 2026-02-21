@@ -17,12 +17,16 @@ import Meris.GUTENBERGDIR as GUTENBERGDIR
 function load(
     ;
     root=GUTENBERGDIR * "raw-data",
-    marker=r"\*\*\*.*\*\*\*",    
     filterdata    = true,
-    minsamples    = 30,
-    minreads      = 100_000,
-    mincomponents = 100
+    minreads::Int=10_000,
+    mincomponents::Int=1_000,
+    minsamplecomponents::Int=500,
+    minsamples::Int=30, 
     )
+
+    #~ marker needed to distinguish partions in Gutenberg data (e.g. it, en)
+    marker=r"\*\*\*.*\*\*\*"
+    
     df = DataFrame(
         class=String[],
         component_id=String[],
@@ -54,16 +58,13 @@ function load(
 
     if filterdata
         #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
+        Meris.DataTools.df_filter!(
+            df;
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples
+        )
     end
 
     return df
