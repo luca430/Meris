@@ -29,7 +29,7 @@ function load(
     minsamples=30,
     minreads=5_000,
     mincomponents=200,
-    minsamplecomponents=100,
+    minsamplecomponents=70,
     verbose=false
 )
     if !fromparsed

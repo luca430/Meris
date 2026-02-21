@@ -6,13 +6,23 @@ module FinanceLoader
 using Glob
 using CSV, DataFrames, DataFramesMeta
 
+using Meris
+
 #/ Modules, directories
 import Meris.FINANCEDIR as FINANCEDIR
 
 #################
 ### FUNCTIONS ###
 "Load all financial data, put them into a single DataFrame"
-function load(; DIR=FINANCEDIR * "raw-data/")
+function load(
+        ;
+        DIR=FINANCEDIR * "raw-data/",
+        filterdata=true,
+        minreads::Int=10_000,
+        mincomponents::Int=1_000,
+        minsamplecomponents::Int=1_000,
+        minsamples::Int=30,
+    )
     files = filter(f -> endswith(f, ".csv"), readdir(DIR, join=true))
     dfs = DataFrame[]
 
@@ -39,6 +49,14 @@ function load(; DIR=FINANCEDIR * "raw-data/")
             :component_id,
             :counts,
             :nreads = sum(:counts)
+        )
+    end
+    if filterdata
+        Meris.DataTools.df_filter!(df,
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples,
         )
     end
     #~ Return

@@ -50,7 +50,6 @@ include("processes/pitman-yor.jl")
 # include("fits/power-law.jl")
 # include("fits/double-power-law.jl")
 # include("fits/mle.jl")
-include("fits/heapsmodel.jl")
 
 #~ Utilities
 include("dataframes/afd.jl")
@@ -63,5 +62,6 @@ include("distributions/lr_distributions.jl")
 include("fits/candidate-distributions.jl")
 include("fits/goodness-of-fit.jl")
 include("fits/straight-line.jl")
+include("fits/heapsmodel.jl")
 
 end # module Meris

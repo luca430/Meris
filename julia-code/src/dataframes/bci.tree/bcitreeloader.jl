@@ -15,18 +15,31 @@ using DataFrames, DataFramesMeta
 using Random
 using StatsBase
 
+using Meris
+
 #/ Modules, directories
 import Meris.TREEDIR as TREEDIR
 
 #################
 ### FUNCTIONS ###
-function load(; DIR=TREEDIR * "raw-data/", mincount=1, joinquadrats=true, steps=2, raw=false)
+#~ IMPORTANT: This function only works with steps=2, it needs to be debugged
+function load(
+        ;
+        DIR=TREEDIR * "raw-data/",
+        joinquadrats=true,
+        steps::Int=2,
+        filterdata=true,
+        minreads::Int=2500,
+        mincomponents::Int=200,
+        minsamplecomponents::Int=70,
+        minsamples::Int=30
+    );
     treedf = DataFrame()
     census_ids = String[]
     filenames = readdir(DIR)
     for FILE in filenames
         #~ Check if numeric number in filename, otherwise skip
-        (!any(isnumeric, FILE)) && (continue)
+        (!any(isnumeric, FILE)) && (endswith(".rdata", FILE)) && (continue)
         df = load_rdata(; rdatafilename=FILE, joinquadrats=joinquadrats, steps=steps)
         #~ Add census_id [note: kept as a String]
         census_id = filter(isnumeric, FILE)
@@ -34,9 +47,6 @@ function load(; DIR=TREEDIR * "raw-data/", mincount=1, joinquadrats=true, steps=
         df[!, :census_id] = fill(census_id, nrow(df))
         #~ Filter out those that have an ExactDate
         filter!(:ExactDate => d -> !ismissing(d), df)
-        #~ Record the total. no of tree (`nreads`) in that census, as it's needed later        
-        # nreads = nrow(df)
-        # df[!,:nreads] = fill(nreads, nreads)
         #~ Add the, to us, relevant columns to the pooled DataFrame        
         append!(
             treedf,
@@ -52,26 +62,28 @@ function load(; DIR=TREEDIR * "raw-data/", mincount=1, joinquadrats=true, steps=
         @subset(:alive .== true)
     end
     treedf = innerjoin(treedf, alivedf, on=:treeID)
-    if raw
-        __treedf = @chain treedf begin
-            @subset(:census_id .== last(sort(unique(:census_id))))
-            @select(:treeID, :census_id, :sp, :quadrat)
-            @rename(:sample_id = :quadrat, :component_id = :sp)
-            @select(:sample_id, :component_id)
-        end
-        return __treedf
-    end
     #~ Allocate
     countdf = DataFrame(sample_id=String[], component_id=String[], counts=Int[], nreads=Int[])
     #~ Per plot [quadrat], count the no. of trees of each species
     for quadrat in unique(treedf[!, :quadrat])
         _df = filter(:quadrat => q -> q == quadrat, treedf)
         nreads = nrow(_df)
-        cm = filter(x -> last(x) >= mincount, countmap(_df[!, :sp]))
+        cm = countmap(_df[!, :sp])
         #~ Add each entry of the census to the DataFrame
         for (tree, count) in pairs(cm)
-            (count > mincount) && (push!(countdf, [quadrat, tree, count, nreads], promote=true))
+            push!(countdf, [quadrat, tree, count, nreads], promote=true)
         end
+    end
+    countdf.class .= "BCI"
+    #~Filter entries if desired (since this dataset is small the filter can be done as a last step)
+    if filterdata
+        Meris.DataTools.df_filter!(
+            countdf,
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples
+        )
     end
     return countdf
 end
