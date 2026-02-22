@@ -8,6 +8,8 @@ module GowallaLoader
 using CSV, DataFrames, DataFramesMeta
 using StatsBase
 
+using Meris
+
 #/ Modules, directories
 import Meris.GOWALLADIR as GOWALLADIR
 
@@ -18,6 +20,7 @@ function load(
     ;
     DIR = GOWALLADIR * "raw-data/",
     FILENAME = "loc-gowalla_totalCheckins.txt.gz",
+    filterdata=true,
     minreads::Int=100_000,
     mincomponents::Int=1_000,
     minsamplecomponents::Int=500,
@@ -49,7 +52,7 @@ function load(
 
     if filterdata
         #~ filter data
-        Meris.DataTools.df_filter!(
+        df = Meris.DataTools.df_filter(
             df;
             minreads=minreads,
             mincomponents=mincomponents,
@@ -58,7 +61,7 @@ function load(
         )
     end
 
-    return sdf
+    return df
 end
 
 end # module GowallaLoader

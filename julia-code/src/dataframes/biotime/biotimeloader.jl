@@ -7,13 +7,10 @@ module BioTIMELoader
 #/ Packages
 using ZipFile, CSV
 using DataFrames, DataFramesMeta
+
 using Meris
 
 #/ Modules, directories
-import Meris.BIOTIMEDIR as BIOTIMEDIR
-
-#################
-### FUNCTIONS ###
 import Meris.BIOTIMEDIR as BIOTIMEDIR
 
 #################
@@ -59,19 +56,13 @@ function load(
         end
 
         if filterdata
-            #~ filter data
-            @subset!(df, :nreads .> minreads)
-            df = @chain df begin
-                @groupby(:class)
-                @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
-                @subset(:ncomponents .> mincomponents)
-                @groupby(:class, :sample_id)
-                @combine(:sample_id, :component_id, :counts, :nreads, :ncomponentspersample = length(unique(:component_id)))
-                @subset(:ncomponentspersample .> minsamplecomponents)
-                @groupby(:class)
-                @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
-                @subset(:nsamples .> minsamples)
-            end
+            df = Meris.DataTools.df_filter(
+                df,
+                minreads=minreads,
+                mincomponents=mincomponents,
+                minsamplecomponents=minsamplecomponents,
+                minsamples=minsamples
+            )
         end
     else
         #~ Load already parsed CSV

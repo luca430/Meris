@@ -9,6 +9,8 @@ using DataFrames, DataFramesMeta
 using Random, StatsBase
 using CodecZlib, CSV, Glob
 
+using Meris
+
 #/ Modules, directories
 import Meris.GTEXDIR as GTEXDIR
 
@@ -40,7 +42,7 @@ function load(
     
     if filterdata
         #~ filter data
-        Meris.DataTools.df_filter!(
+        df = Meris.DataTools.df_filter(
             df;
             minreads=minreads,
             mincomponents=mincomponents,

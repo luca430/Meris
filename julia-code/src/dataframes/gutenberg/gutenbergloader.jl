@@ -9,6 +9,8 @@ using Glob
 using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
 
+using Meris
+
 #/ Modules, directories
 import Meris.GUTENBERGDIR as GUTENBERGDIR
 
@@ -58,7 +60,7 @@ function load(
 
     if filterdata
         #~ filter data
-        Meris.DataTools.df_filter!(
+        df = Meris.DataTools.df_filter(
             df;
             minreads=minreads,
             mincomponents=mincomponents,

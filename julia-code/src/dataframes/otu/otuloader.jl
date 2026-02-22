@@ -12,6 +12,8 @@ using Random
 using RData
 using StatsBase
 
+using Meris
+
 #/ Modules, directories
 import Meris.OTUDIR as OTUDIR
 
@@ -71,9 +73,10 @@ function load(
     minsamples::Int=30,   
     )
     df = load_rdata(; rdatafilename = datafilename)
+    df = standardized(df)
     if filterdata
         #~ filter data
-        Meris.DataTools.df_filter!(
+        df = Meris.DataTools.df_filter(
             df;
             minreads=minreads,
             mincomponents=mincomponents,
@@ -81,7 +84,7 @@ function load(
             minsamples=minsamples
         )
     end
-    return standardized(df)
+    return df
 end
 
 end # module OTUSampler

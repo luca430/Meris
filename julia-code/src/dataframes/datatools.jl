@@ -7,7 +7,7 @@ using DataFrames, FHist, Distributions, DataFramesMeta
 """
 Filter standardized DataFrame based on min_samples and min_nreads.
 """
-function df_filter!(
+function df_filter(
     df::DataFrame;
     minreads::Int=1,
     mincomponents::Int=1,
@@ -15,8 +15,8 @@ function df_filter!(
     minsamples::Int=30,
 )
     #~ filter data
-    @subset!(df, :nreads .> minreads)
-    df = @chain df begin
+    sdf = @subset(df, :nreads .> minreads)
+    sdf = @chain sdf begin
         @groupby(:class)
         @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
         @subset(:ncomponents .> mincomponents)
@@ -27,6 +27,7 @@ function df_filter!(
         @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
         @subset(:nsamples .> minsamples)
     end
+    return sdf
 end
 
 """

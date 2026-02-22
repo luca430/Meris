@@ -11,6 +11,8 @@ using DataFrames, DataFramesMeta
 using Random
 using StatsBase
 
+using Meris
+
 #/ Modules, directories
 import Meris.LEGODIR as LEGODIR
 
@@ -18,30 +20,36 @@ import Meris.LEGODIR as LEGODIR
 ### FUNCTIONS ###
 function load(;
     DIR=LEGODIR * "raw-data/",
-    nthemes=20,
     SETFILE="sets.csv",
     INVENTORYSETFILE="inventories.csv",
-    INVENTORYPARTSFILE="inventory_parts.csv",
-    minquantity=64,
-    mindistinctpieces=32
+    INVENTORYPARTSFILE="inventory_parts.csv",    
+    filterdata=true,
+    minreads::Int=1000,
+    mincomponents::Int=500,
+    minsamplecomponents::Int=100,
+    minsamples::Int=30, 
     )
 
-    big_df, themes_df = parse_themes(;
+    df, themes_df = parse_themes(;
         DIR=DIR,
         SETFILE=SETFILE,
         INVENTORYSETFILE=INVENTORYSETFILE,
-        INVENTORYPARTSFILE=INVENTORYPARTSFILE,
-        minquantity=minquantity,
-        mindistinctpieces=mindistinctpieces,
-        standardize=true,
-        returnthemes=true
+        INVENTORYPARTSFILE=INVENTORYPARTSFILE
         )
 
-    sort!(themes_df, :nsets, rev=true)
-    df = big_df[in.(big_df.theme_id, Ref(themes_df.theme_id[1:nthemes])), :]
     rename!(df, :theme_id => :class)
-
     df.class .= string.(df.class)
+    
+    if filterdata
+        #~ filter data
+        df = Meris.DataTools.df_filter(
+            df;
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples
+        )
+    end
 
     return df
 end
@@ -59,11 +67,7 @@ function parse_themes(;
     DIR=LEGODIR,
     SETFILE="sets.csv",
     INVENTORYSETFILE="inventories.csv",
-    INVENTORYPARTSFILE="inventory_parts.csv",
-    minquantity=64,
-    mindistinctpieces=32,
-    standardize=true,
-    returnthemes=true
+    INVENTORYPARTSFILE="inventory_parts.csv"
 )
     #~ Load the DataFrames
     setdf = CSV.read(DIR * SETFILE, DataFrame)
@@ -83,31 +87,23 @@ function parse_themes(;
     #~ Omit entries with missing `set_num`, as those cannot be sorted or selected
     @subset!(superdf, map(x -> !ismissing(x), :set_num))
 
-    #/ Omit and rename some columns when desired
-    if standardize
-        #~ Compute the total no. of bricks in each set in the inventory
-        sdf = @chain superdf begin
-            @groupby(:inventory_id)
-            @combine(:nreads = sum(:quantity), :distinctpieces = length(unique(:part_num)))
-            @subset(:nreads .> minquantity, :distinctpieces .> mindistinctpieces)
-        end
-        superdf = innerjoin(superdf, sdf, on=:inventory_id)
-        #~ Rename some columns
-        @rename!(superdf, :component_id = :part_num, :counts = :quantity, :sample_id = :inventory_id)
-        #~ Pieces with the same component_id may have distinct colors, so make here a unique
-        #  id that combines the component_id and the color_id
-        @transform!(superdf, :component_id = :component_id .* "-" .* string.(:color_id))
-        #~ Select only necessary columns
-        @select!(superdf, :sample_id, :component_id, :counts, :nreads, :theme_id)
+    #~ Compute the total no. of bricks in each set in the inventory
+    sdf = @chain superdf begin
+        @groupby(:inventory_id)
+        @combine(:nreads = sum(:quantity), :distinctpieces = length(unique(:part_num)))
     end
+    superdf = innerjoin(superdf, sdf, on=:inventory_id)
+    #~ Rename some columns
+    @rename!(superdf, :component_id = :part_num, :counts = :quantity, :sample_id = :inventory_id)
+    #~ Pieces with the same component_id may have distinct colors, so make here a unique
+    #  id that combines the component_id and the color_id
+    @transform!(superdf, :component_id = :component_id .* "-" .* string.(:color_id))
+    #~ Select only necessary columns
+    @select!(superdf, :sample_id, :component_id, :counts, :nreads, :theme_id)
 
     #/ Construct DataFrame with the no. of sets for each theme
-    if returnthemes
-        colname = standardize ? :sample_id : :inventory_id
-        themedf = @by(superdf, :theme_id, :nsets = length(unique($(colname))))
-        return superdf, themedf
-    end
-    return superdf
+    themedf = @by(superdf, :theme_id, :nsets = length(unique(:sample_id)))
+    return superdf, themedf
 end
 
 """

@@ -19,21 +19,19 @@ using .SADPlotter
 ## LINGUISTIC ##
 
 #| arXiv |#
-df_arxiv = Meris.arXivLoader.load(stopwords=true)
-df_arxiv.class .= "arx-" .* df_arxiv.domain
-Meris.DataTools.df_filter!(df_arxiv; min_samples=30, min_nreads=10000, min_species=100)
-select!(df_arxiv, [:class, :sample_id, :component_id, :counts, :nreads])
+df_arxiv = Meris.arXivLoader.load()
+df_arxiv.class .= "arx-" .* uppercase.(df_arxiv.domain)
+select!(df_arxiv, :class, :sample_id, :component_id, :counts, :nreads)
 
 #| Gutenberg |#
 df_gut = Meris.GutenbergLoader.load()
-Meris.DataTools.df_filter!(df_gut; min_samples=30, min_nreads=Int(1e5), min_species=100)
-df_gut.class = "guten-" .* df_gut.class
-select!(df_gut, [:class, :sample_id, :component_id, :counts, :nreads])
+df_gut.class = "guten-" .* uppercase.(df_gut.class)
+select!(df_gut, :class, :sample_id, :component_id, :counts, :nreads)
 
 #| RFCs |#
 df_rfc = Meris.RFCLoader.load()
-Meris.DataTools.df_filter!(df_rfc; min_samples=30, min_nreads=10000, min_species=100)
-select!(df_rfc, [:class, :sample_id, :component_id, :counts, :nreads])
+df_rfc.class .= uppercase.(df_rfc.class)
+select!(df_rfc, :class, :sample_id, :component_id, :counts, :nreads)
 
 df = vcat([df_arxiv, df_gut, df_rfc]...)
 out = SAD.compute(
@@ -50,8 +48,7 @@ out = SAD.compute(
 
 #| OTU |#
 df_otu = Meris.OTULoader.load()
-Meris.DataTools.df_filter!(df_otu; min_samples=30, min_nreads=10000, min_species=100)
-df_otu = df_otu[df_otu.class .!= "VAGINAL", :]
+select!(df_otu, :class, :sample_id, :component_id, :counts, :nreads)
 
 df = vcat([df_otu]...)
 out = SAD.compute(
@@ -70,18 +67,18 @@ out = SAD.compute(
 df_fin = Meris.FinanceLoader.load()
 df_fin = df_fin[endswith.(df_fin.class, "-daily"), :]
 df_fin.class = replace.(df_fin.class, "-daily" => "")
-df_fin.class .= "stock-" .* df_fin.class
-Meris.DataTools.df_filter!(df_fin; min_samples=30, min_nreads=10000, min_species=100)
+df_fin.class .= "stock-" .* uppercase.(df_fin.class)
+select!(df_fin, :class, :sample_id, :component_id, :counts, :nreads)
 
 #| Gowalla |#
 df_gow = Meris.GowallaLoader.load()
-Meris.DataTools.df_filter!(df_gow; min_samples=30, min_nreads=10000, min_species=100)
 df_gow.class .= "CHECK-IN"
+select!(df_gow, :class, :sample_id, :component_id, :counts, :nreads)
 
 #| LEGO |#
 df_lego = Meris.LegoLoader.load(; nthemes=100)
 df_lego.class .= "LEGO"
-Meris.DataTools.df_filter!(df_lego; min_samples=30, min_nreads=3000, min_species=100)
+select!(df_lego, :class, :sample_id, :component_id, :counts, :nreads)
 
 df = vcat([df_fin, df_gow, df_lego]...)
 out = SAD.compute(
@@ -99,20 +96,19 @@ out = SAD.compute(
 #| BCI.Tree |#
 df_bci = Meris.BCITreeLoader.load(; steps=2)
 df_bci.class .= "eco-BCI"
-Meris.DataTools.df_filter!(df_bci; min_samples=30, min_nreads=1000, min_species=50)
+select!(df_bci, :class, :sample_id, :component_id, :counts, :nreads)
 
 #| BIOTIME |#
 df_bio = Meris.BioTIMELoader.load()
 df_bio.class .= "eco-BT" .* string.(df_bio.class)
-df_bio = df_bio[df_bio.class .!= "eco-BT634", :]
-Meris.DataTools.df_filter!(df_bio; min_samples=30, min_nreads=5000, min_species=100)
+select!(df_bio, :class, :sample_id, :component_id, :counts, :nreads)
 
 #| GTEx |#
 df_gtex = Meris.GTExLoader.load()
 df_gtex.class .= "gen-" .* df_gtex.class
-Meris.DataTools.df_filter!(df_gtex; min_samples=30, min_nreads=Int(1e8), min_species=100)
+select!(df_gtex, :class, :sample_id, :component_id, :counts, :nreads)
 
-df = vcat([df_gtex, df_bci]...)
+df = vcat([df_gtex, df_bci, df_bio]...)
 out = SAD.compute(
         df;
         xmins=10 .^ collect(-5.0:0.01:-2.5),

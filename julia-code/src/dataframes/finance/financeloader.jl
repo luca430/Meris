@@ -60,7 +60,7 @@ function load(
         @subset!(df, :class .∈ Ref(summarydf.class))
     end
     if filterdata
-        Meris.DataTools.df_filter!(df,
+        df = Meris.DataTools.df_filter!(df,
             minreads=minreads,
             mincomponents=mincomponents,
             minsamplecomponents=minsamplecomponents,

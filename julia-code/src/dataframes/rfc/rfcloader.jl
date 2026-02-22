@@ -6,6 +6,8 @@ module RFCLoader
 using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
 
+using Meris
+
 #/ Modules, directories
 import Meris.RFCDIR as RFCDIR
 
@@ -15,13 +17,13 @@ import Meris.RFCDIR as RFCDIR
 function load(
     ;
     DIR=RFCDIR * "raw-data/",
-    mintokens     = 512,       #~ Min. no of tokens in text to be counted
     maxfiles      = 5000,      #~ Max. no of parsed files
     maxrows       = 2_000_000, #~ Max. no of rows allowed in DataFrame
     filterdata    = true,
-    minsamples    = 30,
-    minreads      = 10_000,
-    mincomponents = 100          
+    minreads::Int=10_000,
+    mincomponents::Int=1_000,
+    minsamplecomponents::Int=500,
+    minsamples::Int=30,           
 )
     #~ Allocate DataFrame
     df = DataFrame(
@@ -33,7 +35,7 @@ function load(
         #~ Check if filename is `rfc[0-9].txt`
         if occursin(r"rfc[0-9]+\.txt$", basename(FILE))
             tokens = load_rfc(; FILENAME=FILE, DIR=DIR)
-            if length(tokens) > mintokens
+            if length(tokens) > minsamplecomponents
                 nfiles += 1
                 #/ Perform a simple countmap
                 cm = countmap(tokens)
@@ -50,16 +52,13 @@ function load(
 
     if filterdata
         #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
+        df = Meris.DataTools.df_filter(
+            df;
+            minreads=minreads,
+            mincomponents=mincomponents,
+            minsamplecomponents=minsamplecomponents,
+            minsamples=minsamples
+        )
     end
     
     return df

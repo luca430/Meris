@@ -77,7 +77,7 @@ function load(
     countdf.class .= "BCI"
     #~Filter entries if desired (since this dataset is small the filter can be done as a last step)
     if filterdata
-        Meris.DataTools.df_filter!(
+        countdf = Meris.DataTools.df_filter(
             countdf,
             minreads=minreads,
             mincomponents=mincomponents,
