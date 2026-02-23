@@ -44,7 +44,6 @@ const ENV_MAP = Dict(
 Load RData file into a DataFrame
 """
 function load_rdata(; rdatafilename = ROTUDIR*"crosssecdata.RData")
-    @info "Loading raw RData..."
     df = RData.load(rdatafilename)["datatax"]
     df = @transform(df, :classification = String.(:classification))
     return df
@@ -68,8 +67,8 @@ function load(
     datafilename = OTUDIR * "/raw-data/crosssecdata.RData",    
     filterdata    = true,
     minreads::Int=10_000,
-    mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
+    mincomponents::Int=500,
+    minsamplecomponents::Int=200,
     minsamples::Int=30,   
     )
     df = load_rdata(; rdatafilename = datafilename)

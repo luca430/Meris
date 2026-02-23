@@ -37,7 +37,7 @@ function plot!(parent;
         ax3_text_offset=(1.0, 1.5)
     )
 
-    # Theme (you may want to set this ONCE outside when doing 4 panels)
+    # Theme
     sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
     set_theme!(__theme)
@@ -49,7 +49,7 @@ function plot!(parent;
     colors = [HSL(base_hsl.h, base_hsl.s, l) for l in range(0.15, 0.75, length=color_shades)]
     colors = isnothing(palette) ? colors : parse.(Colorant, palette)
 
-    # ---- THIS is the key change: build a panel layout inside `parent`
+    # Build a panel layout inside `parent`
     panel = GridLayout(parent)
 
     # Top + bottom sublayouts
@@ -122,7 +122,7 @@ function plot!(parent;
     colsize!(bottom, 1, Relative(0.45))
     colsize!(bottom, 2, Relative(0.45))
 
-    # ---- Data + plotting (unchanged)
+    # Data + plotting
     out = JLD2.load(ZIPFDIR)["out"]
 
     ### AX1 ###
@@ -190,40 +190,8 @@ function plot!(parent;
         position=:rt,
         labelsize=12,
         markersize=2,
-        patchsize=(12, 5)  # reduces height → thinner appearance
+        patchsize=(12, 5)
     )
-
-    # # axis pixel size
-    # area = ax2.scene.viewport[]
-    # W = area.widths[1]
-    # H = area.widths[2]
-    
-    # # log ranges
-    # ulo, uhi = log10(ax2_lims[1]), log10(ax2_lims[2])
-    # vlo, vhi = log10(ax2_lims[3]), log10(ax2_lims[4])
-    
-    # # two close points on the curve
-    # xt = 10 ^ ((log10(ax2_xmax) + log10(ax2_xmin)) / 2)
-    # x1 = xt
-    # x2 = xt * 2
-    # y1 = x1^(-1)
-    # y2 = x2^(-1)
-    
-    # u1, u2 = log10(x1), log10(x2)
-    # v1, v2 = log10(y1), log10(y2)
-    
-    # # pixels-per-log-unit
-    # sx = W / (uhi - ulo)
-    # sy = H / (vhi - vlo)
-    
-    # θ = atan((v2 - v1) * sy, (u2 - u1) * sx)
-    
-    # text!(ax2, xt * ax2_text_offset[1], xt^(-1) * ax2_text_offset[2];
-    #     text = L"y = x^{-1}",
-    #     color = :black,
-    #     rotation = θ,
-    #     fontsize = 11
-    # )
 
     if !isnothing(icon_name)
         icon_path = joinpath(ICONDIR, icon_name)
@@ -234,9 +202,11 @@ function plot!(parent;
     heaps_vals = [out.heaps[k] for k in labels]
     α_vals = Float64[]
     xmax = []
+    ymax = []
     for (i, (v,p)) in enumerate(zip(heaps_vals, pl_vals))
         push!(α_vals, mean(p.α))
         push!(xmax, maximum(v.N))
+        push!(ymax, maximum(v.V))
         idx = round.(Int, 10 .^ range(0, log10(length(v.V)), length = 60))
         scatter!(ax3, v.N[idx], v.V[idx],
             marker=markers[i], color=:white, strokecolor=colors[i],
@@ -252,12 +222,13 @@ function plot!(parent;
 
     ax3_text_color = isnothing(ax3_text_color) ? colors[1] : ax3_text_color
     text!(ax3, 5e1, 5e1 * 2, text=L"V \sim N", color=ax3_text_color, rotation = π/4, fontsize=10)
-    xp = maximum(xmax) / 500
+
     # pick two nearby x points on the curve (in DATA coordinates): this is because we need to express data slope in terms of axis dimensions
+    xp = maximum(xmax) / 500
     x1 = xp
     x2 = xp * 1.15
     
-    p  = parss[argmax(α_vals)]
+    p  = parss[argmax(yvals)]
     y1 = Meris.HeapsModel.predict_regimes(x1, p)
     y2 = Meris.HeapsModel.predict_regimes(x2, p)
     
@@ -276,56 +247,6 @@ function plot!(parent;
         color=ax3_text_color,
         fontsize=10
     )
-    # yp = Meris.HeapsModel.predict_regimes(xp, parss[argmax(α_vals)])
-    # text!(ax3, xp , yp * 1.5, text=L"V \sim N^{\eta}", color=text_color, rotation = atan(minimum([maximum(α_vals),1])), fontsize=10)
-
-    # # --- INSET in ax3
-    # # place a small axis on top of ax3 (relative to ax3 cell)
-    # inset = Axis(
-    #     ax3_cell,
-    #     width  = Relative(0.43),
-    #     height = Relative(0.43),
-    #     halign = 0.95,   # right
-    #     valign = 0.12,   # bottom
-    #     xscale = log10,
-    #     yscale = log10,
-    #     xticklabelsize = 5,
-    #     yticklabelsize = 5,
-    #     xlabelsize = 7,
-    #     ylabelsize = 7,
-    #     xgridvisible = false,
-    #     ygridvisible = false,
-    #     yminorticksvisible = false,
-    #     xminorticksvisible = false,
-    #     limits=ax3limits
-    # )
-
-    # # choose what "end" means (last decade by default)
-    # x_hi = maximum(xmax)
-    # x_lo = 10            # last decade; change to /30, /100 if you want
-
-    # # compute corresponding y-lims from the fitted curves (robust and consistent)
-    # yy = Float64[]
-    # for (i, v) in enumerate(heaps_vals)
-    #     xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
-    #     yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
-    #     append!(yy, yhat)
-    # end
-
-    # # replot tail points + tail fit lines into the inset
-    # for (i, v) in enumerate(heaps_vals)
-    #     # tail indices
-    #     idx_tail = findall(n -> n ≥ x_lo, v.N)
-    #     xr = 10 .^ range(log10(x_lo), log10(x_hi); length=200)
-    #     yhat = Meris.HeapsModel.predict_regimes(xr, parss[i])
-    #     lines!(inset, xr, yhat, color=colors[i], linestyle=:dash, linewidth=0.7)
-    # end
-
-    # # optional: hide labels (usually nicer for insets)
-    # inset.xlabel = ""
-    # inset.ylabel = ""
-    # inset.xticklabelsvisible = false
-    # inset.yticklabelsvisible = false
 
     return (ax1=ax1, ax2=ax2, ax3=ax3, panel=panel)
 end
@@ -349,7 +270,7 @@ function add_icon!(cell, icon_path;
     axicon = Axis(cell;
         width=width, height=height,
         halign=halign, valign=valign,
-        tellwidth=false, tellheight=false,   # <-- key to free positioning
+        tellwidth=false, tellheight=false,
     )
 
     img = FileIO.load(icon_path)

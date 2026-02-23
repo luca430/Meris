@@ -19,8 +19,8 @@ function load(
         DIR=FINANCEDIR * "raw-data/",
         filterdata=true,
         minreads::Int=10_000,
-        mincomponents::Int=1_000,
-        minsamplecomponents::Int=1_000,
+        mincomponents::Int=500,
+        minsamplecomponents::Int=200,
         minsamples::Int=30,
     )
     files = filter(f -> endswith(f, ".csv"), readdir(DIR, join=true))
@@ -45,22 +45,9 @@ function load(
         @groupby(:sample_id)
         @combine(:class, :sample_id, :component_id, :counts, :nreads = sum(:counts))
     end
-
+    
     if filterdata
-        #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
-    end
-    if filterdata
-        df = Meris.DataTools.df_filter!(df,
+        df = Meris.DataTools.df_filter(df,
             minreads=minreads,
             mincomponents=mincomponents,
             minsamplecomponents=minsamplecomponents,

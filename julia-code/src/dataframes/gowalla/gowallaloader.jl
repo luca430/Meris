@@ -21,9 +21,9 @@ function load(
     DIR = GOWALLADIR * "raw-data/",
     FILENAME = "loc-gowalla_totalCheckins.txt.gz",
     filterdata=true,
-    minreads::Int=100_000,
-    mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
+    minreads::Int=10_000,
+    mincomponents::Int=500,
+    minsamplecomponents::Int=200,
     minsamples::Int=30,         
 )
     df = CSV.read(

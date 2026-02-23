@@ -50,7 +50,7 @@ function load(
     filterdata=true,
     minreads::Int=8000,
     mincomponents::Int=1000,
-    minsamplecomponents::Int=1000,
+    minsamplecomponents::Int=500,
     minsamples::Int=30
     )
     #~ Allocate a dictionary as

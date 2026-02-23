@@ -20,7 +20,7 @@ function load(
     ;
     root=GUTENBERGDIR * "raw-data",
     filterdata    = true,
-    minreads::Int=10_000,
+    minreads::Int=100_000,
     mincomponents::Int=1_000,
     minsamplecomponents::Int=500,
     minsamples::Int=30, 
