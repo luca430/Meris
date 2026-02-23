@@ -69,7 +69,7 @@ function load(
     minreads      = 10_000,
     mincomponents = 100    
     )
-    df = load_rdata(; rdatafilename = datafilename)
+    df = standardized(load_rdata(; rdatafilename = datafilename))
     if filterdata
         #~ filter data
         @subset!(df, :nreads .> minreads)
@@ -83,7 +83,7 @@ function load(
         end
         @subset!(df, :class .∈ Ref(summarydf.class))
     end
-    return standardized(df)
+    return df
 end
 
 end # module OTUSampler
