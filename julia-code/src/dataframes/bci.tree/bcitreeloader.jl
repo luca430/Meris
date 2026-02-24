@@ -27,11 +27,11 @@ function load(
         ;
         DIR=TREEDIR * "raw-data/",
         joinquadrats=true,
-        steps::Int=2,
+        steps::Int=30,
         filterdata=true,
-        minreads::Int=2500,
+        minreads::Int=5000,
         mincomponents::Int=200,
-        minsamplecomponents::Int=70,
+        minsamplecomponents::Int=100,
         minsamples::Int=30
     );
     treedf = DataFrame()
