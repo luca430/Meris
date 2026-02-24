@@ -73,7 +73,12 @@ end
 """
 Fit ParetoIV with for an array (Vector) of candidate minimum values εs
 """
-function fit(::Type{ParetoIV}, x::Array{T}; εs::Vector{T}=unique(x)) where {T<:Real}
+function fit(
+    ::Type{ParetoIV},
+    x::Array{T};
+    εs::Vector{T}=unique(x),
+    weighted=false
+    ) where {T<:Real}
     xs = sort(x)
 
     αhat = eps()
@@ -96,11 +101,8 @@ function fit(::Type{ParetoIV}, x::Array{T}; εs::Vector{T}=unique(x)) where {T<:
         _x = xs[_idx:end]
         _P = fit(ParetoIV, _x, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
-        Ftv = 1.0 .- ccdf.(_P, _x)
-        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        Dhat = maximum(distances)
+        #  note: within the function data is filtered, so no need to do it here
+        Dhat = KolmogorovSmirnov(_P, x; weighted=weighted)
         #~ If smaller than the current best, update
         if Dhat < D
             αhat = _P.α
@@ -115,10 +117,51 @@ function fit(::Type{ParetoIV}, x::Array{T}; εs::Vector{T}=unique(x)) where {T<:
 end
 
 """
+Fit ParetoIV with fixed inequality paremeter β for an array (Vector) of candidate
+minimum values εs. Fixing β allows to specify fitting of other functional forms.
+For example, when β=1 then the ParetoIV is a Burr/Lomax distribution.
+"""
+function fit(::Type{ParetoIV}, x::Array{T}, β::T, εs::Vector{T}; weighted=false) where {T<:Real}
+    xs = sort(x)
+
+    αhat = eps()
+    θhat = eps()
+    εhat = 1e-24
+    D = Inf
+    n = 0
+    #/ For each possible xmin in xmins;
+    #  - compute the max.-likelihood estimate of the power law exponent γ
+    #  - compute the Kolmogorov-Smirnov distance
+    #  - extract the xmin for which the MLE γ gives the smallest KS distance
+    k = 0
+    for i in eachindex(εs)
+        ε = εs[i]
+        n = count(xs .> ε)
+        (n < 100) && (break)        # If less than 256 samples >xmin, break
+        #~ Filter data
+        _idx = searchsortedfirst(xs, ε) + 1
+        _x = xs[_idx:end]
+        _P = fit(ParetoIV, _x, β, ε)
+        #~ Compute Kolmogorov-Smirnov distance as the test statistic
+        #  note: within the function data is filtered, so no need to do it here
+        Dhat = KolmogorovSmirnov(_P, x; weighted=weighted)
+        #~ If smaller than the current best, update
+        if Dhat < D
+            αhat = _P.α
+            θhat = _P.θ
+            εhat = _P.ε
+            D = Dhat
+        end
+        k += 1
+    end
+    return ParetoIV(αhat, β, θhat, εhat)
+end
+
+"""
 Fit ParetoIV with a fixed minimum value ε
 """
 function fit(::Type{ParetoIV}, x::Array{T}, ε::T) where {T<:Real}
-
+    #/ Negative log-likelihood
     function negloglikelihood(x, params)
         logα, logβ, logθ = params
 	      α = exp(logα)
@@ -130,23 +173,19 @@ function fit(::Type{ParetoIV}, x::Array{T}, ε::T) where {T<:Real}
 
     #/ Init. estimates
     #~ Quantile estimator for θ
-    #  θ determines the "distance" from ε to the start of the heavy tail.
-    #  So taking a 10% quantile seems a decent educated guess.
-    # θinit = quantile(x .- ε, 0.1)
     θinit = iqr(x .- ε)
-    #~ Hill estimator for α
-    # hill = hills_estimator(x, sorted=false)
-    # αinit = max(1e-3, 1 / hill[end])
-    αinit = 0.5
-    # αinit = 1 / StatsBase.mean(hill[end-42:end])
+    #~ Simple ParetoI MLE as initial estimate
+    _x = x[x.>ε]
+    S = sum(log.(_x / ε))
+    αinit = max(0.1, length(_x) / S)
     #~ Guess of β, typically β∈[0.5,1.0]
-    βinit = 1.0
+    βinit = .99
     params = [log(αinit), log(βinit), log(θinit)]
     #~ Optimize
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
         [log(1e-3), log(1e-3), log(1e-8)],
-        [log(10.0), log(10.0), log(maximum(x))],
+        [log(10.0), log(1.0), log(maximum(x))],
         params,
         Fminbox(LBFGS()),
         autodiff=:forward
@@ -162,8 +201,149 @@ function fit(::Type{ParetoIV}, x::Array{T}, ε::T) where {T<:Real}
     # return ParetoIV(αinit, βinit, θinit, ε)
 end
 
+"""
+Fit ParetoIV with a fixed inequality parameter β and fixed minimum value ε
+"""
+function fit(::Type{ParetoIV}, x::Array{T}, β::T, ε::T) where {T<:Real}
+    #/ Negative log-likelihood
+    function negloglikelihood(x, params)
+        logα, logθ = params
+	      α = exp(logα)
+        θ = exp(logθ)
+        d = ParetoIV(α, β, θ, ε)
+        return -sum(logpdf.(d, x))
+    end
+
+    #/ Init. estimates
+    #~ Quantile estimator for θ
+    θinit = iqr(x .- ε)
+    #~ Simple ParetoI MLE as initial estimate
+    _x = x[x.>ε]
+    S = sum(log.(_x / ε))
+    αinit = max(0.1, length(_x) / S)
+    params = [log(αinit), log(θinit)]
+    #~ Optimize
+    optimres = Optim.optimize(
+        Base.Fix1(negloglikelihood, _x),
+        [log(1e-3), log(1e-8)],
+        [log(10.0), log(maximum(x))],
+        params,
+        Fminbox(LBFGS()),
+        Optim.Options(g_tol = 1e-3),
+        autodiff=:forward
+    )
+    if Optim.converged(optimres)
+        αhat, θhat = optimres.minimizer
+        return ParetoIV(exp(αhat), β, exp(θhat), ε)
+    end
+    #~ Throw an error here as the Optimizer did not converge
+    throw(ErrorException("Optimizer not converged"))
+    #~ When an error is undesired, it can be set as a warning as well
+    # @warn("Optimizer not converged, returning initial guesses")
+    # return ParetoIV(αinit, βinit, θinit, ε)
+end
+
+"""
+Compute p-value that determines whether to reject the ParetoI as a candidate
+see, [Clauset et al. (2009), Power-law distribution in empirical data]
+"""
+function computepvalue(
+    P::ParetoIV, x::Array{T}, εs::Array{T};
+    nsynth=1000, weighted=false, rng=Random.Xoshiro(42)
+    ) where {T<:Real}
+    #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
+    xhead = filter(z -> z < P.ε, x)
+    nhead = length(xhead) / length(x)
+    k = length(x)
+    #~ Compute Kolmogorov-Smirnov distance in data
+    KSDATA = KolmogorovSmirnov(P, x; weighted=weighted)
+    kscount = 0
+
+    #/ Generate synthetic datasets
+    ns = 0
+    while ns < nsynth
+        ns += 1
+        #~ Sample synthetic dataset
+        synthx = rand(rng, P, k)
+        #~ augment synthetic data [see Clauset et al. (2009), Section 4.1]
+        u = Base.rand(rng, length(x))
+        for i in eachindex(synthx)
+            (u[i] < nhead) && (synthx[i] = StatsBase.sample(rng, xhead))
+        end        
+        #~ Choose admissible ε
+        logsynthx = log.(synthx)
+        logxmin, logxmax = extrema(logsynthx)
+        εsynth = exp.(range(logxmin, logxmax, length(εs)))
+        Psynthfit = fit(ParetoIV, synthx; εs=εsynth, weighted=weighted)
+        #~ Compute Kolmogorov-Smirnov distance in synthetic data
+        KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
+        if KSSYNTHETIC > KSDATA
+            kscount += 1
+        end
+    end
+    #~ return p value
+    return kscount / nsynth
+end
+
+"""
+Compute p-value for fixed β in order to determine whether to reject the ParetoIV as a candidate
+see, [Clauset et al. (2009), Power-law distribution in empirical data]
+"""
+function computepvalue(
+    P::ParetoIV, x::Vector{T}, β::T, εs::Vector{T};
+    nsynth=625, weighted=false
+) where {T<:Real}
+    #~ Compute prob. of data appearing in the "head" [the "non-tail"]
+    xhead = filter(z -> z < P.ε, x)
+    nhead = length(xhead) / length(x)
+    k = length(x)
+    KSDATA = KolmogorovSmirnov(P, x; weighted=weighted)
+    #~ Allocate parallel thread counts and rngs
+    kscount = Threads.Atomic{Int}(0)
+    rngs = [Random.Xoshiro(42*t) for t in 1:Threads.nthreads()]
+
+    Threads.@threads for _ in 1:nsynth
+        #~ Generate synthetic data using the proper rng
+        _rng = rngs[Threads.threadid()]
+        synthx = rand(_rng, P, k)
+        #~ augment synthetic data [see Clauset et al. (2009), Section 4.1]
+        u = Base.rand(_rng, k)
+        for i in eachindex(synthx)
+            (u[i] < nhead) && (synthx[i] = StatsBase.sample(_rng, xhead))
+        end
+        #~ Choose admissible ε
+        logsynthx = log.(synthx)
+        logxmin, logxmax = extrema(logsynthx)
+        εsynth = exp.(range(logxmin, logxmax, length(εs)))
+        #~ Compute Kolmogorov-Smirnov distance in synthetic data
+        Psynthfit = fit(ParetoIV, synthx, β, εsynth; weighted=weighted)
+        KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
+        #~ Compute Kolmogorov-Smirnov distance in synthetic data and, if larger, increment
+        if KSSYNTHETIC > KSDATA
+            Threads.atomic_add!(kscount, 1)
+        end
+    end
+
+    return kscount[] / nsynth
+end
+
 ########################
 ### HELPER FUNCTIONS ###
+function KolmogorovSmirnov(P::ParetoIV, data::Array{T}; weighted=false) where {T<:Real}
+    #~ We care only about data within the functions domain, so first filter
+    x = filter(z -> z >= P.ε, data)
+    #~ Sort, if not already
+    (!issorted(x)) && (sort!(x))
+    Fv = _ecdf(x, x).F            # Values of empirical CDF
+    Ftv = 1.0 .- ccdf.(P, x)      # Values of survival function
+    if weighted
+        Z = sqrt.(Ftv .* (1 .- Ftv))    # Weight
+        KS = abs.(Fv .- Ftv) ./ Z       # Weighted KS distance
+        return maximum(KS)
+    end
+    KS = abs.(Fv .- Ftv)
+    return maximum(KS)
+end
 
 """
     hills_estimator

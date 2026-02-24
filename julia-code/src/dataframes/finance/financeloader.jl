@@ -4,6 +4,7 @@ module FinanceLoader
 
 #/ Packages
 using Glob
+using CategoricalArrays
 using CSV, DataFrames, DataFramesMeta
 
 #/ Modules, directories
@@ -18,10 +19,11 @@ function load(
     filterdata    = true,
     minsamples    = 30,
     minreads      = 100_000,
-    mincomponents = 100
+    mincomponents = 100,
+    resolution    = "daily"
     )
     #~ Gather list of files
-    files = filter(f -> endswith(f, ".csv"), readdir(DIR, join=true))
+    files = filter(f -> endswith(f, "$(resolution)-volumes.csv"), readdir(DIR, join=true))
     dfs = DataFrame[]
 
     #~ Read all markets into a single DataFrame
@@ -54,6 +56,11 @@ function load(
             @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
         end
         @subset!(df, :class .∈ Ref(summarydf.class))
+
+        #~ reorder within each market [class]
+        df = combine(groupby(df, :class)) do marketdf
+            sort(marketdf, :nreads, rev=true)
+        end
     end
     #~ Return
     return df

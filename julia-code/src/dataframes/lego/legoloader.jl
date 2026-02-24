@@ -16,14 +16,17 @@ import Meris.LEGODIR as LEGODIR
 
 #######################
 ### FUNCTIONS ###
-function load(;
+function load(
+    ;
     DIR=LEGODIR * "raw-data/",
     nthemes=20,
     SETFILE="sets.csv",
     INVENTORYSETFILE="inventories.csv",
     INVENTORYPARTSFILE="inventory_parts.csv",
-    minquantity=64,
-    mindistinctpieces=32
+    minreads       = 100,
+    mincomponents  = 100,
+    filterdata     = true,
+    aggregate      = true          
     )
 
     big_df, themes_df = parse_themes(;
@@ -31,8 +34,8 @@ function load(;
         SETFILE=SETFILE,
         INVENTORYSETFILE=INVENTORYSETFILE,
         INVENTORYPARTSFILE=INVENTORYPARTSFILE,
-        minquantity=minquantity,
-        mindistinctpieces=mindistinctpieces,
+        minquantity=minreads,
+        mindistinctpieces=mincomponents,
         standardize=true,
         returnthemes=true
         )
@@ -43,6 +46,23 @@ function load(;
 
     df.class .= string.(df.class)
 
+    if filterdata
+        #!note: We do not need to filter here, as it's taken care of within `parse_themes`
+        #~ reorder within each set [class]
+        df = combine(groupby(df, :class)) do setdf
+            sort(setdf, :nreads, rev=true)
+        end
+    end
+
+    if aggregate
+        #~ aggregate as if it was a single `sample_id`
+        aggdf = @chain df begin
+            @groupby(:class, :sample_id, :component_id)
+            @combine(:counts = sum(:counts))
+        end
+        @transform!(aggdf, :nreads = sum(:counts))
+        return aggdf
+    end
     return df
 end
 
