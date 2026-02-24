@@ -21,7 +21,9 @@ FILENAME = "finance-candidatefits.jld2"
 #/ Load and fit candidates [see `candidates.jl`]
 df = FinanceLoader.load(; filterdata=true)
 @transform!(df, :frequency = :counts ./ :nreads)
-fitdf, aicdf = OhMyGoodness.fit_candidates(df,:class; testcandidate=:ParetoI, nε=args["numeps"])
+fitdf, aicdf = OhMyGoodness.fit_candidates(
+    df,:class; testcandidate=:ParetoIV, nε=args["numeps"]
+)
 
 #/ Store
 jldsave(OUTDIR*FILENAME; fitdf=fitdf, aicdf=aicdf)

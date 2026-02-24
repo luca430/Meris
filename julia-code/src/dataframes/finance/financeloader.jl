@@ -4,6 +4,7 @@ module FinanceLoader
 
 #/ Packages
 using Glob
+using CategoricalArrays
 using CSV, DataFrames, DataFramesMeta
 
 using Meris
@@ -15,15 +16,16 @@ import Meris.FINANCEDIR as FINANCEDIR
 ### FUNCTIONS ###
 "Load all financial data, put them into a single DataFrame"
 function load(
-        ;
-        DIR=FINANCEDIR * "raw-data/",
-        filterdata=true,
-        minreads::Int=10_000,
-        mincomponents::Int=500,
-        minsamplecomponents::Int=200,
-        minsamples::Int=30,
+    ;
+    DIR = FINANCEDIR * "raw-data/",
+    filterdata    = true,
+    minsamples    = 30,
+    minreads      = 100_000,
+    mincomponents = 100,
+    resolution    = "daily"
     )
-    files = filter(f -> endswith(f, ".csv"), readdir(DIR, join=true))
+    #~ Gather list of files
+    files = filter(f -> endswith(f, "$(resolution)-volumes.csv"), readdir(DIR, join=true))
     dfs = DataFrame[]
 
     #~ Read all markets into a single DataFrame
@@ -47,12 +49,22 @@ function load(
     end
     
     if filterdata
-        df = Meris.DataTools.df_filter(df,
-            minreads=minreads,
-            mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples,
-        )
+        #~ filter data
+        @subset!(df, :nreads .> minreads)
+        summarydf = @chain df begin
+            @by(
+                :class,
+                :nsamples = length(:sample_id),
+                :ncomponents = length(unique(:component_id))
+            )
+            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+        end
+        @subset!(df, :class .∈ Ref(summarydf.class))
+
+        #~ reorder within each market [class]
+        df = combine(groupby(df, :class)) do marketdf
+            sort(marketdf, :nreads, rev=true)
+        end
     end
     #~ Return
     return df

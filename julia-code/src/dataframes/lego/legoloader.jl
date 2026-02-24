@@ -18,7 +18,8 @@ import Meris.LEGODIR as LEGODIR
 
 #######################
 ### FUNCTIONS ###
-function load(;
+function load(
+    ;
     DIR=LEGODIR * "raw-data/",
     SETFILE="sets.csv",
     INVENTORYSETFILE="inventories.csv",
@@ -50,7 +51,6 @@ function load(;
             minsamples=minsamples
         )
     end
-
     return df
 end
 

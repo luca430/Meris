@@ -35,9 +35,12 @@ function getcandidates(
         ),
         :ParetoIV => (
             ; f = MDistributions.ParetoIV,
-            fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
+            fit = (f, data, εs) -> MDistributions.fit(f, data, 1.0, εs),
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> MDistributions.logpdf.(f, x),
+            #~ Defaults to Burr/Lomax distribution with β=1
+            computepvalue = (P, data, εs; β=1.0, weighted=false, rng=rng) ->
+                MDistributions.computepvalue(P, data, β, εs; weighted=weighted),
             dataframeentry = Tuple{Float64,Float64,Float64,Float64}
         ),
         :TemperedPareto => (
