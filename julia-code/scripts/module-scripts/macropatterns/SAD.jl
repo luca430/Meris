@@ -61,11 +61,7 @@ end
 function aggregate_samples(df)
     return @chain df begin
         @groupby(:component_id)
-        @combine(:sample_id, :agg_counts = sum(:counts), :agg_nreads = sum(:nreads))
-        @transform(
-            :counts = :agg_counts,
-            :nreads = :agg_nreads
-        )
+        @combine(:sample_id, counts = sum(:counts), nreads = sum(:nreads))
     end
 end
     

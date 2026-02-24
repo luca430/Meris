@@ -138,6 +138,7 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df_bci.class .= "eco-BCI"
         select!(df_bci, :class, :sample_id, :component_id, :counts, :nreads)
         df_bci.sample_id .= string.(df_bci.class) .* string.(df_bci.sample_id)
+        df_bci = innerjoin(df_bci, get_gof_samples(Meris.DATADIR * "gof/bcitrees-candidatefits.jld2"), on=[:sample_id])
         
         #| BIOTIME |#
         df_bio = Meris.BioTIMELoader.load()
@@ -157,7 +158,7 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         @info "Working biology data..."
         SAD.compute(
                 df;
-                xmins=10 .^ collect(-5.0:0.01:-2.5),
+                xmins=10 .^ collect(-5.0:0.01:-2.0),
                 pareto_type="I",
                 nbins=25,
                 filter=true,
