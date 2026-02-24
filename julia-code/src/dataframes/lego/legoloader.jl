@@ -1,6 +1,7 @@
 #= Module to sample from the LEGO dataset
    LEGO set can be obtained from https://rebrickable.com/downloads/
-   Of particular interest to our use-case is the `inventory_parts`.
+   Of particular interest to our use-case are `inventory_parts.csv`,
+   `inventories.csv`, and `sets.csv`.
 =#
 #/ Start module
 module LegoLoader
