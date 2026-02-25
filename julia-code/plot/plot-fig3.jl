@@ -7,7 +7,7 @@ using CairoMakie, MakiePublication, LaTeXStrings
 # using CSV, CodecZlib, Glob
 using JLD2
 
-include("./../scripts/module-scripts//macropatterns/SAD.jl")
+include("./../scripts/module-scripts/macropatterns/SAD.jl")
 using .SAD
 
 include("./../plot/plot-SAD.jl")
@@ -201,24 +201,24 @@ function plot(; ext="pdf")
         ax1limits=(nothing, nothing, 1.5, 3),
         ax2limits=(nothing, nothing, 1e1, 3e4),
         ax3limits=(5, 1e7, 5, 1e6),
-        icon_name="linguistic.png",
-        icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.05)
+        icon_name="document.png",
+        icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1, valign=0.1)
     )
     SADPlotter.plot!(
         bigfig[1,2]; ZIPFDIR=zipfdirs[2], palette=palette2,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(nothing, nothing,1e0,3e4),
         ax3limits=(5, 1e7, 5, 1e5),
-        icon_name="microbial.png",
-        icon_kw=(; width=Relative(0.3), height=Relative(0.35), halign=0.0,  valign=0.05)
+        icon_name="bacteria.png",
+        icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1,  valign=0.1)
     )
     SADPlotter.plot!(
         bigfig[2,1]; ZIPFDIR=zipfdirs[3], palette=palette3,
         reverse_panel=true,
         ax1limits=(nothing, nothing, 1, 4),
         ax3limits=(5, 5e10, 5, 5e6),
-        icon_name="social.png",
-        icon_kw=(; width=Relative(0.4), height=Relative(0.45), halign=0.0,  valign=0.0)
+        icon_name="socio-economic.png",
+        icon_kw=(; width=Relative(0.77*0.25), height=Relative(0.25), halign=0.1,  valign=0.1)
     )
     SADPlotter.plot!(
         bigfig[2,2]; ZIPFDIR=zipfdirs[4], palette=palette4,
@@ -226,8 +226,8 @@ function plot(; ext="pdf")
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(nothing, nothing,1e0,1e5),
         ax3limits=(5e0, 5e8, 5, 5e5),
-        icon_name="biology.png",
-        icon_kw=(; width=Relative(0.45), height=Relative(0.5), halign=0.03, valign=-0.1)
+        icon_name="eco.png",
+        icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1, valign=0.1)
     )
     
     rowsize!(bigfig.layout, 1, Relative(0.43))
@@ -239,6 +239,7 @@ function plot(; ext="pdf")
     colgap!(bigfig.layout, -15)
     
     save(Meris.FIGDIR * "fig3.$ext", bigfig, pt_per_unit=2)  # higher resolution
+    # return bigfig
 end
 
 ### HELPER ###
