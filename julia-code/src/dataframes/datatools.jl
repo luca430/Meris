@@ -1,9 +1,67 @@
+#= Module with tools to parse data =#
 module DataTools
 
-using DataFrames, FHist, Distributions, DataFramesMeta
+using Distributions
+using DataFrames, DataFramesMeta
+using FHist
 
 #################
 ### FUNCTIONS ###
+"""
+Filter standardized DataFrame based on
+- minreads: the min. amount of reads within a sample
+- minsamples: the min. amount of samples within a class
+- mincomponents: the min. amount of distinct components within a class
+
+Note: While in theory we'd want this function to be in-place, it is hard to justify as
+      there are some DataFrames functions we with to use that have no in-place equivalent.
+"""
+function filterdata(
+    df::DataFrame;
+    minsamples    = 30,
+    minreads      = 100_000,
+    mincomponents = 100,
+    reorder       = true,
+    top           = 10
+    )
+    #~ filter out samples with insufficient `nreads`
+    df = @subset(df, :nreads .> minreads)
+    #~ filter out classes with insufficient samples and component diversity
+    summarydf = @chain df begin
+        @by(
+            :class,
+            :nsamples = length(:sample_id),
+            :ncomponents = length(unique(:component_id))
+        )
+        @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+    end
+    df = @subset(df, :class .∈ Ref(summarydf.class))
+
+    if reorder
+        #~ reorder within each class [e.g., a market or a book language]
+        df = combine(groupby(df, :class)) do subdf
+            sort(subdf, :nreads, rev=true)
+        end
+    end
+    #~ select only the top `top` for each :class
+    if !isnothing(top)
+        summarydf = @chain df begin
+            @by(
+                [:class, :sample_id],
+                :nreads = first(:nreads)
+            )
+            #~ Group by `:class` again, rank w.r.t `nreads` and select `top`
+            @groupby(:class)
+            @transform(:rank = sortperm(:nreads, rev=true))
+            @subset(:rank .<= top) #~ select `top` ranks
+            @select(Not(:rank))    #~ omit rank as it's not needed [anymore]
+        end
+        df = semijoin(df, summarydf, on=[:class, :sample_id])
+    end
+    #~ Return
+    return df
+end
+
 """
 Filter standardized DataFrame based on min_samples and min_nreads.
 """

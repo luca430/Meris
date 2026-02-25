@@ -19,10 +19,10 @@ FILENAME = "rfc-candidatefits.jld2"
 
 @info "Fits and comparisons for RFC documents..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = RFCLoader.load(; filterdata=true)
-@transform!(df, :rfc = "rfc", :frequency = :counts ./ :nreads)
+df = RFCLoader.load(; applyfilter=args["filter"], top=args["top"])
+@transform!(df, :class = "rfc", :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df, :rfc; testcandidate=:ParetoI, nε=args["numeps"]
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=true
 )
 
 #/ Store

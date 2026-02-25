@@ -16,12 +16,12 @@ using Meris: Candies   #~ candidate distributions
 Fit a set of candidate distributions to the data
 """
 function fit_candidates(
-    data::DataFrame, classcolname::Symbol;
+    data::DataFrame, classcolname::Symbol;    
     testcandidate = :ParetoI,
     candidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto,
                   :Gamma, :LogNormal, :Weibull],
     nε::Int = 100,
-    preject = 0.1
+    __computepvalue::Bool = true   #~ Private flag to omit computing p values
     )
     rng = Random.Xoshiro(42*nε)
     candidates = Candies.getcandidates(; candidates=candidates)
@@ -29,7 +29,7 @@ function fit_candidates(
     aicdf = initialize_aicdataframe(candidates)
 
     #~ For each `sample_id` in the data DataFrame, fit all candidate distributions
-    nsamples = length(unique(data.sample_id))
+    nsamples = length(unique(string.(data.class) .* string.(data.sample_id)))
     n = 0
     nrejects = 0
     for sampledf in groupby(data, [classcolname, :sample_id])
@@ -42,13 +42,15 @@ function fit_candidates(
         #~ Compute [log-spaced] admissible ε for distributions from the Pareto family
         νs = log10.(unique(sort(frequencies)))
         (length(νs) < 3) && (continue)
-        εs = exp10.(range(νs[2], νs[end]/10, nε) |> collect)
+        εs = exp10.(range(νs[2], νs[end] - 1, nε) |> collect)
         #~ Establish heavy-tail by fitting generalized Pareto distribution
         try
             ht = candidates[testcandidate]
             paretofit = ht.fit(ht.f, frequencies, εs)
-            #~ Compute p value
-            p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
+            if __computepvalue
+                #~ Compute p value
+                p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
+            end
             #~ Filter data w.r.t. ε onwards, otherwise (i)
             #  - the log-likelihood blows up
             #  - the comparison is unfair as candidates have different domains

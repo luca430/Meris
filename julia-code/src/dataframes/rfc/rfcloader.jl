@@ -9,6 +9,7 @@ using Random, StatsBase
 using Meris
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.RFCDIR as RFCDIR
 
 #################
@@ -19,11 +20,12 @@ function load(
     DIR=RFCDIR * "raw-data/",
     maxfiles      = 5000,      #~ Max. no of parsed files
     maxrows       = 2_000_000, #~ Max. no of rows allowed in DataFrame
-    filterdata    = true,
-    minreads::Int=10_000,
-    mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
-    minsamples::Int=30,           
+    minsamples    = 30,
+    minreads      = 10_000,
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
 )
     #~ Allocate DataFrame
     df = DataFrame(
@@ -50,14 +52,11 @@ function load(
         (has_reached(nfiles, maxfiles) || has_reached(nrow(df), maxrows)) && (break)
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
-        df = Meris.DataTools.df_filter(
-            df;
-            minreads=minreads,
-            mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
         )
     end
     

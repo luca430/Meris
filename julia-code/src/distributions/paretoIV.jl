@@ -73,13 +73,8 @@ end
 """
 Fit ParetoIV with for an array (Vector) of candidate minimum values εs
 """
-function fit(
-    ::Type{ParetoIV},
-    x::Array{T};
-    εs::Vector{T}=unique(x),
-    weighted=false
-    ) where {T<:Real}
-    xs = sort(x)
+function fit(::Type{ParetoIV}, x::Array{T}, εs::Vector{T}; weighted=false) where {T<:Real}
+    (!issorted(x)) && (x = sort(x))
 
     αhat = eps()
     βhat = eps()
@@ -94,11 +89,11 @@ function fit(
     k = 0
     for i in eachindex(εs)
         ε = εs[i]
-        n = count(xs .> ε)
-        (n < 100) && (break)        # If less than 256 samples >xmin, break
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε) + 1
-        _x = xs[_idx:end]
+        _idx = searchsortedfirst(x, ε)
+        _x = x[_idx:end]
+        n = length(_x)
+        (n < 32) && (continue)
         _P = fit(ParetoIV, _x, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         #  note: within the function data is filtered, so no need to do it here
@@ -121,8 +116,8 @@ Fit ParetoIV with fixed inequality paremeter β for an array (Vector) of candida
 minimum values εs. Fixing β allows to specify fitting of other functional forms.
 For example, when β=1 then the ParetoIV is a Burr/Lomax distribution.
 """
-function fit(::Type{ParetoIV}, x::Array{T}, β::T, εs::Vector{T}; weighted=false) where {T<:Real}
-    xs = sort(x)
+function fit(::Type{ParetoIV}, x::Array{T}, β::T, εs::Array{T}; weighted=false) where {T<:Real}
+    (!issorted(x)) && (x = sort(x))
 
     αhat = eps()
     θhat = eps()
@@ -136,11 +131,11 @@ function fit(::Type{ParetoIV}, x::Array{T}, β::T, εs::Vector{T}; weighted=fals
     k = 0
     for i in eachindex(εs)
         ε = εs[i]
-        n = count(xs .> ε)
-        (n < 100) && (break)        # If less than 256 samples >xmin, break
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε) + 1
-        _x = xs[_idx:end]
+        _idx = searchsortedfirst(x, ε)
+        _x = x[_idx:end]
+        n = length(_x)
+        (n < 32) && (break)
         _P = fit(ParetoIV, _x, β, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         #  note: within the function data is filtered, so no need to do it here
@@ -225,7 +220,7 @@ function fit(::Type{ParetoIV}, x::Array{T}, β::T, ε::T) where {T<:Real}
     #~ Optimize
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, _x),
-        [log(1e-3), log(1e-8)],
+        [log(1e-3), log(1e-6)],
         [log(10.0), log(maximum(x))],
         params,
         Fminbox(LBFGS()),
@@ -249,7 +244,7 @@ see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
 function computepvalue(
     P::ParetoIV, x::Array{T}, εs::Array{T};
-    nsynth=1000, weighted=false, rng=Random.Xoshiro(42)
+    nsynth=256, weighted=false, rng=Random.Xoshiro(42)
     ) where {T<:Real}
     #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
     xhead = filter(z -> z < P.ε, x)

@@ -12,6 +12,7 @@ using Random, StatsBase
 using Meris
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.GUTENBERGDIR as GUTENBERGDIR
 
 #################
@@ -19,11 +20,13 @@ import Meris.GUTENBERGDIR as GUTENBERGDIR
 function load(
     ;
     root=GUTENBERGDIR * "raw-data",
-    filterdata    = true,
-    minreads::Int=100_000,
-    mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
-    minsamples::Int=30, 
+    marker=r"\*\*\*.*\*\*\*",
+    minsamples    = 30,
+    minreads      = 100_000,
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
     )
 
     #~ marker needed to distinguish partions in Gutenberg data (e.g. it, en)
@@ -58,14 +61,11 @@ function load(
         end
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
-        df = Meris.DataTools.df_filter(
-            df;
-            minreads=minreads,
-            mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
         )
     end
 
