@@ -9,6 +9,7 @@ using CSV, DataFrames, DataFramesMeta
 using StatsBase
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.GOWALLADIR as GOWALLADIR
 
 #################
@@ -18,47 +19,39 @@ function load(
     ;
     DIR = GOWALLADIR * "raw-data/",
     FILENAME = "loc-gowalla_totalCheckins.txt.gz",
-    filterdata    = true,
     minsamples    = 30,
     minreads      = 10_000,
-    mincomponents = 100          
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
 )
     df = CSV.read(
         DIR*FILENAME, DataFrame, header=[:user_id, :time_z, :lat, :long, :location_id]
     )
-
     # Consider dates in format YYY-MM-DD as samples and POIs as components.
     # Counts are the number of people entered in that POI in that day.    
     dates = [row.time_z[1:10] for row in eachrow(df)]
     df.time = dates
-    sdf = select(df, [:user_id, :location_id, :time])
+    sdf = @chain df begin
+        @select(:user_id, :location_id, :time)
+        @groupby(:time, :location_id)
+        @combine(:counts = length(:user_id))
+        @groupby(:time)
+        @transform(:nreads = sum(:counts))
+    end
     
-    sdf = transform(
-      groupby(sdf, [:time, :location_id]),
-      :user_id => length => :counts
-    )
-    
-    sdf = transform(
-      groupby(sdf, [:time]),
-      :counts => sum => :nreads
-    )
-    
-    rename!(sdf, :location_id => :component_id, :time => :sample_id)
+    #~ Standardize and rename
     sdf.class .= "gowalla"
-    select!(sdf, [:class, :component_id, :sample_id, :counts, :nreads])
+    sdf = @rename(sdf, :sample_id = :time, :component_id = :location_id)
+    @select!(sdf, :class, :sample_id, :component_id, :counts, :nreads)
 
-    if filterdata
+    if applyfilter
         #~ filter data
-        @subset!(sdf, :nreads .> minreads)
-        summarydf = @chain sdf begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(sdf, :class .∈ Ref(summarydf.class))
+        sdf = filterdata(
+            sdf; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
 
     return sdf

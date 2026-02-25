@@ -74,7 +74,6 @@ end
 function fit(::Type{ParetoI}, x::Array{T}, ε::Float64) where {T<:Real}
     (!issorted(x)) && (x = sort(x))
     n = count(x .>= ε)
-    (n < 256) && (@warn("Very little data in the tail with ε=$(ε) [only $(n) data points]"))
     #~ Filter data
     idx = searchsortedfirst(x, ε)
     xfit = x[idx:end]
@@ -84,9 +83,8 @@ function fit(::Type{ParetoI}, x::Array{T}, ε::Float64) where {T<:Real}
     return ParetoI(αhat, ε)
 end
 
-function fit(::Type{ParetoI}, x::Array{T}; εs=nothing, weighted=false) where {T<:Real}
-    xs = sort(x)
-    εs = isnothing(εs) ? unique(xs) : εs
+function fit(::Type{ParetoI}, x::Array{T}, εs::Array{T}; weighted=false) where {T<:Real}
+    (!issorted(x)) && (x = sort(x))
 
     αhat = 1.0
     εhat = minimum(x)
@@ -99,9 +97,10 @@ function fit(::Type{ParetoI}, x::Array{T}; εs=nothing, weighted=false) where {T
     for i in eachindex(εs)
         ε = εs[i]
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε)
-        _x = xs[_idx:end]
+        _idx = searchsortedfirst(x, ε)
+        _x = x[_idx:end]
         n = length(_x)
+        (n < 32) && (continue)
         #~ Estimate α
         S = sum(log.(_x / ε))
         α = n / S
@@ -151,7 +150,7 @@ function computepvalue(
         logsynthx = log.(synthx)
         logxmin, logxmax = extrema(logsynthx)
         εsynth = exp.(range(logxmin, logxmax, length(εs)))
-        Psynthfit = fit(ParetoI, synthx; εs=εsynth, weighted=weighted)
+        Psynthfit = fit(ParetoI, synthx, εsynth; weighted=weighted)
         #~ Compute Kolmogorov-Smirnov distance in synthetic data
         KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
         if KSSYNTHETIC > KSDATA

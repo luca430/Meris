@@ -10,6 +10,7 @@ using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.GUTENBERGDIR as GUTENBERGDIR
 
 #################
@@ -17,11 +18,13 @@ import Meris.GUTENBERGDIR as GUTENBERGDIR
 function load(
     ;
     root=GUTENBERGDIR * "raw-data",
-    marker=r"\*\*\*.*\*\*\*",    
-    filterdata    = true,
+    marker=r"\*\*\*.*\*\*\*",
     minsamples    = 30,
     minreads      = 100_000,
-    mincomponents = 100
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
     )
     df = DataFrame(
         class=String[],
@@ -52,18 +55,12 @@ function load(
         end
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
 
     return df

@@ -3,7 +3,7 @@
    Of particular interest to our use-case is the `inventory_parts`.
 =#
 #/ Start module
-module LegoLoader
+module LEGOLoader
 
 #/ Packages
 using CSV
@@ -12,6 +12,7 @@ using Random
 using StatsBase
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.LEGODIR as LEGODIR
 
 #######################
@@ -19,14 +20,16 @@ import Meris.LEGODIR as LEGODIR
 function load(
     ;
     DIR=LEGODIR * "raw-data/",
-    nthemes=20,
     SETFILE="sets.csv",
     INVENTORYSETFILE="inventories.csv",
     INVENTORYPARTSFILE="inventory_parts.csv",
-    minreads       = 100,
-    mincomponents  = 100,
-    filterdata     = true,
-    aggregate      = true          
+    nthemes       = 20,
+    minsamples    = 30,
+    minreads      = 1000,
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,        
     )
 
     big_df, themes_df = parse_themes(;
@@ -46,24 +49,25 @@ function load(
 
     df.class .= string.(df.class)
 
-    if filterdata
-        #!note: We do not need to filter here, as it's taken care of within `parse_themes`
-        #~ reorder within each set [class]
-        df = combine(groupby(df, :class)) do setdf
-            sort(setdf, :nreads, rev=true)
-        end
+    if applyfilter
+        #~ filter data
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
 
-    if aggregate
-        #~ aggregate as if it was a single `sample_id`
-        aggdf = @chain df begin
-            @groupby(:class, :sample_id, :component_id)
-            @combine(:counts = sum(:counts))
-        end
-        @transform!(aggdf, :nreads = sum(:counts))
-        return aggdf
-    end
     return df
+    # if aggregate
+    #     #~ aggregate as if it was a single `sample_id`
+    #     aggdf = @chain df begin
+    #         @groupby(:class, :sample_id, :component_id)
+    #         @combine(:counts = sum(:counts))
+    #     end
+    #     @transform!(aggdf, :nreads = sum(:counts))
+    #     return aggdf
+    # end
+    # return df
 end
 
 

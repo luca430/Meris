@@ -7,6 +7,7 @@ using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.RFCDIR as RFCDIR
 
 #################
@@ -18,10 +19,12 @@ function load(
     mintokens     = 512,       #~ Min. no of tokens in text to be counted
     maxfiles      = 5000,      #~ Max. no of parsed files
     maxrows       = 2_000_000, #~ Max. no of rows allowed in DataFrame
-    filterdata    = true,
     minsamples    = 30,
     minreads      = 10_000,
-    mincomponents = 100          
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
 )
     #~ Allocate DataFrame
     df = DataFrame(
@@ -48,18 +51,12 @@ function load(
         (has_reached(nfiles, maxfiles) || has_reached(nrow(df), maxrows)) && (break)
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
     
     return df

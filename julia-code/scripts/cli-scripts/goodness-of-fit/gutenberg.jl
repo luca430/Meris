@@ -11,16 +11,16 @@ using Meris: DATADIR
 
 using JLD2
 
-OUTDIR = DATADIR*"goodness-of-fit/gutenberg/"
+OUTDIR = DATADIR*"goodness-of-fit/"
 mkpath(OUTDIR)
 FILENAME = "gutenberg-candidatefits.jld2"
 
 @info "Fits and comparisons for Gutenberg Project book data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = GutenbergLoader.load(; filterdata=true)
+df = GutenbergLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df, :class; testcandidate=:ParetoI, nε=args["numeps"]
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=false
 )
 
 #/ Store
