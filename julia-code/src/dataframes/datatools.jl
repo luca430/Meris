@@ -27,40 +27,35 @@ function filterdata(
     #~ 1) remove samples with insufficient reads
     df = @subset(df, :nreads .> minreads)
     #~ 2) remove classes with too few distinct components
-    df = @chain df begin
-        @groupby(:class)
-        @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
-        @subset(:ncomponents .> mincomponents)
-        @select(:class, :sample_id, :component_id, :counts, :nreads)
-    end
+    class_components = combine(
+        groupby(df, :class),
+        :component_id => (x -> length(unique(x))) => :ncomponents
+    )
+    valid_components = class_components.class[class_components.ncomponents .> mincomponents]
+    df = semijoin(df, DataFrame(class=valid_components), on=:class)
     #~ 3) remove classes with too few unique samples
-    df = @chain df begin
-        @groupby(:class)
-        @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
-        @subset(:nsamples .> minsamples)
-        @select(:class, :sample_id, :component_id, :counts, :nreads)
-    end
+    class_samples = combine(
+        groupby(df, :class),
+        :sample_id => (x -> length(unique(x))) => :nsamples
+    )
+    valid_samples = class_samples.class[class_samples.nsamples .> minsamples]
+    df = semijoin(df, DataFrame(class=valid_samples), on=:class)
 
     if reorder
         #~ reorder within each class [e.g., a market or a book language]
-        df = combine(groupby(df, :class)) do subdf
-            sort(subdf, :nreads, rev=true)
-        end
+        sort!(df, [order(:class), order(:nreads, rev=true)])
     end
     #~ select only the top `top` for each :class
     if !isnothing(top)
         summarydf = @chain df begin
-            @by(
-                [:class, :sample_id],
-                :nreads = first(:nreads)
-            )
-            #~ Group by `:class` again, rank w.r.t `nreads` and select `top`
-            @groupby(:class)
-            @transform(:rank = sortperm(:nreads, rev=true))
-            @subset(:rank .<= top) #~ select `top` ranks
-            @select(Not(:rank))    #~ omit rank as it's not needed [anymore]
+            @groupby(:class, :sample_id)
+            @combine(:nreads = first(:nreads))
         end
-        df = semijoin(df, summarydf, on=[:class, :sample_id])
+        sort!(summarydf, [order(:class), order(:nreads, rev=true)])
+        topdf = combine(groupby(summarydf, :class)) do classdf
+            first(classdf, min(top, nrow(classdf)))
+        end
+        df = semijoin(df, select(topdf, :class, :sample_id), on=[:class, :sample_id])
     end
     #~ Return
     return df

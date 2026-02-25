@@ -19,7 +19,7 @@ FILENAME = "otu-candidatefits.jld2"
 
 @info "Fits and comparisons for EBI Metagenomics OTU count data..."
 #/ Load and fit candidates
-df = OTULoader.load()
+df = OTULoader.load(top=10)
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     df, :class;

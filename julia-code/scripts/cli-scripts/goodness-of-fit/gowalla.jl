@@ -14,7 +14,7 @@ using Meris: DATADIR
 using JLD2
 
 #/ Specify output directory and filename
-OUTDIR = DATADIR*"gof/"
+OUTDIR = DATADIR*"goodness-of-fit/"
 mkpath(OUTDIR)
 FILENAME = "gowalla-candidatefits.jld2"
 

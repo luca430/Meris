@@ -6,7 +6,7 @@ args = Args.parsegof()
 using DataFrames, DataFramesMeta
 using Distributions
 #~ Specify some Meris modules and directories
-using Meris: BioTIMELoader, OhMyGoodness
+using Meris: BCITreeLoader, OhMyGoodness
 using Meris: DATADIR
 
 using JLD2
@@ -17,11 +17,11 @@ FILENAME = "bcitrees-candidatefits.jld2"
 
 @info "Fits and comparisons for Barro-Colorato Island data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = BCITreeLoader.load()
+df = BCITreeLoader.load(top=10)
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     df, :class;
-    testcandidate=:TemperedPareto, nε=args["numeps"]
+    testcandidate=:ParetoIV, nε=args["numeps"]
 )
 
 #/ Store

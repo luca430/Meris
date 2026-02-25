@@ -11,13 +11,13 @@ using Meris: DATADIR
 
 using JLD2
 
-OUTDIR = DATADIR*"goodness-of-fit/gtex/"
+OUTDIR = DATADIR*"goodness-of-fit/"
 mkpath(OUTDIR)
 FILENAME = "gtex-candidatefits.jld2"
 
 @info "Fits and comparisons for genetic (GTEx) data..."
 #/ Load and fit candidates [see `candidates.jl`]
-gtexdf = GTExLoader.load()
+gtexdf = GTExLoader.load(top=10)
 @transform!(gtexdf, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     gtexdf, :class; testcandidate=:ParetoI, nε=args["numeps"]

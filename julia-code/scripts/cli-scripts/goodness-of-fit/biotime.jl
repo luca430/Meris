@@ -17,7 +17,7 @@ FILENAME = "biotime-candidatefits.jld2"
 
 @info "Fits and comparisons for BioTIME data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = BioTIMELoader.load()
+df = BioTIMELoader.load(top=10)
 #/ BioTIME has a lot of samples with very few species so we manually drop samples with less than 100 species
 df = @chain df begin
     @groupby(:class, :sample_id)
@@ -27,7 +27,7 @@ df = df[df.ncomponents .> 100, :]
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     df, :class;
-    testcandidate=:TemperedPareto, nε=args["numeps"]
+    testcandidate=:ParetoIV, nε=args["numeps"]
 )
 
 #/ Store

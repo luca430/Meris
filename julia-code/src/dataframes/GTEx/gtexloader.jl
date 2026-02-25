@@ -24,7 +24,7 @@ function load(
     minreads::Int=100_000_000,
     mincomponents::Int=1_000,
     minsamples::Int=30,
-    top::Int=50
+    top=50
     )
     files = glob("**/*.long.csv.gz", DIR)
     isempty(files) && error("No *.long.csv.gz files found under $DIR")
