@@ -27,7 +27,7 @@ function df_filter(
         @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
         @subset(:nsamples .> minsamples)
     end
-    return sdf
+    return select!(sdf, :class, :sample_id, :component_id, :counts, :nreads)
 end
 
 """

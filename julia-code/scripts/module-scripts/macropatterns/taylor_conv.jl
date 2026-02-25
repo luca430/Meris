@@ -16,7 +16,7 @@ function occupancy_scaling(df; occ_vec=collect(0.3:0.1:1.0), N=Int(1e5), save=tr
             ds_counts = Meris.DataTools.downsample(sub; N=N, class=nothing)
             dsf_counts = Meris.DataTools.order_by_occ(ds_counts; occ=occ)
             x, y, fit = Meris.Taylor.compute2(dsf_counts; binned=true, nbins=30)
-            push!(b_vec, fit)
+            push!(b_vec, fit.b)
         end
         d[class] = [occ_vec, b_vec]
     end
@@ -37,7 +37,7 @@ function samplesize_scaling(df; size_vec=Int.(floor.(10 .^ collect(3:0.5:7.5))),
             ds_counts = Meris.DataTools.downsample(sub; N=N, class=nothing)
             dsf_counts = Meris.DataTools.order_by_occ(ds_counts; occ=occ)
             x, y, fit = Meris.Taylor.compute2(dsf_counts; binned=true, nbins=30)
-            push!(b_vec, fit)
+            push!(b_vec, fit.b)
         end
         d[class] = [size_vec, b_vec]
     end
