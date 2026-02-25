@@ -51,13 +51,8 @@ function load(
         @groupby(:class, :sample_id)
         @combine(:class, :sample_id, :component_id, :counts, :nreads = sum(:counts))
     end
-<<<<<<< HEAD
-    
-    if filterdata
-=======
 
     if applyfilter
->>>>>>> feature/goodnessoffit
         #~ filter data
         df = filterdata(
             df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,

@@ -3,8 +3,8 @@ module Figure3
 
 using Meris
 using DataFrames, DataFramesMeta, StatsBase
-using CairoMakie, MakiePublication, LaTeXStrings
-# using CSV, CodecZlib, Glob
+using CairoMakie, MakiePublication
+using LaTeXStrings
 using JLD2
 
 include("./../scripts/module-scripts/macropatterns/SAD.jl")
@@ -14,35 +14,40 @@ include("./../plot/plot-SAD.jl")
 using .SADPlotter
 
 ### DATA PREPARATION ###
-function prepare(; set=["linguistic", "microbial", "social", "biology"])
+function prepare(
+    ; set=["linguistic", "microbial", "social", "biology"],
+    DIR = Meris.DATADIR * "goodness-of-fit/",
+    top = 10
+    )
 
     ## LINGUISTIC ##
     if "linguistic" in set
         @info "Loading linguistic data..."
         
         #| arXiv |#
-        df_arxiv = Meris.arXivLoader.load()
+        df_arxiv = Meris.arXivLoader.load(; top=top)
         df_arxiv.class .= "arx-" .* uppercase.(df_arxiv.domain)
         select!(df_arxiv, :class, :sample_id, :component_id, :counts, :nreads)
         df_arxiv.sample_id .= string.(df_arxiv.class) .* string.(df_arxiv.sample_id)
-        df_arxiv = innerjoin(df_arxiv, get_gof_samples(Meris.DATADIR * "gof/arxiv-candidatefits.jld2"), on=[:sample_id])
+        df_arxiv = innerjoin(
+            df_arxiv, get_gof_samples(DIR *"/arxiv-candidatefits.jld2"), on=[:sample_id])
         
         #| Gutenberg |#
-        df_gut = Meris.GutenbergLoader.load()
+        df_gut = Meris.GutenbergLoader.load(; top=top)
         df_gut.class = "guten-" .* uppercase.(df_gut.class)
         select!(df_gut, :class, :sample_id, :component_id, :counts, :nreads)
         df_gut.sample_id .= string.(df_gut.class) .* string.(df_gut.sample_id)
         df_gut = innerjoin(df_gut, get_gof_samples(Meris.DATADIR * "gof/gutenberg-candidatefits.jld2"), on=[:sample_id])
         
         #| RFCs |#
-        df_rfc = Meris.RFCLoader.load()
+        df_rfc = Meris.RFCLoader.load(; top=top)
         df_rfc.class .= uppercase.(df_rfc.class)
         select!(df_rfc, :class, :sample_id, :component_id, :counts, :nreads)
         df_rfc.sample_id .= string.(df_rfc.class) .* string.(df_rfc.sample_id)
         df_rfc = innerjoin(df_rfc, get_gof_samples(Meris.DATADIR * "gof/rfc-candidatefits.jld2"), on=[:sample_id])
         
         df = vcat(df_arxiv, df_gut, df_rfc)
-        @info "Working linguistic data..."
+        @info "Preparing test/linguistic data..."
         SAD.compute(
                 df;
                 xmins=10 .^ collect(-5.5:0.01:-3.5),
@@ -56,10 +61,10 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df = nothing
         df_arxiv = df_gut = df_rfc = nothing
         GC.gc()
-
+    end
+   
     ## MICROBIAL ##
-    elseif "microbial" in set
-        
+    if "microbial" in set        
         @info "Loading microbial data..."
         
         #| OTU |#
@@ -69,7 +74,7 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df_otu = innerjoin(df_otu, get_gof_samples(Meris.DATADIR * "gof/otu-candidatefits.jld2"), on=[:sample_id])
         
         df = vcat(df_otu)
-        @info "Working microbial data..."
+        @info "Preparing microbial data..."
         SAD.compute(
                 df;
                 xmins=10 .^ collect(-5.0:0.01:-3.5),
@@ -83,10 +88,10 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df = nothing
         df_otu = nothing
         GC.gc()
+    end
 
     ## SOCIAL ##
-    elseif "social" in set
-        
+    if "social" in set        
         @info "Loading social data..."
         
         #| FINANCE |#
@@ -112,7 +117,7 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df_lego.sample_id .= string.(df_lego.class) .* string.(df_lego.sample_id)
         
         df = vcat(df_fin, df_gow, df_lego)
-        @info "Working social data..."
+        @info "Preparing social data..."
         SAD.compute(
                 df;
                 xmins=10 .^ collect(-5.5:0.01:-2.0),
@@ -127,10 +132,10 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df = nothing
         df_fin = df_gow = df_lego = nothing
         GC.gc()
+    end
 
     ## BIOLOGY ##
-    elseif "biology" in set
-        
+    if "biology" in set        
         @info "Loading biology data..."
         
         #| BCI.Tree |#
@@ -155,7 +160,7 @@ function prepare(; set=["linguistic", "microbial", "social", "biology"])
         df_gtex = innerjoin(df_gtex, get_gof_samples(Meris.DATADIR * "gof/gtex-candidatefits.jld2"), on=[:sample_id])
         
         df = vcat(df_gtex, df_bci, df_bio)
-        @info "Working biology data..."
+        @info "Preparing biology data..."
         SAD.compute(
                 df;
                 xmins=10 .^ collect(-5.0:0.01:-2.0),
