@@ -17,7 +17,7 @@ FILENAME = "gtex-candidatefits.jld2"
 
 @info "Fits and comparisons for genetic (GTEx) data..."
 #/ Load and fit candidates [see `candidates.jl`]
-gtexdf = GTExLoader.load(top=10)
+gtexdf = GTExLoader.load(top=50)
 @transform!(gtexdf, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     gtexdf, :class; testcandidate=:ParetoI, nε=args["numeps"]

@@ -17,7 +17,7 @@ FILENAME = "bcitrees-candidatefits.jld2"
 
 @info "Fits and comparisons for Barro-Colorato Island data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = BCITreeLoader.load(top=10)
+df = BCITreeLoader.load(top=50)
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     df, :class;

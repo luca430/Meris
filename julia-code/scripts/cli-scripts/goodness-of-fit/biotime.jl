@@ -17,7 +17,7 @@ FILENAME = "biotime-candidatefits.jld2"
 
 @info "Fits and comparisons for BioTIME data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = BioTIMELoader.load(top=10)
+df = BioTIMELoader.load(top=50)
 #/ BioTIME has a lot of samples with very few species so we manually drop samples with less than 100 species
 df = @chain df begin
     @groupby(:class, :sample_id)
