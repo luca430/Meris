@@ -8,7 +8,7 @@ args = Args.parsegof()
 using DataFrames, DataFramesMeta
 using Distributions
 #~ Specify some Meris modules and directories
-using Meris: LegoLoader, OhMyGoodness
+using Meris: LEGOLoader, OhMyGoodness
 using Meris: DATADIR
 
 using JLD2
@@ -20,9 +20,8 @@ FILENAME = "lego-candidatefits.jld2"
 
 @info "Fits and comparisons for LEGO set data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = LegoLoader.load(; filterdata=true, aggregate=true)
+df = LEGOLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df,:class; testcandidate=:ParetoIV, nε=args["numeps"]
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=false
 )
-exit()

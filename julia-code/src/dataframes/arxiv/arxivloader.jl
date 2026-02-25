@@ -11,6 +11,7 @@ using CSV, DataFrames, DataFramesMeta
 using Random, StatsBase
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.ARXIVDIR as ARXIVDIR
 
 #/ STOPWORDS
@@ -46,12 +47,13 @@ that it can be used further in the analysis pipelines. It should contains [at le
 function load(
     ;
     DIR=ARXIVDIR * "processed/",
-    stopwords=true,
-    filterdata=true,
-    minreads::Int=8000,
-    mincomponents::Int=1000,
-    # minsamplecomponents::Int=500,
-    minsamples::Int=30
+    minreads      = 4_000,
+    mincomponents = 100_000,
+    minsamples    = 30,
+    stopwords     = true,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
     )
     #~ Allocate a dictionary as
     #  (arXiv domain) -> (topic) -> (samples [article])
@@ -73,14 +75,7 @@ function load(
             ARTICLES = [readlines(f) for f in TXTFILES]
             
             #~ Filter articles that have insufficient total. no of words
-            (filterdata) && (filter!(article -> length(article) > minreads, ARTICLES))
-            #~ Remove symbols and numbers from words in each article
-            ARTICLES = [
-                [replace(word, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") for word in article]
-                for article in ARTICLES
-                ]
-            #~ Filter articles that have insufficient total. no of unique words
-            # (filterdata) && (filter!(article -> length(unique(article)) > minsamplecomponents, ARTICLES))
+            (applyfilter) && (filter!(article -> length(article) > minreads, ARTICLES))
             #     #~ Skip subdomains entirely if they do not sufficient distinct words
             #     totalcomponents = length(unique(reduce(vcat, ARTICLES)))
             #     (totalcomponents < mincomponents) && (continue)
@@ -92,7 +87,10 @@ function load(
         end
         #~ Add subdomain to domain dictionary
         if !isempty(subdomaindict)
-            if filterdata
+            if applyfilter
+                #~ Skip subdomains that have insuffient no. of articles after filtering
+                articlelengths = map(x -> length(x), values(subdomaindict))
+                (sum(articlelengths) < minsamples) && (continue)
                 #~ Skip subdomains entirely if they do not sufficient distinct words
                 bagsofwords = map(x -> reduce(vcat, x), values(subdomaindict))
                 bagofwords = reduce(vcat, bagsofwords)
@@ -108,10 +106,9 @@ function load(
 
     # Create a DataFrame with words counts for all domains and topics
     df = DataFrame(
-        domain=String[],
-        topic=String[],
-        component_id=String[],
+        class=String[],
         sample_id=String[],
+        component_id=String[],
         counts=Int[],
         nreads=Int[]
     )
@@ -123,7 +120,7 @@ function load(
                 #~ Clean each word: keep only letters/numbers
                 _article = [
                     replace(word, r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$" => "") for word in article
-                ]
+                        ]
                 #~ Remove empty or short words
                 _sample = filter(!isempty, _article)
                 #~ Count words
@@ -134,10 +131,9 @@ function load(
                         df,
                         (
                             domain,
-                            subdomain,
-                            component_id,
-                            #~ Construct `component_id` from domain, subdomain, and index
+                            #~ Construct `sample_id` from domain, subdomain, and index
                             domain[1:3] * subdomain * string(i),
+                            component_id,
                             counts,
                             sum(values(cm))
                         )
@@ -145,6 +141,14 @@ function load(
                 end
             end
         end
+    end
+
+    if applyfilter
+        #~ filter data
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
 
     #/ Finally, remove stopwords (if desired)

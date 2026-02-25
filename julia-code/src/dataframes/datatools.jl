@@ -43,8 +43,8 @@ function filterdata(
 
     if reorder
         #~ reorder within each class [e.g., a market or a book language]
-        df = combine(groupby(df, :class)) do marketdf
-            sort(marketdf, :nreads, rev=true)
+        df = combine(groupby(df, :class)) do subdf
+            sort(subdf, :nreads, rev=true)
         end
     end
     #~ select only the top `top` for each :class

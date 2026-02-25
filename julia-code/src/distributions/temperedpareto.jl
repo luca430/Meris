@@ -73,7 +73,7 @@ end
 ###############
 ### FITTING ###
 
-function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
+function fit(::Type{TemperedPareto}, x::Array{T}, ε::T) where {T<:Real}
     function negloglikelihood(x, params)
         logα, logβ = params
         α = exp(logα)    #~ ensures α>0
@@ -101,7 +101,8 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
         [-4.0, log(1/maximum(x))],
         [3.0, log(100/minimum(x))],
         params,
-        Fminbox(LBFGS());
+        Fminbox(LBFGS()),
+        Optim.Options(g_tol = 1e-3),
         autodiff=:forward
     )
     if Optim.converged(optimres)
@@ -113,9 +114,8 @@ function fit(::Type{TemperedPareto}, x::Array{T}, ε) where {T<:Real}
     # return TemperedPareto(αinit, βinit, ε)
 end
 
-function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing, weighted=false) where {T<:Real}
-    xs = sort(x)
-    εs = isnothing(εs) ? unique(xs) : εs
+function fit(::Type{TemperedPareto}, x::Array{T}, εs::Array{T}; weighted=false) where {T<:Real}
+    (!issorted(x)) && (x = sort(x))
     
     αhat = 1.0
     βhat = 1.0
@@ -129,10 +129,10 @@ function fit(::Type{TemperedPareto}, x::Array{T}; εs=nothing, weighted=false) w
     for i in eachindex(εs)
         ε = εs[i]
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε)
-        _x = xs[_idx:end]
+        _idx = searchsortedfirst(x, ε)
+        _x = x[_idx:end]
         n = length(_x)
-        (n < 64) && (break)    #~ `break` if not enough samples remain
+        (n < 32) && (continue)
         _P = fit(TemperedPareto, _x, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
         #  note: within the function data is filtered, so no need to do it here
@@ -154,7 +154,7 @@ see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
 function computepvalue(
     P::TemperedPareto, x::Array{T}, εs::Array{T};
-    nsynth = 1000, weighted=false, rng=Random.Xoshiro(42)
+    nsynth=625, weighted=false, rng=Random.Xoshiro(42)
     ) where {T<:Real}
     #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
     xhead = filter(z -> z < P.ε, x)
@@ -178,7 +178,7 @@ function computepvalue(
         logsynthx = log.(synthx)
         logxmin, logxmax = extrema(logsynthx)
         εsynth = exp.(range(logxmin, logxmax, length(εs)))
-        Psynthfit = fit(ParetoI, synthx; εs=εsynth, weighted=weighted)
+        Psynthfit = fit(TemperedPareto, synthx, εsynth; weighted=weighted)
         #~ Compute Kolmogorov-Smirnov distance in synthetic data
         KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
         if KSSYNTHETIC > KSDATA
@@ -196,7 +196,7 @@ function KolmogorovSmirnov(P::TemperedPareto, data::Array{T}; weighted=false) wh
     #~ We care only about data within the functions domain, so first filter
     x = filter(z -> z >= P.ε, data)
     #~ Sort, if not already
-    (!issorted(x)) && (sort!(x))
+    (!issorted(x)) && (x = sort(x))
     Fv = _ecdf(x, x).F            # Values of empirical CDF
     Ftv = 1.0 .- ccdf.(P, x)      # Values of survival function
     if weighted

@@ -12,6 +12,7 @@ using Random, StatsBase
 using Meris
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.GUTENBERGDIR as GUTENBERGDIR
 
 #################
@@ -58,7 +59,7 @@ function load(
         end
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
         df = Meris.DataTools.filterdata(
             df;

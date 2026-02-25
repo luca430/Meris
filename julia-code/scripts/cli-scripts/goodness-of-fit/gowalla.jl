@@ -20,10 +20,10 @@ FILENAME = "gowalla-candidatefits.jld2"
 
 @info "Fits and comparisons for the Gowalla project..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = GowallaLoader.load(; filterdata=true)
+df = GowallaLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df, :class; testcandidate=:TemperedPareto, nε=100
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=false
 )
 
 #/ Store

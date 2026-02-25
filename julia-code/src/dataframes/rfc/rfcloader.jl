@@ -9,6 +9,7 @@ using Random, StatsBase
 using Meris
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.RFCDIR as RFCDIR
 
 #################
@@ -50,7 +51,7 @@ function load(
         (has_reached(nfiles, maxfiles) || has_reached(nrow(df), maxrows)) && (break)
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
         df = Meris.DataTools.filterdata(
             df;

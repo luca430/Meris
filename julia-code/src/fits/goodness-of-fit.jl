@@ -16,11 +16,12 @@ using Meris: Candies   #~ candidate distributions
 Fit a set of candidate distributions to the data
 """
 function fit_candidates(
-    data::DataFrame, classcolname::Symbol;
+    data::DataFrame, classcolname::Symbol;    
     testcandidate = :ParetoI,
     candidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto,
                   :Gamma, :LogNormal, :Weibull],
-    nε::Int = 100    
+    nε::Int = 100,
+    __computepvalue::Bool = true   #~ Private flag to omit computing p values
     )
     rng = Random.Xoshiro(42*nε)
     candidates = Candies.getcandidates(; candidates=candidates)
@@ -46,8 +47,10 @@ function fit_candidates(
         try
             ht = candidates[testcandidate]
             paretofit = ht.fit(ht.f, frequencies, εs)
-            #~ Compute p value
-            p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
+            if __computepvalue
+                #~ Compute p value
+                p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
+            end
             #~ Filter data w.r.t. ε onwards, otherwise (i)
             #  - the log-likelihood blows up
             #  - the comparison is unfair as candidates have different domains

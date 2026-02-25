@@ -20,10 +20,10 @@ FILENAME = "finance-candidatefits.jld2"
 
 @info "Fits and comparisons for Yahoo Finance stock volume data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = FinanceLoader.load(; applyfilter=true, top=10)
+df = FinanceLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df,:class; testcandidate=:ParetoIV, nε=args["numeps"]
+    df,:class; testcandidate=:ParetoIV, nε=args["numeps"], __computepvalue=false
 )
 
 #/ Store

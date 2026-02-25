@@ -236,7 +236,7 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}, ε::Float64) where {T<:Real
 
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
-        [log10(1e-8), log10(1e-8)],
+        [log10(1e-10), log10(1e-8)],
         [log10(1e2), log10(3.0)],
         θinit,
         Fminbox(LBFGS()),

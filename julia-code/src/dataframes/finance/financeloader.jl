@@ -10,7 +10,6 @@ using CSV, DataFrames, DataFramesMeta
 using Meris
 
 #/ Modules, directories
-# using Meris.DataTools
 import ..DataTools: filterdata
 import Meris.FINANCEDIR as FINANCEDIR
 

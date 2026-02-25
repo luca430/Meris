@@ -27,7 +27,7 @@ function getcandidates(
         ),
         :ParetoI => (
             ; f = MDistributions.ParetoI,
-            fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
+            fit = (f, data, εs) -> MDistributions.fit(f, data, εs),
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> log.(MDistributions.pdf.(f, x)),
             computepvalue = MDistributions.computepvalue,
@@ -45,7 +45,7 @@ function getcandidates(
         ),
         :TemperedPareto => (
             ; f = MDistributions.TemperedPareto,
-            fit = (f, data, εs) -> MDistributions.fit(f, data; εs=εs),
+            fit = (f, data, εs) -> MDistributions.fit(f, data, εs),
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> MDistributions.logpdf.(f, x),
             computepvalue = MDistributions.computepvalue,
