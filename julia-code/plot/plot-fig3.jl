@@ -186,7 +186,7 @@ function plot(; ext="pdf")
         Meris.DATADIR * "macro/sad/linguistic.jld2",
         Meris.DATADIR * "macro/sad/microbial.jld2",
         Meris.DATADIR * "macro/sad/social.jld2",
-        Meris.DATADIR * "macro/sad/biology.jld2",
+        Meris.DATADIR * "macro/sad/microbial.jld2",
     ]
     
     # Big figure

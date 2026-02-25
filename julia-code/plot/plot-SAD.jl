@@ -182,9 +182,9 @@ function plot!(parent;
     end
 
     ax2_lims = ax2.limits[]
-    ax2_xmin = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[1])) ? ax2_lims[1] : xmin
-    ax2_xmax = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[2])) ? ax2_lims[2] : xmax
-    xrange = log10(ax2_xmin)/1.1:1e-2:-0.5
+    ax2_xmin = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[1])) ? ax2_lims[1] : minimum(x_min)
+    ax2_xmax = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[2])) ? ax2_lims[2] : maximum(x_max)
+    xrange = (ax2_xmin-1.1):1e-2:-0.5
     lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5, label=L"y \sim x^{-1}")
     axislegend(ax2,
         position=:rt,
@@ -228,7 +228,7 @@ function plot!(parent;
     x1 = xp
     x2 = xp * 1.15
     
-    p  = parss[argmax(yvals)]
+    p  = parss[argmax(ymax)]
     y1 = Meris.HeapsModel.predict_regimes(x1, p)
     y2 = Meris.HeapsModel.predict_regimes(x2, p)
     
