@@ -1,4 +1,5 @@
 #= Candidate comparison and goodness-of-fit tests for the Gowalla project =#
+exit()
 #~ Parse command-line args
 # using Meris: MArgParse as Args
 # args = Args.parsegof()

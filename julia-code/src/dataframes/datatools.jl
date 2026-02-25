@@ -22,20 +22,24 @@ function filterdata(
     minreads      = 100_000,
     mincomponents = 100,
     reorder       = true,
-    top           = 10
+    top           = 50
     )
-    #~ filter out samples with insufficient `nreads`
+    #~ 1) remove samples with insufficient reads
     df = @subset(df, :nreads .> minreads)
-    #~ filter out classes with insufficient samples and component diversity
-    summarydf = @chain df begin
-        @by(
-            :class,
-            :nsamples = length(:sample_id),
-            :ncomponents = length(unique(:component_id))
-        )
-        @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
+    #~ 2) remove classes with too few distinct components
+    df = @chain df begin
+        @groupby(:class)
+        @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
+        @subset(:ncomponents .> mincomponents)
+        @select(:class, :sample_id, :component_id, :counts, :nreads)
     end
-    df = @subset(df, :class .∈ Ref(summarydf.class))
+    #~ 3) remove classes with too few unique samples
+    df = @chain df begin
+        @groupby(:class)
+        @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
+        @subset(:nsamples .> minsamples)
+        @select(:class, :sample_id, :component_id, :counts, :nreads)
+    end
 
     if reorder
         #~ reorder within each class [e.g., a market or a book language]
@@ -60,32 +64,6 @@ function filterdata(
     end
     #~ Return
     return df
-end
-
-"""
-Filter standardized DataFrame based on min_samples and min_nreads.
-"""
-function df_filter(
-    df::DataFrame;
-    minreads::Int=1,
-    mincomponents::Int=1,
-    minsamplecomponents::Int=1,
-    minsamples::Int=30,
-)
-    #~ filter data
-    sdf = @subset(df, :nreads .> minreads)
-    sdf = @chain sdf begin
-        @groupby(:class)
-        @combine(:sample_id, :component_id, :counts, :nreads, :ncomponents = length(unique(:component_id)))
-        @subset(:ncomponents .> mincomponents)
-        @groupby(:class, :sample_id)
-        @combine(:sample_id, :component_id, :counts, :nreads, :ncomponentspersample = length(unique(:component_id)))
-        @subset(:ncomponentspersample .> minsamplecomponents)
-        @groupby(:class)
-        @combine(:sample_id, :component_id, :counts, :nreads, :nsamples = length(unique(:sample_id)))
-        @subset(:nsamples .> minsamples)
-    end
-    return select!(sdf, :class, :sample_id, :component_id, :counts, :nreads)
 end
 
 """

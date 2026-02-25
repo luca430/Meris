@@ -5,13 +5,13 @@ set -e
 SCRIPTDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 NEPSILON=100
 
-julia --project otu.jl -n $NEPSILON
-julia --project rfc.jl -n $NEPSILON
+# julia --project otu.jl -n $NEPSILON
+# julia --project rfc.jl -n $NEPSILON
 
-# for file in "$SCRIPTDIR"/*.jl; do
-    # [ -f "$file" ] || continue
-    # echo "$file"
-    # julia --project "$file" -n $NEPSILON
-# done
+for file in "$SCRIPTDIR"/*.jl; do
+    [ -f "$file" ] || continue
+    echo "$file"
+    julia --project "$file" -n $NEPSILON
+done
 
 

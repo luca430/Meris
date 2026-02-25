@@ -1,5 +1,4 @@
 #= Goodness of fit for GTEx data =#
-@info "Fits and comparisons for genetic (GTEx) data..."
 #~ Parse command-line args
 using Meris: MArgParse as Args
 args = Args.parsegof()
@@ -16,8 +15,9 @@ OUTDIR = DATADIR*"goodness-of-fit/gtex/"
 mkpath(OUTDIR)
 FILENAME = "gtex-candidatefits.jld2"
 
+@info "Fits and comparisons for genetic (GTEx) data..."
 #/ Load and fit candidates [see `candidates.jl`]
-gtexdf = GTExLoader.load(; filterdata=true)
+gtexdf = GTExLoader.load()
 @transform!(gtexdf, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     gtexdf, :class; testcandidate=:ParetoI, nε=args["numeps"]

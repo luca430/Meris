@@ -22,8 +22,8 @@ function load(
     filterdata    = true,
     minreads::Int=100_000,
     mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
     minsamples::Int=30, 
+    top::Int=50
     )
 
     #~ marker needed to distinguish partions in Gutenberg data (e.g. it, en)
@@ -60,12 +60,12 @@ function load(
 
     if filterdata
         #~ filter data
-        df = Meris.DataTools.df_filter(
+        df = Meris.DataTools.filterdata(
             df;
             minreads=minreads,
             mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+            minsamples=minsamples,
+            top=top
         )
     end
 

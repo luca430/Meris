@@ -22,9 +22,9 @@ function load(
     filterdata    = true,
     minreads::Int=10_000,
     mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
     minsamples::Int=30,           
-)
+    top::Int=50
+    )
     #~ Allocate DataFrame
     df = DataFrame(
         sample_id=String[], component_id=String[], counts=Int[], nreads=Int[], class=String[]
@@ -52,12 +52,12 @@ function load(
 
     if filterdata
         #~ filter data
-        df = Meris.DataTools.df_filter(
+        df = Meris.DataTools.filterdata(
             df;
             minreads=minreads,
             mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+            minsamples=minsamples,
+            top=top
         )
     end
     

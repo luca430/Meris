@@ -1,4 +1,5 @@
 #= Goodness of fit for Gutenberg book data =#
+exit()
 #~ Parse command-line args
 using Meris: MArgParse as Args
 args = Args.parsegof()

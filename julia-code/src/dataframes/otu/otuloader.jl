@@ -68,18 +68,18 @@ function load(
     filterdata    = true,
     minreads::Int=10_000,
     mincomponents::Int=500,
-    minsamplecomponents::Int=200,
     minsamples::Int=30,   
+    top::Int=50
     )
     df = standardized(load_rdata(; rdatafilename = datafilename))
     if filterdata
         #~ filter data
-        df = Meris.DataTools.df_filter(
+        df = Meris.DataTools.filterdata(
             df;
             minreads=minreads,
             mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+            minsamples=minsamples,
+            top=top
         )
     end
     return df

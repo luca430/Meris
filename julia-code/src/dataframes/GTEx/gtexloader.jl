@@ -20,11 +20,11 @@ function load(
     ;
     DIR=GTEXDIR * "processed/",
     verbose=false,    
-    filterdata    = true,
+    filterdata=true,
     minreads::Int=100_000_000,
     mincomponents::Int=1_000,
-    minsamplecomponents::Int=500,
-    minsamples::Int=30, 
+    minsamples::Int=30,
+    top::Int=50
     )
     files = glob("**/*.long.csv.gz", DIR)
     isempty(files) && error("No *.long.csv.gz files found under $DIR")
@@ -42,12 +42,12 @@ function load(
     
     if filterdata
         #~ filter data
-        df = Meris.DataTools.df_filter(
+        df = Meris.DataTools.filterdata(
             df;
             minreads=minreads,
             mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+            minsamples=minsamples,
+            top=top
         )
     end
 

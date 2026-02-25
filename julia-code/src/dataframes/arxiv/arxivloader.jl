@@ -50,7 +50,7 @@ function load(
     filterdata=true,
     minreads::Int=8000,
     mincomponents::Int=1000,
-    minsamplecomponents::Int=500,
+    # minsamplecomponents::Int=500,
     minsamples::Int=30
     )
     #~ Allocate a dictionary as
@@ -80,7 +80,7 @@ function load(
                 for article in ARTICLES
                 ]
             #~ Filter articles that have insufficient total. no of unique words
-            (filterdata) && (filter!(article -> length(unique(article)) > minsamplecomponents, ARTICLES))
+            # (filterdata) && (filter!(article -> length(unique(article)) > minsamplecomponents, ARTICLES))
             #     #~ Skip subdomains entirely if they do not sufficient distinct words
             #     totalcomponents = length(unique(reduce(vcat, ARTICLES)))
             #     (totalcomponents < mincomponents) && (continue)

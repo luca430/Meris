@@ -1,4 +1,5 @@
 #= Goodness of fit for LEGO sets =#
+exit()
 #~ Parse command-line args
 using Meris: MArgParse as Args
 args = Args.parsegof()

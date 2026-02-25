@@ -22,17 +22,16 @@ import Meris.TREEDIR as TREEDIR
 
 #################
 ### FUNCTIONS ###
-#~ IMPORTANT: This function only works with steps=2, it needs to be debugged
 function load(
         ;
         DIR=TREEDIR * "raw-data/",
         joinquadrats=true,
-        steps::Int=30,
+        steps::Int=20,
         filterdata=true,
         minreads::Int=5000,
         mincomponents::Int=200,
-        minsamplecomponents::Int=100,
-        minsamples::Int=30
+        minsamples::Int=30,
+        top=50
     );
     treedf = DataFrame()
     census_ids = String[]
@@ -80,12 +79,12 @@ function load(
     countdf.class .= "BCI"
     #~Filter entries if desired (since this dataset is small the filter can be done as a last step)
     if filterdata
-        countdf = Meris.DataTools.df_filter(
+        countdf = Meris.DataTools.filterdata(
             countdf,
             minreads=minreads,
             mincomponents=mincomponents,
-            minsamplecomponents=minsamplecomponents,
-            minsamples=minsamples
+            minsamples=minsamples,
+            top=top
         )
     end
     return countdf
@@ -101,7 +100,6 @@ Load RData file into a DataFrame
 function load_rdata(; rdatafilename="bci.tree1.rdata", joinquadrats=false, steps=2)
     df = RData.load(TREEDIR * "raw-data/" * rdatafilename)[splitext(rdatafilename)[begin]]
     df = @transform(df, :treeID = Int.(:treeID))
-    # (joinquadrats) && (df = join_quadrats(df; steps=steps))
     return df
 end
 
@@ -111,51 +109,33 @@ end
 Coarse grain by joining quadrats
 """
 function join_quadrats(df::DataFrame; steps=2, rng=Random.Xoshiro(42 * steps))
+    (steps < 1) && throw(ArgumentError("steps must be >= 1"))
+
     samples = unique(df.sample_id)
     samples = samples[randperm(rng, length(samples))]
 
-    for n in 1:(length(samples) ÷ steps)
-        _samples = samples[(n-1)*steps+1 : n*steps]
+    n = 1
+    i = 1
+    while i <= length(samples)
+        j = min(i + steps - 1, length(samples))
+        _samples = samples[i:j]
 
         mask = df.sample_id .∈ Ref(_samples)
         df.sample_id[mask] .= "Q$(n)"
+
+        n += 1
+        i = j + 1
     end
 
     df = @chain df begin
         @groupby(:sample_id, :component_id)
-        @combine(:counts = sum(:counts), :nreads)
+        @combine(:counts = sum(:counts))
         @groupby(:sample_id)
-        @combine(:component_id, :counts, :nreads = sum(:nreads))
+        @combine(:component_id, :counts, :nreads = sum(:counts))
     end
 
     return df
 end
-
-# function join_quadrats(df::DataFrame; steps=2, rng=Random.Xoshiro(42 * steps))
-#     #/ Create summary
-#     qdf = @chain df begin
-#         #~ Count no. of trees in quadrat
-#         @by(:quadrat, :ntrees = length(:sp))
-#         @orderby(:ntrees)
-#     end
-#     #/ Remove quadrats with least no. of trees until a power of 2 is reached
-#     s = floor(Int, log(nrow(qdf)) / log(2.))
-#     qdf = qdf[nrow(qdf)-2^s:end, :]
-#     #/ For each step, join two quadrats into a single one
-#     quadratpairs = qdf[!, :quadrat]
-#     for n in 1:steps
-#         quadrats = randperm(rng, length(quadratpairs))
-#         offset = length(quadrats) ÷ 2
-#         quadratpairs = [[quadratpairs[quadrats[i]], quadratpairs[quadrats[i+offset]]] for i in 1:offset]
-#     end
-#     #~ Flatten the pairs (of pairs (...)) of quadrats
-#     quadratgroups = map(q -> vcat(q...), quadratpairs)
-#     quadratlabels = Dict(q => i for (i, group) in enumerate(quadratgroups) for q in group)
-#     #/ Relabel all quadrats in the original DataFrame
-#     df[!, :quadrat] = map(quadrat -> get(quadratlabels, quadrat, missing), df[!, :quadrat])
-#     filter!(:quadrat => label -> !ismissing(label), df)
-#     return df
-# end
 
 end # module BCTreeLoader
 #/ End module
