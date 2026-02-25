@@ -29,7 +29,7 @@ df = arXivLoader.load(
 )
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=false
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=true
 )
 
 #/ Store

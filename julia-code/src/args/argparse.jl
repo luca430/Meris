@@ -16,7 +16,8 @@ function parsegof()
         default = 100
         "--top", "-t"
         help = "Number of samples with the highest no. of reads to keep."
-        default = 50
+        arg_type = Int
+        default = 10
         "--filter", "-f"
         help = "Flag for filtering data on, e.g., no. of samples, no. of components, etc."
         action = :store_true
