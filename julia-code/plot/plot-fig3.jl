@@ -24,9 +24,14 @@ function prepare(
     if "linguistic" in set
         @info "Loading linguistic data..."
         
-        #| arXiv |#
-        df_arxiv = Meris.arXivLoader.load(; top=top)
-        return df_arxiv
+        #| arXiv |#        
+        minsamples    = 30      #~ min. no. of articles per "class"
+        minreads      = 4_000   #~ min. no. of words per article
+        mincomponents = 10_000  #~ min. no. of distinct components per "class"
+        df_arxiv = Meris.arXivLoader.load(
+            ; applyfilter=true, top=top,
+            minsamples=minsamples, minreads=minreads, mincomponents=mincomponents
+        )
         df_arxiv.class .= "arx-" .* uppercase.(df_arxiv.domain)
         select!(df_arxiv, :class, :sample_id, :component_id, :counts, :nreads)
         df_arxiv.sample_id .= string.(df_arxiv.class) .* string.(df_arxiv.sample_id)
