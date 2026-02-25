@@ -8,7 +8,10 @@ using CategoricalArrays
 using CSV, DataFrames, DataFramesMeta
 
 #/ Modules, directories
+# using Meris.DataTools
+import ..DataTools: filterdata
 import Meris.FINANCEDIR as FINANCEDIR
+
 
 #################
 ### FUNCTIONS ###
@@ -16,11 +19,13 @@ import Meris.FINANCEDIR as FINANCEDIR
 function load(
     ;
     DIR = FINANCEDIR * "raw-data/",
-    filterdata    = true,
+    applyfilter   = true,
     minsamples    = 30,
     minreads      = 100_000,
     mincomponents = 100,
-    resolution    = "daily"
+    resolution    = "daily",
+    reorder       = true,
+    top           = nothing
     )
     #~ Gather list of files
     files = filter(f -> endswith(f, "$(resolution)-volumes.csv"), readdir(DIR, join=true))
@@ -40,27 +45,16 @@ function load(
     #~ Create DataFrame
     df = @chain df begin
         @subset(:counts .> 0)
-        @groupby(:sample_id)
+        @groupby(:class, :sample_id)
         @combine(:class, :sample_id, :component_id, :counts, :nreads = sum(:counts))
     end
 
-    if filterdata
+    if applyfilter
         #~ filter data
-        @subset!(df, :nreads .> minreads)
-        summarydf = @chain df begin
-            @by(
-                :class,
-                :nsamples = length(:sample_id),
-                :ncomponents = length(unique(:component_id))
-            )
-            @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-        end
-        @subset!(df, :class .∈ Ref(summarydf.class))
-
-        #~ reorder within each market [class]
-        df = combine(groupby(df, :class)) do marketdf
-            sort(marketdf, :nreads, rev=true)
-        end
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
     #~ Return
     return df

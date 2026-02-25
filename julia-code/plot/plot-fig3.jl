@@ -8,7 +8,7 @@ using DataFrames, DataFramesMeta, StatsBase
 using CairoMakie, MakiePublication, LaTeXStrings
 using CSV, CodecZlib, Glob
 
-include("./../scripts/module-scripts//macropatterns/SAD.jl")
+include("./../scripts/module-scripts/macropatterns/SAD.jl")
 using .SAD
 
 include("./../plot/plot-SAD.jl")

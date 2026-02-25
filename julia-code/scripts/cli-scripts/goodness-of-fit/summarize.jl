@@ -22,7 +22,7 @@ function summarize(
     #~ Allocate
     summarydf = DataFrame(
         dataset=String[], environment=String[],
-        fht=Float64[], K=Int[], w=Float64[], 
+        # fht=Float64[], K=Int[], w=Float64[],
         meanpvalue=Float64[], meanexponent=Float64[], meanpwvalue=Float64
     )
     for PROJ in PROJECTS
@@ -30,6 +30,7 @@ function summarize(
         jldb = JLD2.load(DIR*"$(PROJ)-candidatefits.jld2")
         fitdf = jldb["fitdf"]
         aicdf = jldb["aicdf"]
+        # return fitdf, aicdf
         #~ For each `sample_id`, check which model had the lowest AIC
         @rtransform! aicdf :bestmodel = begin
             vals = collect(AsTable(candidates))
@@ -49,7 +50,7 @@ function summarize(
             htrows = findall(x -> x in htcandidates, _adf.bestmodel)
             _fdf = _fdf[htrows,:]
             _adf = _adf[htrows,:]
-
+            
             #~ Allocate
             γ = zeros(length(htrows))
             pv = zeros(length(htrows))
@@ -58,7 +59,7 @@ function summarize(
             for i in eachindex(htrows)
                 γ[i] = first(_fdf[!,:ParetoI][i]) + 1.0
                 AICmin = _adf[!,:ParetoI][i]
-                AICs = Array(_adf[!,nhtcandidates][i,:])
+                AICs = Array(_adf[!,htcandidates][i,:])
                 AICs = vcat(AICmin, AICs)
                 lw = exp.(-0.5.*(AICs .- AICmin))
                 pw[i] = lw[begin] / sum(skipmissing(lw))
@@ -67,8 +68,8 @@ function summarize(
 
             push!(
                 summarydf, [
-                    PROJ, environment, fht, K,
-                    "ParetoI",
+                    PROJ, environment,
+                    # fht, K, "ParetoIV",
                     round(StatsBase.mean(pv), digits=2),
                     round(StatsBase.mean(γ), digits=2),
                     round(StatsBase.mean(pw), digits=2)
