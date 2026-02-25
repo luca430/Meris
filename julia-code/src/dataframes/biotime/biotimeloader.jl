@@ -10,6 +10,7 @@ using DataFrames, DataFramesMeta
 using Meris
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.BIOTIMEDIR as BIOTIMEDIR
 
 #################
@@ -24,11 +25,13 @@ function load(
     FILENAME = "biotime_v2_rawdata_2025",
     fromzip       = true,
     fromparsed    = true,  #~ Load data that already has been parsed [by `savedata=true`]
-    filterdata    = true,  #~ Filter data
+    applyfilter   = true,  #~ Filter data
     savedata      = true,  #~ Store filtered data for easy retrieval
     minsamples    = 30,
-    minreads      = 5_000,
-    mincomponents = 100,
+    minreads      = 100_000,
+    mincomponents = 100,    
+    reorder       = true,
+    top           = nothing,
     verbose       = false
     )
     #~ Load already parsed CSV if it exists
@@ -62,26 +65,33 @@ function load(
         subset!(df, All() .=> ByRow(!=("NA")))
         df.ABUNDANCE .= parse.(Float64, df.ABUNDANCE)
         df.sample_id .= string.(df.YEAR).* df.MONTH .* df.DAY
-        select!(df, :taxon, :STUDY_ID, :sample_id, :ID_SPECIES, :ABUNDANCE)
-        rename!(df, :STUDY_ID => :class, :ID_SPECIES => :component_id, :ABUNDANCE => :counts)
+        @select!(df, :taxon, :STUDY_ID, :sample_id, :ID_SPECIES, :ABUNDANCE)
+        df = @rename df begin
+            :class = :STUDY_ID
+            :component_id = :ID_SPECIES
+            :counts = :ABUNDANCE
+        end
+        #~ Group and compute total no. of reads
         df = @chain df begin
             @groupby(:class, :sample_id)
             @combine(:component_id, :counts, :nreads=sum(:counts))
         end
-
-        if filterdata        
-            #~ filter data
-            @subset!(df, :nreads .> minreads)
-            summarydf = @chain df begin
-                @by(
-                    :class,
-                    :nsamples = length(:sample_id),
-                    :ncomponents = length(unique(:component_id))
-                )
-                @subset(:nsamples .> minsamples, :ncomponents .> mincomponents)
-            end
-            @subset!(df, :class .∈ Ref(summarydf.class))
+        #~ Aggregate, as some samples were gathered on the same day
+        df = @chain df begin
+            @groupby(:class, :sample_id, :component_id)
+            @combine(
+                :counts = sum(:counts),
+                :nreads = first(:nreads)
+            )
         end
+    end
+        
+    if applyfilter
+        #~ filter data
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
+        )
     end
 
     #~ Store for easy retrieval later
