@@ -26,25 +26,31 @@ function prepare(
         
         #| arXiv |#
         df_arxiv = Meris.arXivLoader.load(; top=top)
+        return df_arxiv
         df_arxiv.class .= "arx-" .* uppercase.(df_arxiv.domain)
         select!(df_arxiv, :class, :sample_id, :component_id, :counts, :nreads)
         df_arxiv.sample_id .= string.(df_arxiv.class) .* string.(df_arxiv.sample_id)
         df_arxiv = innerjoin(
-            df_arxiv, get_gof_samples(DIR *"/arxiv-candidatefits.jld2"), on=[:sample_id])
+            df_arxiv, get_gof_samples(DIR *"arxiv-candidatefits.jld2"), on=[:sample_id]
+        )
         
         #| Gutenberg |#
         df_gut = Meris.GutenbergLoader.load(; top=top)
         df_gut.class = "guten-" .* uppercase.(df_gut.class)
         select!(df_gut, :class, :sample_id, :component_id, :counts, :nreads)
         df_gut.sample_id .= string.(df_gut.class) .* string.(df_gut.sample_id)
-        df_gut = innerjoin(df_gut, get_gof_samples(Meris.DATADIR * "gof/gutenberg-candidatefits.jld2"), on=[:sample_id])
+        df_gut = innerjoin(
+            df_gut, get_gof_samples(DIR * "gutenberg-candidatefits.jld2"), on=[:sample_id]
+        )
         
         #| RFCs |#
         df_rfc = Meris.RFCLoader.load(; top=top)
         df_rfc.class .= uppercase.(df_rfc.class)
         select!(df_rfc, :class, :sample_id, :component_id, :counts, :nreads)
         df_rfc.sample_id .= string.(df_rfc.class) .* string.(df_rfc.sample_id)
-        df_rfc = innerjoin(df_rfc, get_gof_samples(Meris.DATADIR * "gof/rfc-candidatefits.jld2"), on=[:sample_id])
+        df_rfc = innerjoin(
+            df_rfc, get_gof_samples(DIR * "rfc-candidatefits.jld2"), on=[:sample_id]
+        )
         
         df = vcat(df_arxiv, df_gut, df_rfc)
         @info "Preparing test/linguistic data..."

@@ -21,20 +21,21 @@ const ICONDIR = Meris.FIGDIR .* "icons"
 
 #################
 ### FUNCTIONS ###
-function plot!(parent;
-        color_num=1,
-        color_shades=4,
-        palette=nothing,
-        ZIPFDIR=Meris.DATADIR * "macro/sad/",
-        ax1limits=(nothing, nothing, nothing, nothing),
-        ax2limits=(nothing, nothing, nothing, nothing),
-        ax3limits=(nothing, nothing, nothing, nothing),
-        reverse_panel=false,
-        icon_name=nothing,
-        icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
-        ax2_text_offset=(1.0, 4.0),
-        ax3_text_color=nothing,
-        ax3_text_offset=(1.0, 1.5)
+function plot!(
+    parent;
+    color_num=1,
+    color_shades=4,
+    palette=nothing,
+    ZIPFDIR=Meris.DATADIR * "macro/sad/",
+    ax1limits=(nothing, nothing, nothing, nothing),
+    ax2limits=(nothing, nothing, nothing, nothing),
+    ax3limits=(nothing, nothing, nothing, nothing),
+    reverse_panel=false,
+    icon_name=nothing,
+    icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
+    ax2_text_offset=(1.0, 4.0),
+    ax3_text_color=nothing,
+    ax3_text_offset=(1.0, 1.5)
     )
 
     # Theme
