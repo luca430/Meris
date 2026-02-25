@@ -8,7 +8,6 @@ using CategoricalArrays
 using CSV, DataFrames, DataFramesMeta
 
 #/ Modules, directories
-# using Meris.DataTools
 import ..DataTools: filterdata
 import Meris.FINANCEDIR as FINANCEDIR
 

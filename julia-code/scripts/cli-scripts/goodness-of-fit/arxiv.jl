@@ -24,13 +24,13 @@ mincomponents = 10_000  #~ min. no. of distinct components per "class"
 
 @info "Fits and comparisons for arXiv articles..."
 #/ Load and fit candidates [see `candidates.jl`]
-arxivdf = arXivLoader.load(
-    stopwords=true, filterdata=args["filter"];
+df = arXivLoader.load(
+    stopwords=true, applyfilter=args["filter"]; top=10,
     minsamples=minsamples, minreads=minreads, mincomponents=mincomponents
 )
-@transform!(arxivdf, :frequency = :counts ./ :nreads)
+@transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    arxivdf, :domain; testcandidate=:ParetoI, nε=args["numeps"]
+    df, :domain; testcandidate=:ParetoI, nε=args["numeps"]
 )
 
 #/ Store

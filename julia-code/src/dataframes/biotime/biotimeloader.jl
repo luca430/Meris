@@ -29,7 +29,7 @@ function load(
     savedata      = true,  #~ Store filtered data for easy retrieval
     minsamples    = 30,
     minreads      = 100_000,
-    mincomponents = 100,    
+    mincomponents = 100,
     reorder       = true,
     top           = nothing,
     verbose       = false
