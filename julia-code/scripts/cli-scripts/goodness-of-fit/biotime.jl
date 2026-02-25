@@ -17,7 +17,7 @@ FILENAME = "biotime-candidatefits.jld2"
 
 @info "Fits and comparisons for BioTIME data..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = BioTIMELoader.load(; filterdata=true, fromparsed=true)
+df = BioTIMELoader.load(; applyfilter=true, fromparsed=false, top=10)
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     df, :class;

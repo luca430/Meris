@@ -78,52 +78,20 @@ shape(d::GeneralizedPareto) = d.ξ
 params(d::GeneralizedPareto) = (d.ε, d.σ, d.ξ)
 partype(::GeneralizedPareto{T}) where {T} = T
 
-##################
-### STATISTICS ###
-median(d::GeneralizedPareto) = d.ξ == 0 ? d.ε + d.σ * logtwo : d.ε + d.σ * expm1(d.ξ * logtwo) / d.ξ
-
-function mean(d::GeneralizedPareto{T}) where {T<:Real}
-    if d.ξ < 1
-        return d.ε + d.σ / (1 - d.ξ)
-    else
-        return T(Inf)
-    end
-end
-
-function var(d::GeneralizedPareto{T}) where {T<:Real}
-    if d.ξ < 0.5
-        return d.σ^2 / ((1 - d.ξ)^2 * (1 - 2 * d.ξ))
-    else
-        return T(Inf)
-    end
-end
-
-function skewness(d::GeneralizedPareto{T}) where {T<:Real}
-    (ε, σ, ξ) = params(d)
-
-    if ξ < (1/3)
-        return 2(1 + ξ) * sqrt(1 - 2ξ) / (1 - 3ξ)
-    else
-        return T(Inf)
-    end
-end
-
-function kurtosis(d::GeneralizedPareto{T}) where T<:Real
-    (ε, σ, ξ) = params(d)
-
-    if ξ < 0.25
-        k1 = (1 - 2ξ) * (2ξ^2 + ξ + 3)
-        k2 = (1 - 3ξ) * (1 - 4ξ)
-        return 3k1 / k2 - 3
-    else
-        return T(Inf)
-    end
-end
-
-
 ########################
 ### DENSITY FUNCTION ###
-function logpdf(d::GeneralizedPareto{T}, x::Real) where T<:Real
+function pdf(d::GeneralizedPareto{T}, x::Real) where {T<:Real}
+    p = -T(Inf)
+    if x >= d.ε
+        z = (x - d.ε) / d.σ
+        if d.ξ > 0 || (d.ξ < 0 && x < maximum(d))
+            p = 1/d.σ * (1 + d.ξ * z)^(-1 - 1/d.ξ)
+        end
+    end
+    return p
+end
+
+function logpdf(d::GeneralizedPareto{T}, x::Real) where {T<:Real}
     (ε, σ, ξ) = params(d)
 
     # The logpdf is log(0) outside the support range.
@@ -224,17 +192,14 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}, εs::Array{T}) where {T<:Re
     for i in eachindex(εs)
         ε = εs[i]
         n = count(xs .> ε)
-        (n < 256) && (break)        # If less than 256 samples >xmin, break
         #~ Filter data
-        _idx = searchsortedfirst(xs, ε) + 1
+        _idx = searchsortedfirst(xs, ε)
         _x = xs[_idx:end]
+        (length(_x) < 3) && (continue)
         _P = fit(GeneralizedPareto, _x, ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
-        Ftv = 1.0 .- ccdf.(_P, _x)
-        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        Dhat = Base.maximum(distances)
+        #  note: within the function data is filtered, so no need to do it here
+        Dhat = KolmogorovSmirnov(_P, x)
         #~ If smaller than the current best, update
         if Dhat < D
             σhat = _P.σ
@@ -256,8 +221,9 @@ Note that the mean vanishes when ξ<1, and so for real data fits with ξ>1 can b
 """
 function fit(::Type{GeneralizedPareto}, x::Array{T}, ε::Float64) where {T<:Real}
     function negloglikelihood(x, θ)
-        logσ, ξ = θ
+        logσ, logξ = θ
         σ = exp(logσ)
+        ξ = exp(logξ)
         d = GeneralizedPareto(ε, σ, ξ)
         #~ Return negative log-likelihood
         return -sum(logpdf.(d, x))
@@ -265,20 +231,21 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}, ε::Float64) where {T<:Real
     #~ Use method of moments for initial estimate
     Ex, Vx = StatsBase.mean(x), StatsBase.var(x)
     ξinit = (1 - (Ex - ε)^2 / Vx) / 2
-    σinit = (Ex - ε)*(1-ξinit)
-    θinit = [log(σinit), ξinit]
+    σinit = max(eps(), (Ex - ε)*(1-ξinit))
+    θinit = [log(σinit), log(ξinit)]
 
     optimres = Optim.optimize(
         Base.Fix1(negloglikelihood, x),
-        [log(1e-8), 1e-8],
-        [log(1e2), 10.0],
-        θinit,        
+        [log10(1e-8), log10(1e-8)],
+        [log10(1e2), log10(3.0)],
+        θinit,
         Fminbox(LBFGS()),
+        Optim.Options(g_tol = 1e-3),
         autodiff=:forward
     )
     if Optim.converged(optimres)
         σhat, ξhat = optimres.minimizer
-        return GeneralizedPareto(ε, exp(σhat), ξhat)
+        return GeneralizedPareto(ε, exp(σhat), exp(ξhat))
     end
     throw(ErrorException("Optimizer not converged"))
     # println("Optimizer not converged, returning initial guesses [method of moments]")
@@ -296,7 +263,7 @@ function computepvalue(gpd::GeneralizedPareto, x::Array{T}; nsynth=500) where {T
     
     #~ Compute KS statistic in data
     _x = sort(x[x .> gpd.ε])
-    Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
+    Fv = _ecdf(_x, _x).F     # Values of empirical CDF
     Ftv = 1.0 .- ccdf.(gpd, _x)
     Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
     distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
@@ -310,7 +277,7 @@ function computepvalue(gpd::GeneralizedPareto, x::Array{T}; nsynth=500) where {T
         #~ Fit a generalized Pareto with ε given
         _gpd = fit(GeneralizedPareto, r, gpd.ε)
         #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x, sorted=true).F     # Values of empirical CDF
+        Fv = _ecdf(_x, _x).F     # Values of empirical CDF
         Ftv = 1.0 .- ccdf.(_gpd, _x)
         Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
         distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
@@ -320,4 +287,17 @@ function computepvalue(gpd::GeneralizedPareto, x::Array{T}; nsynth=500) where {T
         end
     end
     return kscount / nsynth
+end
+
+########################
+### HELPER FUNCTIONS ###
+function KolmogorovSmirnov(P::GeneralizedPareto, data::Array{T}) where {T<:Real}
+    #~ We care only about data within the functions domain, so first filter
+    x = filter(z -> z >= P.ε, data)
+    #~ Sort, if not already
+    (!issorted(x)) && (sort!(x))
+    Fv = _ecdf(x, x).F            # Values of empirical CDF
+    Ftv = 1.0 .- ccdf.(P, x)      # Values of survival function
+    KS = abs.(Fv .- Ftv)
+    return maximum(KS)
 end

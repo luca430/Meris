@@ -11,6 +11,7 @@ using DataFrames, DataFramesMeta
 using Meris
 
 #/ Modules, directories
+import ..DataTools: filterdata
 import Meris.BIOTIMEDIR as BIOTIMEDIR
 
 #################

@@ -29,6 +29,8 @@ const TARADIR = DATADIR * "datasets/taraocean/"
 # include("args/argparse.jl")
 
 #~ Data handlers, loaders, and samplers
+include("dataframes/datatools.jl")
+
 include("dataframes/arxiv/arxivloader.jl")
 include("dataframes/bci.tree/bcitreeloader.jl")
 include("dataframes/biotime/biotimeloader.jl")
@@ -45,10 +47,11 @@ include("processes/dirichlet.jl")
 include("processes/pitman-yor.jl")
 
 #~ Utilities
+include("distributions/distributions.jl")
+
 include("dataframes/afd.jl")
 include("dataframes/taylor.jl")
-include("dataframes/datatools.jl")
-include("distributions/distributions.jl")
+
 include("distributions/lr_distributions.jl")
 
 #~ Fitting
@@ -56,5 +59,10 @@ include("fits/candidate-distributions.jl")
 include("fits/goodness-of-fit.jl")
 include("fits/straight-line.jl")
 include("fits/heapsmodel.jl")
+
+# include("fits/power-law.jl")
+# include("fits/double-power-law.jl")
+# include("fits/mle.jl")
+# include("fits/heapsmodel.jl")
 
 end # module Meris
