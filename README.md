@@ -1,4 +1,4 @@
-# compositional
+# Meris
 
 Repository for studying the emergence of statistical laws in complex component systems.
 
