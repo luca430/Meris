@@ -184,6 +184,7 @@ function plot!(parent;
         xlabel=L"\log_{10} \, \mu", xlabelsize=NATURE_AXIS_LABEL_PT * font_scale,
         ylabel=L"\log_{10} \, \sigma^2", ylabelsize=NATURE_AXIS_LABEL_PT * font_scale,
         xticklabelsize=NATURE_TICK_PT * font_scale, yticklabelsize=NATURE_TICK_PT * font_scale,
+        aspect=AxisAspect(1),
         limits=big_limits,
     )
 
@@ -314,9 +315,10 @@ function plot!(parent;
         fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
         halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
     )
-    for (i, (r, c)) in enumerate(grid_positions)
+    label_positions = [(1, 1), (1, 2), (2, 1), (2, 2)]  # visual order: TL, TR, BL, BR
+    for (i, (r, c)) in enumerate(label_positions)
         i > length(axs_small) && break
-        Label(right[r, c, TopLeft()], string(letters[min(i + 1, end)]);
+        Label(right[r, c, TopLeft()], string(letters[i + 1]);
             fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
             halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
         )

@@ -37,7 +37,7 @@ function prepare(;
         @info "Processing linguistic data..."
         
         #| arXiv |#
-        pareto = :ParetoI
+        pareto = :ParetoIV
         df = Meris.arXivLoader.load()
         df = filter_df(df, GOFDIR * "arxiv-candidatefits.jld2", pareto)
         df.class .= "arx-" .* uppercase.(df.class)
@@ -47,7 +47,7 @@ function prepare(;
         GC.gc()
         
         #| Gutenberg |#
-        pareto = :ParetoI
+        pareto = :ParetoIV
         df = Meris.GutenbergLoader.load()
         df = filter_df(df, GOFDIR * "gutenberg-candidatefits.jld2", pareto)
         df.class .= "gutenberg-" .* uppercase.(df.class)
@@ -57,7 +57,7 @@ function prepare(;
         GC.gc()
         
         #| RFCs |#
-        pareto = :ParetoI
+        pareto = :Tempered
         df = Meris.RFCLoader.load()
         df = filter_df(df, GOFDIR * "rfc-candidatefits.jld2", pareto)
         df.class .= "RFC"
@@ -73,7 +73,7 @@ function prepare(;
         @info "Processing microbial data..."
         
         #| OTU |#
-        pareto = :ParetoI#TemperedPareto
+        pareto = :TemperedPareto
         df = Meris.OTULoader.load()
         df = filter_df(df, GOFDIR * "otu-candidatefits.jld2", pareto)
         _compute_and_save(df, pareto, Meris.DATADIR * "fig3/microbial/otu.jld2")
@@ -88,7 +88,7 @@ function prepare(;
         @info "Processing social data..."
         
         #| FINANCE |#
-        pareto = :ParetoI
+        pareto = :ParetoIV
         df = Meris.FinanceLoader.load()
         df.class = [split(w, "-")[1] for w in df.class]
         df = filter_df(df, GOFDIR * "finance-candidatefits.jld2", pareto)
@@ -99,7 +99,7 @@ function prepare(;
         GC.gc()
         
         #| Gowalla |#
-        pareto = :ParetoI
+        pareto = :TemperedPareto
         df = Meris.GowallaLoader.load()
         df = filter_df(df, GOFDIR * "gowalla-candidatefits.jld2", pareto)
         df.class .= "GOWALLA"
@@ -109,7 +109,7 @@ function prepare(;
         GC.gc()
         
         #| LEGO |#
-        pareto = :ParetoI
+        pareto = :TemperedPareto
         df = Meris.LEGOLoader.load()
         df = filter_df(df, GOFDIR * "lego-candidatefits.jld2", pareto)
         df.class .= "LEGO"
@@ -125,7 +125,7 @@ function prepare(;
         @info "Processing biology data..."
         
         #| BCI.Tree |#
-        pareto = :ParetoI#GeneralizedPareto
+        pareto = :ParetoIV
         df = Meris.BCITreeLoader.load()
         df = filter_df(df, GOFDIR * "bcitrees-candidatefits.jld2", pareto)
         df.class .= "eco-BCI.Trees"
@@ -135,10 +135,11 @@ function prepare(;
         GC.gc()
         
         #| BIOTIME |#
-        pareto = :ParetoI#GeneralizedPareto
+        pareto = :ParetoIV
         df = Meris.BioTIMELoader.load()
         df = filter_df(df, GOFDIR * "biotime-candidatefits.jld2", pareto)
         df.class .= "eco-BT" .* string.(df.class)
+        df = df[df.class .!= "eco-BT911", :]
         _compute_and_save(df, pareto, Meris.DATADIR * "fig3/biology/biotime.jld2")
     
         df = fitdf = aicdf = nothing
