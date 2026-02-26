@@ -3,7 +3,7 @@ module Figure3
 
 using Meris
 using DataFrames, DataFramesMeta, StatsBase
-using CairoMakie, MakiePublication
+using Colors, CairoMakie, MakiePublication
 using LaTeXStrings
 using JLD2
 
@@ -189,14 +189,20 @@ function prepare(
 end
 
 ### MAKE FIGURE 2 ###
-function plot(; ext="pdf")
-    palette1 = reverse(["#E3F2FDFF", "#BBDEFBFF", "#90CAF9FF", "#64B5F6FF", "#42A5F5FF", "#2196F3FF",
-        "#1E88E5FF", "#1976D2FF", "#1565C0FF", "#0D47A1FF"])
-    palette2 = ["#341B0EFF", "#5B2E16FF", "#673419FF", "#79421DFF", "#A46425FF", "#B28351FF", 
-        "#E2AF6DFF", "#DFB77DFF", "#FFBC38FF", "#FCCA60FF", "#F8DC8CFF"]
-    palette3 = reverse(["#F3CBD3FF", "#EAA9BDFF", "#DD88ACFF", "#CA699DFF", "#B14D8EFF", "#91357DFF", "#6C2167FF"])
-    palette4 = ["#E65100FF", "#EF6C00FF", "#F57C00FF", "#FB8C00FF", "#FF9800FF",
-        "#2E7D32FF", "#388E3CFF", "#43A047FF", "#4CAF50FF"]
+function plot(
+    ; ext="pdf",
+    bases = [
+        colorant"#1f77b4",  # blue
+        colorant"#ff7f0e",  # orange
+        colorant"#9467bd",  # purple
+        colorant"#2ca02c",  # green
+        colorant"#d62728"   # red
+    ]
+    )
+    palette1 = shades(bases[1], 7)
+    palette2 = shades(bases[2], 10)
+    palette3 = shades(bases[3], 5)
+    palette4 = vcat(shades(bases[4], 5), shades(bases[5], 4))
     
     zipfdirs = [
         Meris.DATADIR * "macro/sad/linguistic.jld2",
@@ -258,7 +264,16 @@ function plot(; ext="pdf")
     # return bigfig
 end
 
-### HELPER ###
+########################
+### HELPER FUNCTIONS ###
+function shades(base::Colorant, n)
+    hsl_base = convert(HSL, base)
+    h, s = hsl_base.h, hsl_base.s
+    _colors = [HSL(h, s, l) for l in range(0.15, 0.65, length=n)]
+    return _colors
+end
+
+
 function get_gof_samples(file)
     df = load(file)["aicdf"]
     select!(df, :environment, :sample_id)
