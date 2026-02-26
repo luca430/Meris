@@ -25,7 +25,8 @@ function plot!(parent;
         color_num=1,
         color_shades=4,
         palette=nothing,
-        ZIPFDIR=Meris.DATADIR * "macro/sad/",
+        DIR=Meris.DATADIR * "macro/sad/",
+        CADDIR=nothing,
         ax1limits=(nothing, nothing, nothing, nothing),
         ax2limits=(nothing, nothing, nothing, nothing),
         ax3limits=(nothing, nothing, nothing, nothing),
@@ -123,68 +124,119 @@ function plot!(parent;
     colsize!(bottom, 2, Relative(0.45))
 
     # Data + plotting
-    out = JLD2.load(ZIPFDIR)["out"]
+    target = isnothing(CADDIR) ? DIR : CADDIR
+    data_root = isdir(target) ? target : dirname(target)
+    files = if isdir(target)
+        sort(filter(f -> endswith(lowercase(f), ".jld2"), readdir(target)))
+    elseif isfile(target)
+        [basename(target)]
+    else
+        String[]
+    end
+    isempty(files) && error("No .jld2 files found in $(target)")
 
-    ### AX1 ###
-    labels = sort(collect(keys(out.pl)))
-    pl_vals = [out.pl[k] for k in labels]
+    series = NamedTuple[]
+    for file in files
+        out = JLD2.load(joinpath(data_root, file))["out"]
+        labels = sort(collect(keys(out.pl)))
+        for label in labels
+            haskey(out.cad, label) || continue
+            haskey(out.heaps, label) || continue
+            push!(series, (;
+                label = string(label),
+                file = file,
+                pl = out.pl[label],
+                cad = out.cad[label],
+                heaps = out.heaps[label]
+            ))
+        end
+    end
+    isempty(series) && error("No pl/cad/heaps series found in $(target)")
+
+    raw_labels = [s.label for s in series]
+    xticklabels = if length(unique(raw_labels)) == length(raw_labels)
+        raw_labels
+    else
+        ["$(s.label)\n($(splitext(s.file)[1]))" for s in series]
+    end
 
     min_vals = Float64[]
     max_vals = Float64[]
-    for (i, p) in enumerate(pl_vals)
+    x_min = Float64[]
+    x_max = Float64[]
+    α_vals = Float64[]
+    xmax = Float64[]
+    ymax = Float64[]
+    parss = Any[]
+
+    for (i, s) in enumerate(series)
+        c = colors[mod1(i, length(colors))]
+        m = markers[mod1(i, length(markers))]
+
+        p = s.pl
         push!(min_vals, minimum(p.α) + 1)
         push!(max_vals, maximum(p.α) + 1)
         boxplot!(ax1, fill(i, length(p.α)), p.α .+ 1,
-            color=(colors[i], 0.8), markersize=4, whiskerlinewidth=0.8,
+            color=(c, 0.8), markersize=4, whiskerlinewidth=0.8,
             medianlinewidth=0.6, width=0.4)
+
+        v = s.cad
+        push!(x_min, minimum(v.x))
+        push!(x_max, maximum(v.x))
+        scatter!(ax2, 10 .^ (v.x), (v.y ./ (mean(p.α) * mean(p.ε) ^ mean(p.α) .* log(10))) .^ (1 / mean(p.α)),
+            marker=m, color=:white, strokecolor=c,
+            markersize=5, strokewidth=0.4)
+
+        h = s.heaps
+        push!(α_vals, mean(p.α))
+        push!(xmax, maximum(h.N))
+        push!(ymax, maximum(h.V))
+        idx = round.(Int, 10 .^ range(0, log10(length(h.V)), length = 60))
+        scatter!(ax3, h.N[idx], h.V[idx],
+            marker=m, color=:white, strokecolor=c,
+            markersize=5, strokewidth=0.4)
+
+        a = minimum([α_vals[end], 1])
+        fit, pars, which = Meris.HeapsModel.fit_regimes(h.N, h.V; a=a)
+        push!(parss, pars)
     end
 
+    ### AX1 ###
     data_ymin = minimum(min_vals)
     data_ymax = maximum(max_vals)
-
     user_ymin = ax1limits[3]
     user_ymax = ax1limits[4]
     ymin = isnothing(user_ymin) ? data_ymin * 0.8 : user_ymin
-    ymax = isnothing(user_ymax) ? data_ymax * 1.2 : user_ymax
-    if ymax <= ymin
-        ymax = ymin + max(abs(ymin) * 0.1, 1e-3)
+    ymax_ax1 = isnothing(user_ymax) ? data_ymax * 1.2 : user_ymax
+    if ymax_ax1 <= ymin
+        ymax_ax1 = ymin + max(abs(ymin) * 0.1, 1e-3)
     end
-    ylims!(ax1, ymin, ymax)
+    ylims!(ax1, ymin, ymax_ax1)
 
     ax1_lims = ax1.limits[]
     ax1_ymin = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[3])) ? ax1_lims[3] : ymin
-    ax1_ymax = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[4])) ? ax1_lims[4] : ymax
+    ax1_ymax = (ax1_lims isa Tuple && length(ax1_lims) >= 4 && !isnothing(ax1_lims[4])) ? ax1_lims[4] : ymax_ax1
     span = ax1_ymax - ax1_ymin
     ypos = reverse_panel ? (ax1_ymin + 0.08 * span) : (ax1_ymax - 0.08 * span)
 
-    for i in 1:length(labels)
+    for i in 1:length(series)
+        c = colors[mod1(i, length(colors))]
+        m = markers[mod1(i, length(markers))]
         scatter!(ax1, [i], [ypos];
-            marker = markers[i],
+            marker = m,
             color = :white,
-            strokecolor = colors[i],
+            strokecolor = c,
             markersize = 8,
             strokewidth = 0.5
         )
     end
-    ax1.xticks = (1:length(labels), labels)
+    ax1.xticks = (1:length(series), xticklabels)
 
     ### AX2 ###
-    cad_vals = [out.cad[k] for k in labels]
-    ple_vals = [out.ple[k] for k in labels]
-    x_min = Float64[]
-    x_max = Float64[]
-    for (i, (v, p, pe)) in enumerate(zip(cad_vals, pl_vals, ple_vals))
-        push!(x_min, minimum(v.x))
-        push!(x_max, maximum(v.x))
-        scatter!(ax2, 10 .^ (v.x), (v.y ./ (pe.α[1] * mean(p.ε) ^ pe.α[1] .* log(10))) .^ (1 / pe.α[1]),
-            marker=markers[i], color=:white, strokecolor=colors[i],
-            markersize=5, strokewidth=0.4)
-    end
-
     ax2_lims = ax2.limits[]
     ax2_xmin = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[1])) ? ax2_lims[1] : minimum(x_min)
     ax2_xmax = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[2])) ? ax2_lims[2] : maximum(x_max)
-    xrange = (ax2_xmin-1.1):1e-2:-0.5
+    xrange = (ax2_xmin - 1.1):1e-2:min(-0.5, ax2_xmax)
     lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5, label=L"y \sim x^{-1}")
     axislegend(ax2,
         position=:rt,
@@ -199,27 +251,6 @@ function plot!(parent;
     end
 
     ### AX3 ###
-    heaps_vals = [out.heaps[k] for k in labels]
-    α_vals = Float64[]
-    xmax = []
-    ymax = []
-    for (i, (v,p)) in enumerate(zip(heaps_vals, pl_vals))
-        push!(α_vals, mean(p.α))
-        push!(xmax, maximum(v.N))
-        push!(ymax, maximum(v.V))
-        idx = round.(Int, 10 .^ range(0, log10(length(v.V)), length = 60))
-        scatter!(ax3, v.N[idx], v.V[idx],
-            marker=markers[i], color=:white, strokecolor=colors[i],
-            markersize=5, strokewidth=0.4)
-    end
-
-    parss = []
-    for (i, v) in enumerate(heaps_vals)
-        a = minimum([α_vals[i], 1])
-        fit, pars, which = Meris.HeapsModel.fit_regimes(v.N, v.V; a=a)
-        push!(parss, pars)
-    end
-
     ax3_text_color = isnothing(ax3_text_color) ? colors[1] : ax3_text_color
     text!(ax3, 5e1, 5e1 * 2, text=L"V \sim N", color=ax3_text_color, rotation = π/4, fontsize=10)
 
@@ -227,20 +258,20 @@ function plot!(parent;
     xp = maximum(xmax) / 500
     x1 = xp
     x2 = xp * 1.15
-    
-    p  = parss[argmax(ymax)]
+
+    p = parss[argmax(ymax)]
     y1 = Meris.HeapsModel.predict_regimes(x1, p)
     y2 = Meris.HeapsModel.predict_regimes(x2, p)
-    
+
     M = Makie.transformationmatrix(ax3.scene)[]
     v1 = Vec4f(Float32(x1), Float32(y1), 0f0, 1f0)
     v2 = Vec4f(Float32(x2), Float32(y2), 0f0, 1f0)
-    
+
     p1 = M * v1
     p2 = M * v2
-    
+
     θ = atan(p2[2] - p1[2], p2[1] - p1[1])  # atan(dy, dx)
-    
+
     text!(ax3, x1 * ax3_text_offset[1], y1 * ax3_text_offset[2];
         text=L"V \sim N^{\eta}",
         rotation=θ,
@@ -284,7 +315,7 @@ function add_icon!(cell, icon_path;
 end
 
 function plot4(;
-        ZIPFDIR=Meris.DATADIR * "macro/sad/",
+        CADDIR=Meris.DATADIR * "macro/sad/",
         savefig=false,
         figname="full_sad.png",
         pt_per_unit=1
@@ -299,10 +330,10 @@ function plot4(;
     )
 
     # 2×2 panels
-    plot!(bigfig[1,1]; ZIPFDIR=ZIPFDIR, color_num=1)
-    plot!(bigfig[1,2]; ZIPFDIR=ZIPFDIR, color_num=2)
-    plot!(bigfig[2,1]; ZIPFDIR=ZIPFDIR, color_num=3)
-    plot!(bigfig[2,2]; ZIPFDIR=ZIPFDIR, color_num=4)
+    plot!(bigfig[1,1]; CADDIR=CADDIR, color_num=1)
+    plot!(bigfig[1,2]; CADDIR=CADDIR, color_num=2)
+    plot!(bigfig[2,1]; CADDIR=CADDIR, color_num=3)
+    plot!(bigfig[2,2]; CADDIR=CADDIR, color_num=4)
 
     rowgap!(bigfig.layout, 20)
     colgap!(bigfig.layout, 20)

@@ -14,160 +14,144 @@ include("./../plot/plot-SAD.jl")
 using .SADPlotter
 
 ### DATA PREPARATION ###
-function prepare(; set=["linguistic", "microbial", "social", "biology"])
+function prepare(;
+        set=["linguistic", "microbial", "social", "biology"],
+        GOFDIR=Meris.DATADIR * "goodness-of-fit/"
+    )
+    _compute_and_save(df, pareto, filename) = begin
+        mkpath(dirname(filename))
+        SAD.compute(
+            df;
+            pareto=pareto,
+            nbins=30,
+            save=true,
+            filename=filename
+        )
+    end
 
     ## LINGUISTIC ##
     if "linguistic" in set
-        @info "Loading linguistic data..."
+        @info "Processing linguistic data..."
         
         #| arXiv |#
-        df_arxiv = Meris.arXivLoader.load()
-        df_arxiv.class .= "arx-" .* uppercase.(df_arxiv.domain)
-        select!(df_arxiv, :class, :sample_id, :component_id, :counts, :nreads)
-        df_arxiv.sample_id .= string.(df_arxiv.class) .* string.(df_arxiv.sample_id)
-        df_arxiv = innerjoin(df_arxiv, get_gof_samples(Meris.DATADIR * "gof/arxiv-candidatefits.jld2"), on=[:sample_id])
+        pareto = :ParetoI
+        df = Meris.arXivLoader.load()
+        df = filter_df(df, GOFDIR * "arxiv-candidatefits.jld2", pareto)
+        df.class .= "arx-" .* uppercase.(df.class)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/linguistic/arxiv.jld2")
+    
+        df = fitdf = aicdf = nothing
+        GC.gc()
         
         #| Gutenberg |#
-        df_gut = Meris.GutenbergLoader.load()
-        df_gut.class = "guten-" .* uppercase.(df_gut.class)
-        select!(df_gut, :class, :sample_id, :component_id, :counts, :nreads)
-        df_gut.sample_id .= string.(df_gut.class) .* string.(df_gut.sample_id)
-        df_gut = innerjoin(df_gut, get_gof_samples(Meris.DATADIR * "gof/gutenberg-candidatefits.jld2"), on=[:sample_id])
+        pareto = :ParetoI
+        df = Meris.GutenbergLoader.load()
+        df = filter_df(df, GOFDIR * "gutenberg-candidatefits.jld2", pareto)
+        df.class .= "gutenberg-" .* uppercase.(df.class)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/linguistic/gutenberg.jld2")
+    
+        df = fitdf = aicdf = nothing
+        GC.gc()
         
         #| RFCs |#
-        df_rfc = Meris.RFCLoader.load()
-        df_rfc.class .= uppercase.(df_rfc.class)
-        select!(df_rfc, :class, :sample_id, :component_id, :counts, :nreads)
-        df_rfc.sample_id .= string.(df_rfc.class) .* string.(df_rfc.sample_id)
-        df_rfc = innerjoin(df_rfc, get_gof_samples(Meris.DATADIR * "gof/rfc-candidatefits.jld2"), on=[:sample_id])
-        
-        df = vcat(df_arxiv, df_gut, df_rfc)
-        @info "Working linguistic data..."
-        SAD.compute(
-                df;
-                xmins=10 .^ collect(-5.5:0.01:-3.5),
-                pareto_type="I",
-                nbins=25,
-                filter=true,
-                save=true,
-                filename=Meris.DATADIR * "macro/sad/linguistic.jld2"
-            )
+        pareto = :ParetoI
+        df = Meris.RFCLoader.load()
+        df = filter_df(df, GOFDIR * "rfc-candidatefits.jld2", pareto)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/linguistic/rfc.jld2")
     
-        df = nothing
-        df_arxiv = df_gut = df_rfc = nothing
+        df = fitdf = aicdf = nothing
         GC.gc()
 
     ## MICROBIAL ##
-    elseif "microbial" in set
+    end
+    
+    ## MICROBIAL ##
+    if "microbial" in set
         
-        @info "Loading microbial data..."
+        @info "Processing microbial data..."
         
         #| OTU |#
-        df_otu = Meris.OTULoader.load()
-        select!(df_otu, :class, :sample_id, :component_id, :counts, :nreads)
-        df_otu.sample_id .= string.(df_otu.class) .* string.(df_otu.sample_id)
-        df_otu = innerjoin(df_otu, get_gof_samples(Meris.DATADIR * "gof/otu-candidatefits.jld2"), on=[:sample_id])
-        
-        df = vcat(df_otu)
-        @info "Working microbial data..."
-        SAD.compute(
-                df;
-                xmins=10 .^ collect(-5.0:0.01:-3.5),
-                pareto_type="I",
-                nbins=25,
-                filter=true,
-                save=true,
-                filename=Meris.DATADIR * "macro/sad/microbial.jld2"
-            )
+        pareto = :TemperedPareto
+        df = Meris.OTULoader.load()
+        df = filter_df(df, GOFDIR * "otu-candidatefits.jld2", pareto)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/microbial/otu.jld2")
     
-        df = nothing
-        df_otu = nothing
+        df = fitdf = aicdf = nothing
         GC.gc()
 
     ## SOCIAL ##
-    elseif "social" in set
+    end
+
+    ## SOCIAL ##
+    if "social" in set
         
-        @info "Loading social data..."
+        @info "Processing social data..."
         
         #| FINANCE |#
-        df_fin = Meris.FinanceLoader.load()
-        df_fin = df_fin[endswith.(df_fin.class, "-daily"), :]
-        df_fin.class = replace.(df_fin.class, "-daily" => "")
-        df_fin.class .= "stock-" .* uppercase.(df_fin.class)
-        select!(df_fin, :class, :sample_id, :component_id, :counts, :nreads)
-        df_fin.sample_id .= string.(df_fin.class) .* string.(df_fin.sample_id)
-        df_fin = innerjoin(df_fin, get_gof_samples(Meris.DATADIR * "gof/finance-candidatefits.jld2"), on=[:sample_id])
+        pareto = :ParetoI
+        df = Meris.FinanceLoader.load()
+        df = filter_df(df, GOFDIR * "finance-candidatefits.jld2", pareto)
+        df.class .= "stock-" .* uppercase(df.class)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/social/finance.jld2")
+    
+        df = fitdf = aicdf = nothing
+        GC.gc()
         
         #| Gowalla |#
-        df_gow = Meris.GowallaLoader.load()
-        df_gow.class .= "CHECK-IN"
-        select!(df_gow, :class, :sample_id, :component_id, :counts, :nreads)
-        df_gow.sample_id .= string.(df_gow.class) .* string.(df_gow.sample_id)
-        df_gow = innerjoin(df_gow, get_gof_samples(Meris.DATADIR * "gof/gowalla-candidatefits.jld2"), on=[:sample_id])
+        pareto = :ParetoI
+        df = Meris.GowallaLoader.load()
+        df = filter_df(df, GOFDIR * "gowalla-candidatefits.jld2", pareto)
+        df.class .= "GOWALLA"
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/social/gowalla.jld2")
+    
+        df = fitdf = aicdf = nothing
+        GC.gc()
         
         #| LEGO |#
-        df_lego = Meris.LegoLoader.load()
-        df_lego.class .= "LEGO"
-        select!(df_lego, :class, :sample_id, :component_id, :counts, :nreads)
-        df_lego.sample_id .= string.(df_lego.class) .* string.(df_lego.sample_id)
-        
-        df = vcat(df_fin, df_gow, df_lego)
-        @info "Working social data..."
-        SAD.compute(
-                df;
-                xmins=10 .^ collect(-5.5:0.01:-2.0),
-                pareto_type="I",
-                nbins=25,
-                filter=true,
-                save=true,
-                filename=Meris.DATADIR * "macro/sad/social.jld2"
-            )
-        
+        pareto = :ParetoI
+        df = Meris.LEGOLoader.load()
+        df = filter_df(df, GOFDIR * "lego-candidatefits.jld2", pareto)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/social/lego.jld2")
     
-        df = nothing
-        df_fin = df_gow = df_lego = nothing
+        df = fitdf = aicdf = nothing
         GC.gc()
 
     ## BIOLOGY ##
-    elseif "biology" in set
+    end
+
+    ## BIOLOGY ##
+    if "biology" in set
         
-        @info "Loading biology data..."
+        @info "Processing biology data..."
         
         #| BCI.Tree |#
-        df_bci = Meris.BCITreeLoader.load()
-        df_bci.class .= "eco-BCI"
-        select!(df_bci, :class, :sample_id, :component_id, :counts, :nreads)
-        df_bci.sample_id .= string.(df_bci.class) .* string.(df_bci.sample_id)
-        df_bci = innerjoin(df_bci, get_gof_samples(Meris.DATADIR * "gof/bcitrees-candidatefits.jld2"), on=[:sample_id])
+        pareto = :GeneralizedPareto
+        df = Meris.BCITreeLoader.load()
+        df = filter_df(df, GOFDIR * "bcitrees-candidatefits.jld2", pareto)
+        df.class .= "eco-BCI.Trees"
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/biology/bci.jld2")
+    
+        df = fitdf = aicdf = nothing
+        GC.gc()
         
         #| BIOTIME |#
-        df_bio = Meris.BioTIMELoader.load()
-        df_bio.class .= "eco-BT" .* string.(df_bio.class)
-        select!(df_bio, :class, :sample_id, :component_id, :counts, :nreads)
-        df_bio.sample_id .= string.(df_bio.class) .* string.(df_bio.sample_id)
-        df_bio = innerjoin(df_bio, get_gof_samples(Meris.DATADIR * "gof/biotime-candidatefits.jld2"), on=[:sample_id])
+        pareto = :GeneralizedPareto
+        df = Meris.BioTIMELoader.load()
+        df = filter_df(df, GOFDIR * "biotime-candidatefits.jld2", pareto)
+        df.class .= "eco-BT" .* string.(df.class)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/biology/biotime.jld2")
+    
+        df = fitdf = aicdf = nothing
+        GC.gc()
         
         #| GTEx |#
-        df_gtex = Meris.GTExLoader.load()
-        df_gtex.class .= "gen-" .* df_gtex.class
-        select!(df_gtex, :class, :sample_id, :component_id, :counts, :nreads)
-        df_gtex.sample_id .= string.(df_gtex.class) .* string.(df_gtex.sample_id)
-        df_gtex = innerjoin(df_gtex, get_gof_samples(Meris.DATADIR * "gof/gtex-candidatefits.jld2"), on=[:sample_id])
-        
-        df = vcat(df_gtex, df_bci, df_bio)
-        @info "Working biology data..."
-        SAD.compute(
-                df;
-                xmins=10 .^ collect(-5.0:0.01:-2.0),
-                pareto_type="I",
-                nbins=25,
-                filter=true,
-                save=true,
-                filename=Meris.DATADIR * "macro/sad/biology.jld2"
-            )
+        pareto = :ParetoI
+        df = Meris.GTExLoader.load()
+        df = filter_df(df, GOFDIR * "gtex-candidatefits.jld2", pareto)
+        df.class .= "gen-" .* string.(df.class)
+        _compute_and_save(df, pareto, Meris.DATADIR * "fig3/biology/gtex.jld2")
     
-        df = nothing
-        df_gtex = df_bci = df_bio = nothing
+        df = fitdf = aicdf = nothing
         GC.gc()
     end
 end
@@ -182,11 +166,11 @@ function plot(; ext="pdf")
     palette4 = ["#E65100FF", "#EF6C00FF", "#F57C00FF", "#FB8C00FF", "#FF9800FF",
         "#2E7D32FF", "#388E3CFF", "#43A047FF", "#4CAF50FF"]
     
-    zipfdirs = [
-        Meris.DATADIR * "macro/sad/linguistic.jld2",
-        Meris.DATADIR * "macro/sad/microbial.jld2",
-        Meris.DATADIR * "macro/sad/social.jld2",
-        Meris.DATADIR * "macro/sad/microbial.jld2",
+    dirs = [
+        Meris.DATADIR * "fig3/microbial/",
+        Meris.DATADIR * "fig3/microbial/",
+        Meris.DATADIR * "fig3/biology/",
+        Meris.DATADIR * "fig3/biology/",
     ]
     
     # Big figure
@@ -197,7 +181,7 @@ function plot(; ext="pdf")
     
     # Fill 2×2 grid with your 4 datasets
     SADPlotter.plot!(
-        bigfig[1,1]; ZIPFDIR=zipfdirs[1], palette=palette1,
+        bigfig[1,1]; DIR=dirs[1], palette=palette1,
         ax1limits=(nothing, nothing, 1.5, 3),
         ax2limits=(nothing, nothing, 1e1, 3e4),
         ax3limits=(5, 1e7, 5, 1e6),
@@ -205,7 +189,7 @@ function plot(; ext="pdf")
         icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.05)
     )
     SADPlotter.plot!(
-        bigfig[1,2]; ZIPFDIR=zipfdirs[2], palette=palette2,
+        bigfig[1,2]; DIR=dirs[2], palette=palette2,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(nothing, nothing,1e0,3e4),
         ax3limits=(5, 1e7, 5, 1e5),
@@ -213,7 +197,7 @@ function plot(; ext="pdf")
         icon_kw=(; width=Relative(0.3), height=Relative(0.35), halign=0.0,  valign=0.05)
     )
     SADPlotter.plot!(
-        bigfig[2,1]; ZIPFDIR=zipfdirs[3], palette=palette3,
+        bigfig[2,1]; DIR=dirs[3], palette=palette3,
         reverse_panel=true,
         ax1limits=(nothing, nothing, 1, 4),
         ax3limits=(5, 5e10, 5, 5e6),
@@ -221,7 +205,7 @@ function plot(; ext="pdf")
         icon_kw=(; width=Relative(0.4), height=Relative(0.45), halign=0.0,  valign=0.0)
     )
     SADPlotter.plot!(
-        bigfig[2,2]; ZIPFDIR=zipfdirs[4], palette=palette4,
+        bigfig[2,2]; DIR=dirs[4], palette=palette4,
         reverse_panel=true,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(nothing, nothing,1e0,1e5),
@@ -242,13 +226,17 @@ function plot(; ext="pdf")
 end
 
 ### HELPER ###
-function get_gof_samples(file)
-    df = load(file)["aicdf"]
-    select!(df, :environment, :sample_id)
-    df.sample_id .= string.(df.environment) .* string.(df.sample_id)
+function filter_df(df, filename, pareto)
+    fitdf = load(filename)["fitdf"]
+    rename!(fitdf, :environment => :class)
+    aicdf = load(filename)["aicdf"]
+    rename!(aicdf, :environment => :class)
+    aicdf = aicdf[(aicdf.pvalue .> 0.1) .& (aicdf.ntail .> 50), :]
+    select!(aicdf, :class, :sample_id)
+    fitdf = innerjoin(fitdf, aicdf, on=[:class, :sample_id])
+    df = innerjoin(df, fitdf, on=[:class, :sample_id])
+    select!(df, :class, :sample_id, :component_id, :counts, :nreads, pareto)
     return df
 end
 
 end # end module Figure3
-
-

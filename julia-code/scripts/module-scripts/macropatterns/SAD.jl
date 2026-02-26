@@ -7,16 +7,13 @@ import Meris.MDistributions as MDist
 
 function compute(
         df;
-        filter=true,
-        xmins=nothing,
-        pareto_type="I",
+        pareto=:ParetoI,
         nbins=30,
         save=true,
         filename="SAD.jld2"
     )
 
     Random.seed!(1234)
-
     classes = unique(df.class)
 
     heaps_d = Dict()
@@ -26,68 +23,64 @@ function compute(
     for class in classes
         println(class)
         sdf = df[df.class .== class, :]
-        rdf = deepcopy(sdf)
-        rdf.counts .= rdf.counts ./ rdf.nreads
     
         # Compute Heaps' scaling
         hdf = heaps(sdf)
         heaps_d[class] = (N = hdf.documentsize, V = hdf.vocabularysize)
     
         # Compute power law exponents
-        α_vec, ε_vec = fit_samples(rdf; xmins=xmins, pareto_type=pareto_type)
+        α_vec, ε_vec = get_params(sdf; pareto=pareto)
         pl_d[class] = (α = α_vec, ε = ε_vec)
     
         # Compute CAD
         agg_df = aggregate_samples(sdf)
         agg_df.counts .= agg_df.counts ./ agg_df.nreads
-        x = filter ? log10.(agg_df.counts[agg_df.counts .> mean(ε_vec)]) : log10.(agg_df.counts)
+        x = log10.(agg_df.counts[agg_df.counts .> mean(ε_vec)])
         h = Meris.DataTools.make_hist(x, nbins=nbins)
         cad_d[class] = (x = h[1], y = h[2])
-
-        # Compute power law effective exponents
-        agg_df.sample_id .= "s"
-        α_eff, ε_eff = fit_samples(agg_df; xmins=xmins, pareto_type=pareto_type)
-        ple_d[class] = (α = α_eff, ε = ε_eff)
     end
 
-    out = (heaps = heaps_d, pl = pl_d, cad = cad_d, ple = ple_d)
+    out = (heaps = heaps_d, pl = pl_d, cad = cad_d)
     (save) && (@save filename out)
     
     return out
 end
 
 #### HELPER ####
-
 function aggregate_samples(df)
     return @chain df begin
         @groupby(:component_id)
         @combine(:sample_id, counts = sum(:counts), nreads = sum(:nreads))
     end
 end
-    
-function fit_samples(df; samples_idx=nothing, xmins=nothing, pareto_type)
-    
-    samples = unique(df.sample_id)
-    samples_idx = isnothing(samples_idx) ? collect(1:length(samples)) : samples_idx
 
-    α_vec = []
-    ε_vec = []
-    for sample in samples[samples_idx]
-        sdf = df[df.sample_id .== sample, :]
-
-        if pareto_type == "I"
-            pareto = MDist.ParetoI
-        elseif pareto_type == "T"
-            pareto = MDist.TemperedPareto
+function get_params(df; pareto=:ParetoI)
+    a_idx, e_idx = pareto_idx(pareto)
+    a_vec, e_vec = Float64[], Float64[]
+    for row in eachrow(df)
+        params = row[pareto]
+        a = params[a_idx]
+        e = params[e_idx]
+        if pareto == :GeneralizedPareto
+            a = 1/a
         end
-        fit = MDist.fit(pareto, sdf.counts; εs=xmins)
-        ε = fit.ε
-        push!(ε_vec, ε)
-        α = fit.α
-        push!(α_vec, α)
+        push!(a_vec, a)
+        push!(e_vec, e)
     end
-    
-    return (α_vec, ε_vec)
+
+    return a_vec, e_vec
+end
+
+function pareto_idx(pareto)
+    if pareto == :ParetoI
+        return 1, 2
+    elseif pareto == :TemperedPareto
+        return 1, 3
+    elseif pareto == :GeneralizedPareto
+        return 3, 1
+    elseif pareto == :ParetoIV
+        return 1, 4
+    end
 end
 
 function heaps(
