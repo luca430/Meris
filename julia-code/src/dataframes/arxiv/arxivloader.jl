@@ -48,7 +48,7 @@ function load(
     ;
     DIR=ARXIVDIR * "processed/",
     minreads      = 4_000,
-    mincomponents = 100_000,
+    mincomponents = 10_000,
     minsamples    = 30,
     stopwords     = true,
     applyfilter   = true,

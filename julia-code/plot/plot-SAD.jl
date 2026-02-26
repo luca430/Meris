@@ -18,11 +18,21 @@ import Meris
 import Meris.MDistributions as MDist
 
 const ICONDIR = Meris.FIGDIR .* "icons"
+const MM_TO_PT = 72.0 / 25.4
+const NATURE_SINGLE_WIDTH_PT = 89.0 * MM_TO_PT
+const NATURE_DOUBLE_WIDTH_PT = 183.0 * MM_TO_PT
+const NATURE_MAX_HEIGHT_PT = 170.0 * MM_TO_PT
+const NATURE_AXIS_LABEL_PT = 7
+const NATURE_TICK_PT = 6
+const NATURE_TEXT_PT = 6
+const NATURE_PANEL_LABEL_PT = 8
 
 #################
 ### FUNCTIONS ###
 function plot!(parent;
         color_num=1,
+        panel_id=1,
+        font_scale=1.0,
         color_shades=4,
         palette=nothing,
         DIR=Meris.DATADIR * "macro/sad/",
@@ -33,9 +43,9 @@ function plot!(parent;
         reverse_panel=false,
         icon_name=nothing,
         icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
-        ax2_text_offset=(1.0, 4.0),
-        ax3_text_color=nothing,
-        ax3_text_offset=(1.0, 1.5)
+        ax2_text_offset=(1.0, 0.2),
+        ax3_text_offset=(1.0, 1.5),
+        inner_rowgap=3
     )
 
     # Theme
@@ -70,12 +80,12 @@ function plot!(parent;
     ax1 = Axis(ax1_cell,
         xaxisposition = reverse_panel ? :bottom : :top,
         xlabel="", ylabel=L"\text{CAD } \gamma",
-        ylabelsize=12,
+        ylabelsize=NATURE_AXIS_LABEL_PT * font_scale,
         xticklabelalign = (:right, :center),
         xticklabelrotation = reverse_panel ? π/6 : -π/6,
         xticklabelpad = 5,
-        xticklabelsize=9,
-        yticklabelsize=10,
+        xticklabelsize=NATURE_TICK_PT * font_scale,
+        yticklabelsize=NATURE_TICK_PT * font_scale,
         yminorticksvisible = false,
         xminorticksvisible = false,
         xticksvisible = false,
@@ -88,10 +98,10 @@ function plot!(parent;
         ax2_cell,
         xlabel=L"\text{rel. abundance } \nu",
         ylabel=L"p(\nu)",
-        xlabelsize=12,
-        ylabelsize=12,
-        xticklabelsize=10,
-        yticklabelsize=10,
+        xlabelsize=NATURE_AXIS_LABEL_PT * font_scale,
+        ylabelsize=NATURE_AXIS_LABEL_PT * font_scale,
+        xticklabelsize=NATURE_TICK_PT * font_scale,
+        yticklabelsize=NATURE_TICK_PT * font_scale,
         xscale=log10, yscale=log10,
         limits=ax2limits
     )
@@ -100,10 +110,10 @@ function plot!(parent;
         ax3_cell,
         xlabel = L"\text{sample size } N",
         ylabel = L"\text{vocabulary size } V",
-        xlabelsize = 12,
-        ylabelsize = 12,
-        xticklabelsize=10,
-        yticklabelsize=10,
+        xlabelsize = NATURE_AXIS_LABEL_PT * font_scale,
+        ylabelsize = NATURE_AXIS_LABEL_PT * font_scale,
+        xticklabelsize=NATURE_TICK_PT * font_scale,
+        yticklabelsize=NATURE_TICK_PT * font_scale,
         xscale = log10, yscale=log10,
         limits=ax3limits
     )
@@ -116,7 +126,7 @@ function plot!(parent;
         rowsize!(panel, 1, Relative(0.4))
         rowsize!(panel, 2, Relative(0.6))
     end
-    rowgap!(panel, 15)
+    rowgap!(panel, inner_rowgap)
 
     colsize!(top, 1, Relative(0.91))
 
@@ -232,17 +242,34 @@ function plot!(parent;
     end
     ax1.xticks = (1:length(series), xticklabels)
 
+    angle_in_screen(ax, x1, y1, x2, y2) = begin
+        tf = ax.scene.transformation.transform_func[]
+        q1 = apply_transform(tf, Point2f(Float32(x1), Float32(y1)))
+        q2 = apply_transform(tf, Point2f(Float32(x2), Float32(y2)))
+        M = Makie.transformationmatrix(ax.scene)[]
+        v1 = [Float64(q1[1]), Float64(q1[2]), 0.0, 1.0]
+        v2 = [Float64(q2[1]), Float64(q2[2]), 0.0, 1.0]
+        p1 = M * v1
+        p2 = M * v2
+        atan(p2[2] - p1[2], p2[1] - p1[1])  # atan(dy, dx)
+    end
+
     ### AX2 ###
     ax2_lims = ax2.limits[]
     ax2_xmin = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[1])) ? ax2_lims[1] : minimum(x_min)
     ax2_xmax = (ax2_lims isa Tuple && length(ax2_lims) >= 4 && !isnothing(ax2_lims[2])) ? ax2_lims[2] : maximum(x_max)
-    xrange = (ax2_xmin - 1.1):1e-2:min(-0.5, ax2_xmax)
-    lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5, label=L"y \sim x^{-1}")
-    axislegend(ax2,
-        position=:rt,
-        labelsize=12,
-        markersize=2,
-        patchsize=(12, 5)
+    xrange = log10(ax2_xmin):1e-2:log10(ax2_xmax)
+    lines!(ax2, 10 .^ xrange, 10 .^ (-xrange), color=:black, linestyle=:dash, linewidth=1.5)
+    x2_ref = sqrt(ax2_xmin * ax2_xmax)
+    x2_ref2 = x2_ref * 1.15
+    y2_ref = x2_ref^-1
+    y2_ref2 = x2_ref2^-1
+    θ2 = angle_in_screen(ax2, x2_ref, y2_ref, x2_ref2, y2_ref2)
+    text!(ax2, x2_ref * ax2_text_offset[1], y2_ref * ax2_text_offset[2];
+        text=L"\sim \nu^{-1}",
+        rotation=θ2,
+        color=:black,
+        fontsize=10
     )
 
     if !isnothing(icon_name)
@@ -251,41 +278,67 @@ function plot!(parent;
     end
 
     ### AX3 ###
-    ax3_text_color = isnothing(ax3_text_color) ? colors[1] : ax3_text_color
-    text!(ax3, 5e1, 5e1 * 2, text=L"V \sim N", color=ax3_text_color, rotation = π/4, fontsize=10)
+    ax3_lims = ax3.limits[]
+    ax3_xmin = (ax3_lims isa Tuple && length(ax3_lims) >= 4 && !isnothing(ax3_lims[1])) ? ax3_lims[1] : minimum([minimum(s.heaps.N) for s in series])
+    ax3_xmax = (ax3_lims isa Tuple && length(ax3_lims) >= 4 && !isnothing(ax3_lims[2])) ? ax3_lims[2] : maximum(xmax)
+    x3_ref = 50
+    x3_ref2 = x3_ref * 1.15
+    y3_ref = x3_ref
+    y3_ref2 = x3_ref2
+    θ3_id = angle_in_screen(ax3, x3_ref, y3_ref, x3_ref2, y3_ref2)
+    text!(ax3, x3_ref * ax3_text_offset[1], y3_ref * ax3_text_offset[2];
+        text=L"V \sim N",
+        color=:black,
+        rotation=θ3_id,
+        fontsize=9
+    )
 
     # pick two nearby x points on the curve (in DATA coordinates): this is because we need to express data slope in terms of axis dimensions
-    xp = maximum(xmax) / 500
+    xp = ax3_xmax / 500
     x1 = xp
     x2 = xp * 1.15
 
     p = parss[argmax(ymax)]
     y1 = Meris.HeapsModel.predict_regimes(x1, p)
     y2 = Meris.HeapsModel.predict_regimes(x2, p)
-
-    M = Makie.transformationmatrix(ax3.scene)[]
-    v1 = Vec4f(Float32(x1), Float32(y1), 0f0, 1f0)
-    v2 = Vec4f(Float32(x2), Float32(y2), 0f0, 1f0)
-
-    p1 = M * v1
-    p2 = M * v2
-
-    θ = atan(p2[2] - p1[2], p2[1] - p1[1])  # atan(dy, dx)
+    θ = angle_in_screen(ax3, x1, y1, x2, y2)
 
     text!(ax3, x1 * ax3_text_offset[1], y1 * ax3_text_offset[2];
         text=L"V \sim N^{\eta}",
         rotation=θ,
-        color=ax3_text_color,
-        fontsize=10
+        color=:black,
+        fontsize=9
+    )
+
+    base_letter_idx = 3 * (panel_id - 1)
+    letters = [
+        Char(Int('a') + mod(base_letter_idx + 0, 26)),
+        Char(Int('a') + mod(base_letter_idx + 1, 26)),
+        Char(Int('a') + mod(base_letter_idx + 2, 26))
+    ]
+
+    # Panel letters outside axes, following Makie layout-label style.
+    Label(top[1,1,TopRight()], string(letters[1]);
+        fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
+        halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
+    )
+    Label(bottom[1,1,TopRight()], string(letters[2]);
+        fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
+        halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
+    )
+    Label(bottom[1,2,TopRight()], string(letters[3]);
+        fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
+        halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
     )
 
     return (ax1=ax1, ax2=ax2, ax3=ax3, panel=panel)
 end
 
 function plot(; savefig=false, figname="sad.png", kwargs...)
-    width = .95 * 246
-    height = 3*width / 4.67
-    fig = Figure(; size=(1.75*width, 1.5*height), figure_padding=(2,4,2,14))
+    fig = Figure(;
+        size=(NATURE_SINGLE_WIDTH_PT, 0.55 * NATURE_SINGLE_WIDTH_PT),
+        figure_padding=(4, 4, 4, 4)
+    )
     plot!(fig[1,1]; kwargs...)
     (savefig && !isnothing(figname)) && CairoMakie.save(figname, fig, pt_per_unit=1)
     return fig
@@ -320,20 +373,16 @@ function plot4(;
         figname="full_sad.png",
         pt_per_unit=1
     )
-
-    width = .95 * 246
-    height = 3*width / 4.67
-
     bigfig = Figure(
-        size = (2 * 1.75*width, 2 * 1.5*height),
-        figure_padding = (8, 8, 8, 8)
+        size = (NATURE_DOUBLE_WIDTH_PT, NATURE_MAX_HEIGHT_PT),
+        figure_padding = (4, 4, 4, 4)
     )
 
     # 2×2 panels
-    plot!(bigfig[1,1]; CADDIR=CADDIR, color_num=1)
-    plot!(bigfig[1,2]; CADDIR=CADDIR, color_num=2)
-    plot!(bigfig[2,1]; CADDIR=CADDIR, color_num=3)
-    plot!(bigfig[2,2]; CADDIR=CADDIR, color_num=4)
+    plot!(bigfig[1,1]; CADDIR=CADDIR, color_num=1, panel_id=1)
+    plot!(bigfig[1,2]; CADDIR=CADDIR, color_num=2, panel_id=2)
+    plot!(bigfig[2,1]; CADDIR=CADDIR, color_num=3, panel_id=3)
+    plot!(bigfig[2,2]; CADDIR=CADDIR, color_num=4, panel_id=4)
 
     rowgap!(bigfig.layout, 20)
     colgap!(bigfig.layout, 20)

@@ -37,7 +37,7 @@ function load(
         #~ Check if filename is `rfc[0-9].txt`
         if occursin(r"rfc[0-9]+\.txt$", basename(FILE))
             tokens = load_rfc(; FILENAME=FILE, DIR=DIR)
-            if length(tokens) > minsamplecomponents
+            if length(tokens) > 200
                 nfiles += 1
                 #/ Perform a simple countmap
                 cm = countmap(tokens)

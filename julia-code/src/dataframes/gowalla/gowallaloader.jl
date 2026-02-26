@@ -56,7 +56,7 @@ function load(
         )
     end
 
-    return df
+    return sdf
 end
 
 end # module GowallaLoader

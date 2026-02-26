@@ -15,6 +15,14 @@ using Colors, ColorTypes
 import Meris
 
 const ICONDIR = Meris.FIGDIR .* "icons"
+const MM_TO_PT = 72.0 / 25.4
+const NATURE_SINGLE_WIDTH_PT = 89.0 * MM_TO_PT
+const NATURE_DOUBLE_WIDTH_PT = 183.0 * MM_TO_PT
+const NATURE_MAX_HEIGHT_PT = 170.0 * MM_TO_PT
+const NATURE_AXIS_LABEL_PT = 7
+const NATURE_TICK_PT = 6
+const NATURE_TEXT_PT = 6
+const NATURE_PANEL_LABEL_PT = 8
 Random.seed!(1234) 
 
 #################
@@ -26,41 +34,41 @@ function _default_taylor_datasets(TLDIR)
         (;
             key=:linguistic,
             file=joinpath(TLDIR, "linguistic.jld2"),
-            icon=joinpath(ICONDIR, "linguistic.png"),
-            icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.95),
+            icon=joinpath(ICONDIR, "document.png"),
+            icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.08, valign=0.92),
             occ_small=0.0,
             occ_big=0.9,
-            take=400,
+            take=5000,
             ref_shift=-0.5,
         ),
         (;
             key=:microbial,
             file=joinpath(TLDIR, "microbial.jld2"),
-            icon=joinpath(ICONDIR, "microbial.png"),
-            icon_kw=(; width=Relative(0.3), height=Relative(0.35), halign=0.0,  valign=0.95),
+            icon=joinpath(ICONDIR, "bacteria.png"),
+            icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.08,  valign=0.92),
             occ_small=0.0,
             occ_big=0.9,
-            take=200,
+            take=8000,
             ref_shift=-0.6,
         ),
         (;
             key=:social,
             file=joinpath(TLDIR, "social.jld2"),
-            icon=joinpath(ICONDIR, "social.png"),
-            icon_kw=(; width=Relative(0.4), height=Relative(0.45), halign=0.0,  valign=1.0),
+            icon=joinpath(ICONDIR, "socio-economic.png"),
+            icon_kw=(; width=Relative(0.77*0.25), height=Relative(0.25), halign=0.08,  valign=0.92),
             occ_small=0.0,
             occ_big=0.5,
-            take=400,
+            take=15000,
             ref_shift=-0.9,
         ),
         (;
             key=:biology,
             file=joinpath(TLDIR, "biology.jld2"),
-            icon=joinpath(ICONDIR, "biology.png"),
-            icon_kw=(; width=Relative(0.45), height=Relative(0.5), halign=0.03, valign=1.0),
+            icon=joinpath(ICONDIR, "eco.png"),
+            icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.08, valign=0.92),
             occ_small=0.0,
-            occ_big=0.99999,
-            take=400,
+            occ_big=0.9,
+            take=10000,
             ref_shift=-0.5,
         ),
     ]
@@ -74,7 +82,7 @@ end
 function _make_colors(; palette, n::Int, color_num::Int=1, color_shades::Int=8)
     if !isnothing(palette)
         cols = parse.(Colorant, palette)
-        return [cols[mod1(i, length(cols))] for i in 1:length(cols)]
+        return [cols[mod1(i, length(cols))] for i in 1:n]
     end
 
     base = MakiePublication.COLORS[1][color_num]
@@ -142,13 +150,17 @@ function plot!(parent;
     TLDIR = Meris.DATADIR * "macro/taylor/",
     datasets = _default_taylor_datasets(TLDIR),
     palettes = [nothing, nothing, nothing, nothing],
+    panel_start::Int = 1,
+    font_scale::Float64 = 1.0,
     color_num = [1,2,3,4],
     color_shades = fill(8, 4),
     show_icons::Bool = true,
     big_limits = (-2, 2, -4, 4),
     small_limits = nothing,  # set to a 4-tuple, or keep auto
-    panel_rowgap = 8,
-    panel_colgap = 10,
+    panel_rowgap = 0,
+    panel_colgap = 6,
+    small_rowgap = 2,
+    small_colgap = 3,
     markersize_small = 6,
     markersize_big = 6,
     strokewidth = 0.4,
@@ -161,10 +173,7 @@ function plot!(parent;
     markers = [:circle, :rect, :diamond, :cross, :x, :utriangle, :dtriangle, :star4, :star6, :pentagon, :hexagon, :octagon]
 
     nsets = length(datasets)
-    cols = []
-    for (i,palette) in enumerate(palettes)
-        push!(cols, _make_colors(; palette=palette, n=nsets, color_num=color_num[i], color_shades=color_shades[i]))
-    end
+    cols = Vector{Vector{Colorant}}(undef, nsets)
 
     # Layout inside the provided parent
     panel = GridLayout(parent)
@@ -172,9 +181,9 @@ function plot!(parent;
     # Left: big axis spans two rows; Right: 2x2 grid of small axes
     ax_big = Axis(
         panel[1:2, 1],
-        xlabel=L"\log_{10} \, \mu", xlabelsize=14,
-        ylabel=L"\log_{10} \, \sigma^2", ylabelsize=14,
-        xticklabelsize=12, yticklabelsize=12,
+        xlabel=L"\log_{10} \, \mu", xlabelsize=NATURE_AXIS_LABEL_PT * font_scale,
+        ylabel=L"\log_{10} \, \sigma^2", ylabelsize=NATURE_AXIS_LABEL_PT * font_scale,
+        xticklabelsize=NATURE_TICK_PT * font_scale, yticklabelsize=NATURE_TICK_PT * font_scale,
         limits=big_limits,
     )
 
@@ -187,6 +196,8 @@ function plot!(parent;
     colsize!(panel, 2, Relative(0.55))
     rowgap!(panel, panel_rowgap)
     colgap!(panel, panel_colgap)
+    rowgap!(right, small_rowgap)
+    colgap!(right, small_colgap)
 
     # Create the 2x2 axes in the right grid
     axs_small = Axis[]
@@ -195,9 +206,9 @@ function plot!(parent;
         i > nsets && break
         ax = Axis(
             right[r, c],
-            xlabel=L"\log_{10} \, \mu", xlabelsize=14,
-            ylabel=L"\log_{10} \, \sigma^2", ylabelsize=14,
-            xticklabelsize=12, yticklabelsize=12,
+            xlabel=L"\log_{10} \, \mu", xlabelsize=NATURE_AXIS_LABEL_PT * font_scale,
+            ylabel=L"\log_{10} \, \sigma^2", ylabelsize=NATURE_AXIS_LABEL_PT * font_scale,
+            xticklabelsize=NATURE_TICK_PT * font_scale, yticklabelsize=NATURE_TICK_PT * font_scale,
         )
         if isnothing(small_limits)
             xlims!(ax, minimum(m_small_vec) * 1.5, maximum(m_small_vec) * 1.3)
@@ -211,7 +222,9 @@ function plot!(parent;
 
     xtl = -10:0.1:10.0
     datasets = reverse(datasets)
-    cols = reverse(cols)
+    palettes = reverse(palettes)
+    color_num = reverse(color_num)
+    color_shades = reverse(color_shades)
 
     # Plot each dataset
     for (i, spec) in enumerate(datasets)
@@ -219,39 +232,54 @@ function plot!(parent;
         ax = axs_small[i]
 
         df = _load_tldf(spec.file)
+        take = _ntget(spec, :take, :all)
+        if take isa Integer
+            total = size(df, 1)
+            n = min(take, total)
+            if n <= 0
+                continue
+            elseif n < total
+                idx = randperm(total)[1:n]
+                df = df[idx, :]
+            end
+        end
+
         classes = unique(df.class)
-        m_small_vec = []
-        s_small_vec = []
-        for (c,class) in enumerate(reverse(classes))
+        cols[i] = _make_colors(;
+            palette=palettes[i],
+            n=length(classes),
+            color_num=color_num[i],
+            color_shades=color_shades[i]
+        )
+        class_order = reverse(classes)
+
+        m_small_vec = Float64[]
+        s_small_vec = Float64[]
+        for (c,class) in enumerate(class_order)
             sdf = df[df.class .== class, :]
             df_small = spec.occ_small > 0 ? sdf[sdf.occupancy .> spec.occ_small, :] : sdf
             df_small, m_small, s_small = _centered_logs(df_small)
-
-            take = _ntget(spec, :take, :all)
-            if take isa Integer
-                n = min(take, length(m_small))
-                idx = rand(1:length(m_small), n)
-                m_small = m_small[idx]
-                s_small = s_small[idx]
-            end
+            isempty(m_small) && continue
 
             append!(m_small_vec, m_small)
             append!(s_small_vec, s_small)
-    
             scatter!(
                 ax, m_small, s_small;
                 color=(:white, 1.0),
                 strokecolor=cols[i][c],
-                marker=markers[c],
+                marker=markers[mod1(c, length(markers))],
                 markersize=markersize_small,
                 strokewidth=strokewidth,
             )
         end
 
         # same guide lines you used: y=2x and y=x, with the slight x-shift
-        shift = _ntget(spec, :ref_shift, 0.0)
-        lines!(ax, xtl, 2 .* (xtl .- minimum(m_small_vec).*1.5) .+ minimum(s_small_vec).*1.5; linewidth=2, color=:black, linestyle=(:dash, :dense))
-        lines!(ax, xtl, (xtl .- minimum(m_small_vec).*1.5) .+ minimum(s_small_vec).*1.5; linewidth=2, color=:grey, linestyle=(:dash, :dense))
+        if !isempty(m_small_vec) && !isempty(s_small_vec)
+            x0 = minimum(m_small_vec)
+            y0 = minimum(s_small_vec)
+            lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0; linewidth=2, color=:black, linestyle=(:dash, :dense))
+            lines!(ax, xtl, (xtl .- x0) .+ y0; linewidth=2, color=:grey, linestyle=(:dash, :dense))
+        end
 
         # icon overlay
         if show_icons && isfile(spec.icon)
@@ -259,25 +287,18 @@ function plot!(parent;
             _add_icon!(right[grid_positions[i]...], spec.icon; ikw...)
         end
 
-        # big axis: occupancy filter + optional truncation
-        for (c,class) in enumerate(reverse(classes))
+        # big axis: occupancy-filtered points from the same sampled dataset
+        for (c,class) in enumerate(class_order)
             sdf = df[df.class .== class, :]
             df_big = spec.occ_big > 0 ? sdf[sdf.occupancy .> spec.occ_big, :] : sdf
             df_big, m_big, s_big = _centered_logs(df_big)
-    
-            take = _ntget(spec, :take, :all)
-            if take isa Integer
-                n = min(take, length(m_big))
-                idx = rand(1:length(m_big), n)
-                m_big = m_big[idx]
-                s_big = s_big[idx]
-            end
-    
+            isempty(m_big) && continue
+
             scatter!(
                 ax_big, m_big, s_big;
                 color=(:white, 1.0),
                 strokecolor=cols[i][c],
-                marker=markers[c],
+                marker=markers[mod1(c, length(markers))],
                 markersize=markersize_big,
                 strokewidth=strokewidth,
             )
@@ -286,6 +307,20 @@ function plot!(parent;
 
     # Reference lines in all axes
     lines!(ax_big, xtl, 2 .* xtl; linewidth=2, color=:black, linestyle=(:dash, :dense))
+
+    # Panel letters outside axes, following Makie layout-label style.
+    letters = [Char(Int('a') + mod(panel_start - 1 + i, 26)) for i in 0:4]
+    Label(panel[1, 1, TopRight()], string(letters[1]);
+        fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
+        halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
+    )
+    for (i, (r, c)) in enumerate(grid_positions)
+        i > length(axs_small) && break
+        Label(right[r, c, TopLeft()], string(letters[min(i + 1, end)]);
+            fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
+            halign=:right, valign=:bottom, padding=(0, 6, 6, 0)
+        )
+    end
 
     return (;
         panel,
@@ -297,8 +332,7 @@ end
 
 """Backward-compatible wrapper that creates a standalone Figure."""
 function plot_taylor(; TLDIR=Meris.DATADIR * "macro/taylor/", savefig=false, figname="tl.png", kwargs...)
-    width = 1.9 * 246
-    fig = Figure(; size=(width, width / 2), figure_padding=(2, 4, 2, 14))
+    fig = Figure(; size=(NATURE_DOUBLE_WIDTH_PT, 0.65 * NATURE_MAX_HEIGHT_PT), figure_padding=(4, 4, 4, 4))
 
     plot!(fig[1, 1]; TLDIR=TLDIR, kwargs...)
 
