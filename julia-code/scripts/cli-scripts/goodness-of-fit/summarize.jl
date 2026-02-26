@@ -12,18 +12,28 @@ using Meris: Candies
 function summarize(
     ; DIR = DATADIR*"goodness-of-fit/",
     PROJECTS = [
-        "arxiv", "biotime", "finance", "otu", "rfc"
+        "arxiv", "gutenberg", "rfc",
+        "otu", "gowalla", "finance",
+        "bcitrees", "biotime", "gtex"
     ],
-    candidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto,
+    candidates = [:ParetoI, :ParetoIV, :TemperedPareto,
                   :Gamma, :LogNormal, :Weibull],
-    htcandidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto]
+    htcandidates = [:ParetoI, :ParetoIV, :TemperedPareto]
     )
     nhtcandidates = setdiff(candidates, htcandidates)
     #~ Allocate
     summarydf = DataFrame(
-        dataset=String[], environment=String[],
-        # fht=Float64[], K=Int[], w=Float64[],
-        meanpvalue=Float64[], meanexponent=Float64[], meanpwvalue=Float64
+        dataset=String[],
+        # environment=String[],
+        # fht=Float64[], K=Int[],
+        nht=Int[],
+        w=String,
+        meanpvalue=Float64[],
+        varpvalue=Float64[],
+        meanexponent=Float64[],
+        varexponent=Float64[],
+        # pwnht=Float64[],
+        # pwht=Float64[]
     )
     for PROJ in PROJECTS
         #~ Load data
@@ -52,33 +62,55 @@ function summarize(
             _adf = _adf[htrows,:]
             
             #~ Allocate
-            γ = zeros(length(htrows))
-            pv = zeros(length(htrows))
-            pw = zeros(length(htrows))
+            γ = Float64[]
+            nht = 0
+            pv = Array{Float64}(undef, length(htrows))
+            w = String[]
             #~ Compute exponents and pw
             for i in eachindex(htrows)
-                γ[i] = first(_fdf[!,:ParetoI][i]) + 1.0
-                AICmin = _adf[!,:ParetoI][i]
-                AICs = Array(_adf[!,htcandidates][i,:])
-                AICs = vcat(AICmin, AICs)
-                lw = exp.(-0.5.*(AICs .- AICmin))
-                pw[i] = lw[begin] / sum(skipmissing(lw))
                 pv[i] = _adf[!,:pvalue][i]
+                if _adf.ntail[i] > 50 && _adf.pvalue[i] > 0.1
+                    __bestmodel = _adf[!,:bestmodel][i]
+                    push!(w, string(__bestmodel))
+                    push!(γ, first(_fdf[!,__bestmodel][i]) + 1.0)                  
+                    
+                    # AICmin = _adf[!,__bestmodel][i]
+                    
+                    # AICs = Array(_adf[!,nhtcandidates][i,:])
+                    # AICs = vcat(AICmin, AICs)
+                    # lw = exp.(-0.5.*(AICs .- AICmin))
+                    # push!(pwnht, lw[begin] / sum(skipmissing(lw)))
+
+                    # AICs = Array(_adf[!,htcandidates][i,:])
+                    # AICs = vcat(AICmin, AICs)
+                    # lw = exp.(-0.5.*(AICs .- AICmin))
+                    # push!(pwht, lw[begin] / sum(skipmissing(lw)))
+                else
+                    nht += 1
+                end
             end
 
             push!(
                 summarydf, [
-                    PROJ, environment,
-                    # fht, K, "ParetoIV",
+                    "$(PROJ)-$(environment)",
+                    # fht, K,
+                    round(1 - nht / K, digits=2),
+                    mode(w),
                     round(StatsBase.mean(pv), digits=2),
+                    round(StatsBase.var(pv), digits=3),
                     round(StatsBase.mean(γ), digits=2),
-                    round(StatsBase.mean(pw), digits=2)
+                    round(StatsBase.var(γ), digits=3)
                 ], promote=true
             )
         end
     end
     return summarydf
 end
+
+println(
+    "lego", mean(sdf.nht), mode(sdf.w),
+    mean(sdf.meanpvalue), mean(sdf.varpvalue), mean(sdf.meanexponent), mean(sdf.varexponent)
+)
 
 end # module Summarizer
 #/ End module
