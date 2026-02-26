@@ -1,0 +1,2 @@
+### RUN FROM THIS FOLDER ###
+python download.py --out raw-data --tissues brain heart liver pancreas --with-annotation

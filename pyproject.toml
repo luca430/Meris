@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "pymoira"
+version = "0.0.1"
+description = "Python utilities to assist the Moira.jl package"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.3.3"
+argparse = "^1.4.0"
+nltk = "^3.9.2"
+numpy = "^2.3.3"
+lxml = "^6.0.2"
+arxiv = "^2.2.0"
+ipython = "^9.6.0"
+kagglehub = "^0.3.13"
+fastparquet = "^2024.11.0"
+ptipython = "^1.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

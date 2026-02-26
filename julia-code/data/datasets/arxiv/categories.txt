@@ -1,0 +1,16 @@
+q-bio.NC
+q-bio.BM
+q-bio.PE
+q-bio.GN
+astro-ph.GA
+astro-ph.CO
+astro-ph.EP
+astro-ph.SR
+physics.soc-ph
+physics.acc-ph
+physics.ao-ph
+physics.plasm-ph
+math.AG
+math.AT
+math.AP
+math.CT
