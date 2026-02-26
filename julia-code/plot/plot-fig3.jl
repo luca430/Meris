@@ -57,7 +57,7 @@ function prepare(;
         GC.gc()
         
         #| RFCs |#
-        pareto = :Tempered
+        pareto = :TemperedPareto
         df = Meris.RFCLoader.load()
         df = filter_df(df, GOFDIR * "rfc-candidatefits.jld2", pareto)
         df.class .= "RFC"
@@ -171,7 +171,7 @@ function plot(
     palette1 = shades(bases[1], 10)
     palette2 = shades(bases[2], 10)
     palette3 = shades(bases[3], 8)
-    palette4 = vcat(shades(bases[4], 10)[1:7], shades(bases[5], 8))
+    palette4 = vcat(shades(bases[4], 10)[1:6], shades(bases[5], 8))
     
     dirs = [
         Meris.DATADIR * "fig3/linguistic/",
