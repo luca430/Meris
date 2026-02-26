@@ -24,3 +24,6 @@ df = LEGOLoader.load(; applyfilter=args["filter"], top=args["top"])
 fitdf, aicdf = OhMyGoodness.fit_candidates(
     df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=true
 )
+
+#/ Store
+jldsave(OUTDIR*FILENAME; fitdf = fitdf, aicdf = aicdf)
