@@ -49,7 +49,7 @@ function fit_candidates(
             paretofit = ht.fit(ht.f, frequencies, εs)
             if __computepvalue
                 #~ Compute p value
-                p = ht.computepvalue(paretofit, frequencies, εs; weighted=false, rng=rng)
+                p = ht.computepvalue(paretofit, frequencies, εs; weighted=false)
             end
             #~ Filter data w.r.t. ε onwards, otherwise (i)
             #  - the log-likelihood blows up

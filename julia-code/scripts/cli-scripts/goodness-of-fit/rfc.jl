@@ -23,7 +23,7 @@ FILENAME = "rfc-candidatefits.jld2"
 df = RFCLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :class = "rfc", :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=false
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=true
 )
 
 #/ Store

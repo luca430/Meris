@@ -39,7 +39,7 @@ function getcandidates(
             p = (f) -> MDistributions.params(f),
             logpdf = (f, x) -> MDistributions.logpdf.(f, x),
             #~ Defaults to Burr/Lomax distribution with β=1
-            computepvalue = (P, data, εs; β=1.0, weighted=false, rng=rng) ->
+            computepvalue = (P, data, εs; β=1.0, weighted=false) ->
                 MDistributions.computepvalue(P, data, β, εs; weighted=weighted),
             dataframeentry = Tuple{Float64,Float64,Float64,Float64}
         ),

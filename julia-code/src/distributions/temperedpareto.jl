@@ -154,7 +154,7 @@ see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
 function computepvalue(
     P::TemperedPareto, x::Array{T}, εs::Array{T};
-    nsynth=625, weighted=false, rng=Random.Xoshiro(42)
+    nsynth=625, weighted=false
     ) where {T<:Real}
     #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
     xhead = filter(z -> z < P.ε, x)
@@ -162,31 +162,35 @@ function computepvalue(
     k = length(x)
     #~ Compute Kolmogorov-Smirnov distance in data
     KSDATA = KolmogorovSmirnov(P, x; weighted=weighted)
-    kscount = 0
+    
+    #~ Allocate parallel thread counts and rngs
+    kscount = Threads.Atomic{Int}(0)
+    rngs = [Random.Xoshiro(42*t) for t in 1:Threads.nthreads()]
+
     #/ Generate synthetic datasets
-    ns = 0
-    while ns < nsynth
-        ns += 1
-        #~ Sample synthetic dataset
-        synthx = rand(rng, P, k)
+    Threads.@threads for _ in 1:nsynth
+        #~ Generate synthetic data using the proper rng
+        _rng = rngs[Threads.threadid()]
+        synthx = rand(_rng, P, k)
         #~ augment synthetic data [see Clauset et al. (2009), Section 4.1]
-        u = Base.rand(rng, length(x))
+        u = Base.rand(_rng, length(x))
         for i in eachindex(synthx)
-            (u[i] < nhead) && (synthx[i] = StatsBase.sample(rng, xhead))
+            (u[i] < nhead) && (synthx[i] = StatsBase.sample(_rng, xhead))
         end        
         #~ Choose admissible ε
         logsynthx = log.(synthx)
         logxmin, logxmax = extrema(logsynthx)
         εsynth = exp.(range(logxmin, logxmax, length(εs)))
+        #~ Fit on synthetic data
         Psynthfit = fit(TemperedPareto, synthx, εsynth; weighted=weighted)
         #~ Compute Kolmogorov-Smirnov distance in synthetic data
         KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
         if KSSYNTHETIC > KSDATA
-            kscount += 1
+            Threads.atomic_add!(kscount, 1)
         end
     end
     #~ return p value
-    return kscount / nsynth
+    return kscount[] / nsynth
 end
 
 

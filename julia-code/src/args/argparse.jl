@@ -14,8 +14,9 @@ function parsegof()
         help = "Number of ε to try when fitting heavy-tailed distribution(s)"
         arg_type = Int
         default = 100
-        "--top", "-t"
+        "--top"
         help = "Number of samples with the highest no. of reads to keep."
+        arg_type = Int
         default = 50
         "--filter", "-f"
         help = "Flag for filtering data on, e.g., no. of samples, no. of components, etc."

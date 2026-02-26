@@ -23,5 +23,5 @@ FILENAME = "lego-candidatefits.jld2"
 df = LEGOLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=false
+    df, :class; testcandidate=:ParetoI, nε=args["numeps"], __computepvalue=true
 )

@@ -23,7 +23,7 @@ FILENAME = "finance-candidatefits.jld2"
 df = FinanceLoader.load(; applyfilter=args["filter"], top=args["top"])
 @transform!(df, :frequency = :counts ./ :nreads)
 fitdf, aicdf = OhMyGoodness.fit_candidates(
-    df,:class; testcandidate=:ParetoIV, nε=args["numeps"], __computepvalue=false
+    df,:class; testcandidate=:ParetoIV, nε=args["numeps"], __computepvalue=true
 )
 
 #/ Store
