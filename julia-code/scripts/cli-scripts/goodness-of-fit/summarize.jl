@@ -12,7 +12,7 @@ using Meris: Candies
 function summarize(
     ; DIR = DATADIR*"goodness-of-fit/",
     PROJECTS = [
-        "biotime", "bcitrees"
+        "biotime", "bcitrees", "gtex", "otu"
     ],
     candidates = [:GeneralizedPareto, :ParetoI, :ParetoIV, :TemperedPareto,
                   :Gamma, :LogNormal, :Weibull],
