@@ -269,7 +269,7 @@ end
 function shades(base::Colorant, n)
     hsl_base = convert(HSL, base)
     h, s = hsl_base.h, hsl_base.s
-    _colors = [HSL(h, s, l) for l in range(0.15, 0.65, length=n)]
+    _colors = [HSL(h, s, l) for l in range(0.3, 0.7, length=n)]
     return _colors
 end
 
