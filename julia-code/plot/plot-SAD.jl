@@ -294,7 +294,7 @@ function plot!(parent;
     )
 
     # pick two nearby x points on the curve (in DATA coordinates): this is because we need to express data slope in terms of axis dimensions
-    xp = ax3_xmax / 500
+    xp = ax3_xmax / 400
     x1 = xp
     x2 = xp * 1.15
 

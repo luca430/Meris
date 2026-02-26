@@ -9,6 +9,7 @@ function compute(
         df;
         pareto=:ParetoI,
         nbins=30,
+        heaps_df=nothing,
         save=true,
         filename="SAD.jld2"
     )
@@ -23,9 +24,10 @@ function compute(
     for class in classes
         println(class)
         sdf = df[df.class .== class, :]
+        sdf_heaps = isnothing(heaps_df) ? sdf : heaps_df[heaps_df.class .== class, :]
     
         # Compute Heaps' scaling
-        hdf = heaps(sdf)
+        hdf = heaps(sdf_heaps)
         heaps_d[class] = (N = hdf.documentsize, V = hdf.vocabularysize)
     
         # Compute power law exponents
