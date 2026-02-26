@@ -88,7 +88,7 @@ function prepare(;
         @info "Processing social data..."
         
         #| FINANCE |#
-        pareto = :ParetoI
+        pareto = :TemperedPareto
         df = Meris.FinanceLoader.load()
         df.class = [split(w, "-")[1] for w in df.class]
         df = filter_df(df, GOFDIR * "finance-candidatefits.jld2", pareto)
@@ -99,7 +99,7 @@ function prepare(;
         GC.gc()
         
         #| Gowalla |#
-        pareto = :ParetoI
+        pareto = :TemperedPareto
         df = Meris.GowallaLoader.load()
         df = filter_df(df, GOFDIR * "gowalla-candidatefits.jld2", pareto)
         df.class .= "GOWALLA"
@@ -109,7 +109,7 @@ function prepare(;
         GC.gc()
         
         #| LEGO |#
-        pareto = :ParetoI
+        pareto = :TemperedPareto
         df = Meris.LEGOLoader.load()
         df = filter_df(df, GOFDIR * "lego-candidatefits.jld2", pareto)
         df.class .= "LEGO"
@@ -182,7 +182,7 @@ function plot(
     
     # Nature max figure size: 183 mm x 170 mm (double-column).
     bigfig = Figure(
-        size = (SADPlotter.NATURE_DOUBLE_WIDTH_PT, SADPlotter.NATURE_MAX_HEIGHT_PT),
+        size = (SADPlotter.NATURE_DOUBLE_WIDTH_PT, SADPlotter.NATURE_MAX_HEIGHT_PT*0.9),
         figure_padding = (4, 4, 4, 4)
     )
     
@@ -193,9 +193,9 @@ function plot(
         font_scale=1.2,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(1e-5, 1e-1, 1e0, 1e5),
-        ax3limits=(1e1, 1e7, 1e1, 1e6),
+        ax3limits=(1e1, 1e7, 1e1, 1e7),
         icon_name="document.png",
-        ax2_text_offset=(0.02, 8),
+        ax2_text_offset=(0.03, 4),
         ax3_text_offset=(1.0, 1.7),
         icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1, valign=0.1)
     )
@@ -205,9 +205,9 @@ function plot(
         font_scale=1.2,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(1e-5, 1e-1, 1e0, 1e5),
-        ax3limits=(1e1, 1e6, 1e1, 1e5),
+        ax3limits=(1e1, 1e6, 1e1, 1e6),
         icon_name="bacteria.png",
-        ax2_text_offset=(0.02, 8),
+        ax2_text_offset=(0.03, 4),
         ax3_text_offset=(1.0, 1.5),
         icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1,  valign=0.1)
     )
@@ -231,9 +231,9 @@ function plot(
         reverse_panel=true,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(1e-5, 1e-1, 1e0, 1e5),
-        ax3limits=(1e1, 1e6, 1e1, 1e5),
+        ax3limits=(1e1, 1e6, 1e1, 1e6),
         icon_name="eco.png",
-        ax2_text_offset=(0.02, 8),
+        ax2_text_offset=(0.03, 4),
         ax3_text_offset=(1.0, 1.7),
         icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1, valign=0.1)
     )
