@@ -251,44 +251,6 @@ function fit(::Type{GeneralizedPareto}, x::Array{T}, ε::Float64) where {T<:Real
     # println("Optimizer not converged, returning initial guesses [method of moments]")
 end
 
-"""
-Compute p-value that determines whether to reject the generalized Pareto as a candidate
-see, [Clauset et al. (2009), Power-law distribution in empirical data]
-"""
-function computepvalue(gpd::GeneralizedPareto, x::Array{T}; nsynth=500) where {T<:Real}
-    #~ Simulate `nsynth` synthetic datasets, and fit a generalized Pareto on each
-    #  Then, compute the (weighted) KS statistic and compare with the value for the data
-    k = length(x)
-    rng = Random.Xoshiro(42*nsynth)
-    
-    #~ Compute KS statistic in data
-    _x = sort(x[x .> gpd.ε])
-    Fv = _ecdf(_x, _x).F     # Values of empirical CDF
-    Ftv = 1.0 .- ccdf.(gpd, _x)
-    Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-    distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-    KSDATA = Base.maximum(distances)
-    kscount = 0
-
-    #/ Generate synthetic datasets
-    for n in 1:nsynth
-        r = rand(rng, gpd, k)
-        _x = sort(r)
-        #~ Fit a generalized Pareto with ε given
-        _gpd = fit(GeneralizedPareto, r, gpd.ε)
-        #~ Compute Kolmogorov-Smirnov distance as the test statistic
-        Fv = _ecdf(_x, _x).F     # Values of empirical CDF
-        Ftv = 1.0 .- ccdf.(_gpd, _x)
-        Z = sqrt.(Ftv .* (1 .- Ftv))          # Weight
-        distances = abs.(Fv .- Ftv) ./ Z      # Weighted KS distance
-        KSSYNTHETIC = Base.maximum(distances)
-        if KSSYNTHETIC > KSDATA
-            kscount += 1
-        end
-    end
-    return kscount / nsynth
-end
-
 ########################
 ### HELPER FUNCTIONS ###
 function KolmogorovSmirnov(P::GeneralizedPareto, data::Array{T}) where {T<:Real}

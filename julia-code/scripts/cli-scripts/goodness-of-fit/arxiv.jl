@@ -23,8 +23,9 @@ mincomponents = 10_000  #~ min. no. of distinct components per "class"
 
 @info "Fits and comparisons for arXiv articles..."
 #/ Load and fit candidates [see `candidates.jl`]
-df = arXivLoader.load(
-    stopwords=true, applyfilter=args["filter"]; top=args["top"],
+df = arXivLoader.load(;
+    stopwords=true,
+    applyfilter=args["filter"], top=args["top"],
     minsamples=minsamples, minreads=minreads, mincomponents=mincomponents
 )
 @transform!(df, :frequency = :counts ./ :nreads)

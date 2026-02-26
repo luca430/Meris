@@ -244,7 +244,7 @@ see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
 function computepvalue(
     P::ParetoIV, x::Array{T}, εs::Array{T};
-    nsynth=256, weighted=false, rng=Random.Xoshiro(42)
+    nsynth=625, weighted=false, rng=Random.Xoshiro(42)
     ) where {T<:Real}
     #~ Compute prob. to augment synthetic data [see Clauset et al. (2009), Section 4.1]
     xhead = filter(z -> z < P.ε, x)
@@ -286,7 +286,7 @@ see, [Clauset et al. (2009), Power-law distribution in empirical data]
 """
 function computepvalue(
     P::ParetoIV, x::Vector{T}, β::T, εs::Vector{T};
-    nsynth=625, weighted=false
+    nsynth=332, weighted=false
 ) where {T<:Real}
     #~ Compute prob. of data appearing in the "head" [the "non-tail"]
     xhead = filter(z -> z < P.ε, x)
@@ -310,15 +310,16 @@ function computepvalue(
         logsynthx = log.(synthx)
         logxmin, logxmax = extrema(logsynthx)
         εsynth = exp.(range(logxmin, logxmax, length(εs)))
-        #~ Compute Kolmogorov-Smirnov distance in synthetic data
+        #~ Fit on synthetic data
         Psynthfit = fit(ParetoIV, synthx, β, εsynth; weighted=weighted)
+        #~ Compute Kolmogorov-Smirnov distance in synthetic data
         KSSYNTHETIC = KolmogorovSmirnov(Psynthfit, synthx; weighted=weighted)
         #~ Compute Kolmogorov-Smirnov distance in synthetic data and, if larger, increment
         if KSSYNTHETIC > KSDATA
             Threads.atomic_add!(kscount, 1)
         end
     end
-
+    #~ return p value
     return kscount[] / nsynth
 end
 
