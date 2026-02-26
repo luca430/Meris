@@ -20,11 +20,21 @@ import Meris.GUTENBERGDIR as GUTENBERGDIR
 function load(
     ;
     root=GUTENBERGDIR * "raw-data",
+<<<<<<< HEAD
     filterdata    = true,
     minreads::Int=100_000,
     mincomponents::Int=1_000,
     minsamples::Int=30, 
     top::Int=50
+=======
+    marker=r"\*\*\*.*\*\*\*",
+    minsamples    = 30,
+    minreads      = 100_000,
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
+>>>>>>> origin/plot/figure3
     )
 
     #~ marker needed to distinguish partions in Gutenberg data (e.g. it, en)
@@ -61,12 +71,9 @@ function load(
 
     if applyfilter
         #~ filter data
-        df = Meris.DataTools.filterdata(
-            df;
-            minreads=minreads,
-            mincomponents=mincomponents,
-            minsamples=minsamples,
-            top=top
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
         )
     end
 

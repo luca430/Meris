@@ -20,12 +20,13 @@ function load(
     DIR=RFCDIR * "raw-data/",
     maxfiles      = 5000,      #~ Max. no of parsed files
     maxrows       = 2_000_000, #~ Max. no of rows allowed in DataFrame
-    filterdata    = true,
-    minreads::Int=10_000,
-    mincomponents::Int=1_000,
-    minsamples::Int=30,           
-    top::Int=50
-    )
+    minsamples    = 30,
+    minreads      = 10_000,
+    mincomponents = 100,
+    applyfilter   = true,
+    reorder       = true,
+    top           = nothing,
+)
     #~ Allocate DataFrame
     df = DataFrame(
         sample_id=String[], component_id=String[], counts=Int[], nreads=Int[], class=String[]
@@ -53,12 +54,9 @@ function load(
 
     if applyfilter
         #~ filter data
-        df = Meris.DataTools.filterdata(
-            df;
-            minreads=minreads,
-            mincomponents=mincomponents,
-            minsamples=minsamples,
-            top=top
+        df = filterdata(
+            df; minsamples=minsamples, minreads=minreads, mincomponents=mincomponents,
+            reorder=reorder, top=top
         )
     end
     

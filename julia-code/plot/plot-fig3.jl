@@ -3,8 +3,8 @@ module Figure3
 
 using Meris
 using DataFrames, DataFramesMeta, StatsBase
-using CairoMakie, MakiePublication, LaTeXStrings
-# using CSV, CodecZlib, Glob
+using Colors, CairoMakie, MakiePublication
+using LaTeXStrings
 using JLD2
 
 include("./../scripts/module-scripts/macropatterns/SAD.jl")
@@ -61,7 +61,8 @@ function prepare(;
     
         df = fitdf = aicdf = nothing
         GC.gc()
-
+    end
+   
     ## MICROBIAL ##
     end
     
@@ -78,6 +79,7 @@ function prepare(;
     
         df = fitdf = aicdf = nothing
         GC.gc()
+    end
 
     ## SOCIAL ##
     end
@@ -115,6 +117,7 @@ function prepare(;
     
         df = fitdf = aicdf = nothing
         GC.gc()
+    end
 
     ## BIOLOGY ##
     end
@@ -157,14 +160,20 @@ function prepare(;
 end
 
 ### MAKE FIGURE 2 ###
-function plot(; ext="pdf")
-    palette1 = reverse(["#E3F2FDFF", "#BBDEFBFF", "#90CAF9FF", "#64B5F6FF", "#42A5F5FF", "#2196F3FF",
-        "#1E88E5FF", "#1976D2FF", "#1565C0FF", "#0D47A1FF"])
-    palette2 = ["#341B0EFF", "#5B2E16FF", "#673419FF", "#79421DFF", "#A46425FF", "#B28351FF", 
-        "#E2AF6DFF", "#DFB77DFF", "#FFBC38FF", "#FCCA60FF", "#F8DC8CFF"]
-    palette3 = reverse(["#F3CBD3FF", "#EAA9BDFF", "#DD88ACFF", "#CA699DFF", "#B14D8EFF", "#91357DFF", "#6C2167FF"])
-    palette4 = ["#E65100FF", "#EF6C00FF", "#F57C00FF", "#FB8C00FF", "#FF9800FF",
-        "#2E7D32FF", "#388E3CFF", "#43A047FF", "#4CAF50FF"]
+function plot(
+    ; ext="pdf",
+    bases = [
+        colorant"#1f77b4",  # blue
+        colorant"#ff7f0e",  # orange
+        colorant"#9467bd",  # purple
+        colorant"#2ca02c",  # green
+        colorant"#d62728"   # red
+    ]
+    )
+    palette1 = shades(bases[1], 7)
+    palette2 = shades(bases[2], 10)
+    palette3 = shades(bases[3], 5)
+    palette4 = vcat(shades(bases[4], 5), shades(bases[5], 4))
     
     dirs = [
         Meris.DATADIR * "fig3/microbial/",
@@ -185,24 +194,24 @@ function plot(; ext="pdf")
         ax1limits=(nothing, nothing, 1.5, 3),
         ax2limits=(nothing, nothing, 1e1, 3e4),
         ax3limits=(5, 1e7, 5, 1e6),
-        icon_name="linguistic.png",
-        icon_kw=(; width=Relative(0.25), height=Relative(0.3), halign=0.05, valign=0.05)
+        icon_name="document.png",
+        icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1, valign=0.1)
     )
     SADPlotter.plot!(
         bigfig[1,2]; DIR=dirs[2], palette=palette2,
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(nothing, nothing,1e0,3e4),
         ax3limits=(5, 1e7, 5, 1e5),
-        icon_name="microbial.png",
-        icon_kw=(; width=Relative(0.3), height=Relative(0.35), halign=0.0,  valign=0.05)
+        icon_name="bacteria.png",
+        icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1,  valign=0.1)
     )
     SADPlotter.plot!(
         bigfig[2,1]; DIR=dirs[3], palette=palette3,
         reverse_panel=true,
         ax1limits=(nothing, nothing, 1, 4),
         ax3limits=(5, 5e10, 5, 5e6),
-        icon_name="social.png",
-        icon_kw=(; width=Relative(0.4), height=Relative(0.45), halign=0.0,  valign=0.0)
+        icon_name="socio-economic.png",
+        icon_kw=(; width=Relative(0.77*0.25), height=Relative(0.25), halign=0.1,  valign=0.1)
     )
     SADPlotter.plot!(
         bigfig[2,2]; DIR=dirs[4], palette=palette4,
@@ -210,8 +219,8 @@ function plot(; ext="pdf")
         ax1limits=(nothing, nothing, 1, 3),
         ax2limits=(nothing, nothing,1e0,1e5),
         ax3limits=(5e0, 5e8, 5, 5e5),
-        icon_name="biology.png",
-        icon_kw=(; width=Relative(0.45), height=Relative(0.5), halign=0.03, valign=-0.1)
+        icon_name="eco.png",
+        icon_kw=(; width=Relative(0.25), height=Relative(0.25), halign=0.1, valign=0.1)
     )
     
     rowsize!(bigfig.layout, 1, Relative(0.43))
@@ -223,6 +232,7 @@ function plot(; ext="pdf")
     colgap!(bigfig.layout, -15)
     
     save(Meris.FIGDIR * "fig3.$ext", bigfig, pt_per_unit=2)  # higher resolution
+    # return bigfig
 end
 
 ### HELPER ###
