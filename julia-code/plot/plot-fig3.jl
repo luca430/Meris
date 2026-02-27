@@ -117,8 +117,9 @@ function prepare(;
         #| LEGO |#
         pareto = :TemperedPareto
         df_full = Meris.LEGOLoader.load()
-        df_full.class .= "LEGO"
         df_fit = filter_df(df_full, GOFDIR * "lego-candidatefits.jld2", pareto)
+        df_full.class .= "LEGO"
+        df_fit.class .= "LEGO"
         _compute_and_save(df_fit, df_full, pareto, Meris.DATADIR * "fig3/social/lego.jld2")
     
         df_fit = df_full = fitdf = aicdf = nothing
