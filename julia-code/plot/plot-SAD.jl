@@ -312,9 +312,9 @@ function plot!(parent;
 
     base_letter_idx = 3 * (panel_id - 1)
     letters = [
-        Char(Int('a') + mod(base_letter_idx + 0, 26)),
-        Char(Int('a') + mod(base_letter_idx + 1, 26)),
-        Char(Int('a') + mod(base_letter_idx + 2, 26))
+        Char(Int('A') + mod(base_letter_idx + 0, 26)),
+        Char(Int('A') + mod(base_letter_idx + 1, 26)),
+        Char(Int('A') + mod(base_letter_idx + 2, 26))
     ]
 
     # Panel letters outside axes, following Makie layout-label style.

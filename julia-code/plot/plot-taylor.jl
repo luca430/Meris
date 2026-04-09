@@ -310,7 +310,7 @@ function plot!(parent;
     lines!(ax_big, xtl, 2 .* xtl; linewidth=2, color=:black, linestyle=(:dash, :dense))
 
     # Panel letters outside axes, following Makie layout-label style.
-    letters = [Char(Int('a') + mod(panel_start - 1 + i, 26)) for i in 0:4]
+    letters = [Char(Int('A') + mod(panel_start - 1 + i, 26)) for i in 0:4]
     Label(panel[1, 1, TopRight()], string(letters[1]);
         fontsize=NATURE_PANEL_LABEL_PT * font_scale, font=:bold, color=:black,
         halign=:right, valign=:bottom, padding=(0, 6, 6, 0)

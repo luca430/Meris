@@ -343,7 +343,7 @@ end
 function plot!(parent;
     datasets=_default_datasets(),
     occs=(0.999, 0.5),
-    letters=('a', 'b'),
+    letters=('A', 'B'),
     font_scale::Float64=1.2,
     xlimits=(-12, 8),
     ylimits=(1e-5, 1.0),
