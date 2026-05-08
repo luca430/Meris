@@ -73,8 +73,8 @@ function compute2(counts; binned=true, nbins=30)
     vars = vcat(var(counts, dims=1)...)
 
     mask = vars .> 0
-    log_means = log.(means[mask])
-    log_vars = log.(vars[mask])
+    log_means = log10.(means[mask])
+    log_vars = log10.(vars[mask])
 
     if binned
         log_means, log_vars = binned_average(log_means, log_vars; nbins=nbins)
@@ -83,10 +83,10 @@ function compute2(counts; binned=true, nbins=30)
 
     # model(x, p) = p[1] .+ p[2] .* x
     # fit = curve_fit(model, log_means, log_vars, [0.0, 2.0])
-    weights = ones(length(log_means))
-    fit = Meris.StraightLine.weightedyorkfit(log_means, log_vars, weights, weights)
+    # weights = ones(length(log_means))
+    # fit = Meris.StraightLine.weightedyorkfit(log_means, log_vars, weights, weights)
 
-    return (log_means, log_vars, fit)
+    return (log_means, log_vars)
 end
 
 
