@@ -129,8 +129,8 @@ end
 ### MAKE FIGURE 2 ###
 function plot(;
         ext="pdf",
-        big_limits=(-2, 2, -4, 4),
-        small_limits=reverse([[-2,4,-3,6], [-2,5,-5,8], [-5,5,-10,10], [-6,6,-12,12]]),
+        big_limits=(-9, 0, -18, 0),
+        small_limits=reverse([[-8, 0, -14, -3], [-8, 0, -14, -1], [-11, 0, -19, -1], [-12, 0, -22, 0]]),
         font_scale=1.5,
         height_scale=0.55,
         panel_colgap=6,
@@ -160,7 +160,8 @@ function plot(;
         small_limits=small_limits,
         panel_colgap=panel_colgap,
         small_rowgap=small_rowgap,
-        small_colgap=small_colgap
+        small_colgap=small_colgap,
+        center_data=false
         )
     save(Meris.FIGDIR * "fig2.$ext", fig, pt_per_unit=1)
     return fig

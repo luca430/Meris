@@ -24,7 +24,9 @@ const NATURE_AXIS_LABEL_PT = 7
 const NATURE_TICK_PT = 6
 const NATURE_TEXT_PT = 6
 const NATURE_PANEL_LABEL_PT = 8
-const FONT_SCALE = 1.45
+const FONT_SCALE = 1.75
+const LINE_WIDTH_SCALE = 2.0
+const MARKER_SIZE = 6.2
 
 function _shades(base::Colorant, n::Int)
     hsl = convert(HSL, base)
@@ -69,8 +71,8 @@ function _default_datasets(;
             prediction_file=joinpath(RESULTDIR, "linguistic.jld2"),
             palette=_shades(bases[1], 10),
             icon=joinpath(ICONDIR, "document.png"),
-            icon_kw=(; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92),
-            take=3000,
+            icon_kw=(; width=Relative(0.24), height=Relative(0.24), halign=0.08, valign=0.92),
+            take=1200,
         ),
         (;
             key="microbial",
@@ -79,8 +81,8 @@ function _default_datasets(;
             prediction_file=joinpath(RESULTDIR, "microbial.jld2"),
             palette=_shades(bases[2], 10),
             icon=joinpath(ICONDIR, "bacteria.png"),
-            icon_kw=(; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92),
-            take=3000,
+            icon_kw=(; width=Relative(0.24), height=Relative(0.24), halign=0.08, valign=0.92),
+            take=1200,
         ),
         (;
             key="social",
@@ -89,8 +91,8 @@ function _default_datasets(;
             prediction_file=joinpath(RESULTDIR, "social.jld2"),
             palette=_shades(bases[3], 8),
             icon=joinpath(ICONDIR, "socio-economic.png"),
-            icon_kw=(; width=Relative(0.77 * 0.18), height=Relative(0.18), halign=0.08, valign=0.92),
-            take=4000,
+            icon_kw=(; width=Relative(0.77 * 0.24), height=Relative(0.24), halign=0.08, valign=0.92),
+            take=1600,
         ),
         (;
             key="biology",
@@ -99,13 +101,13 @@ function _default_datasets(;
             prediction_file=joinpath(RESULTDIR, "biology.jld2"),
             palette=vcat(_shades(bases[5], 8)[1:4], _shades(bases[4], 10)[1:7]),
             icon=joinpath(ICONDIR, "eco.png"),
-            icon_kw=(; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92),
-            take=2500,
+            icon_kw=(; width=Relative(0.24), height=Relative(0.24), halign=0.08, valign=0.92),
+            take=1000,
         ),
     ]
 end
 
-function _add_icon!(parent_cell, icon_path; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92)
+function _add_icon!(parent_cell, icon_path; width=Relative(0.24), height=Relative(0.24), halign=0.08, valign=0.92)
     isfile(icon_path) || return nothing
 
     axicon = Axis(
@@ -119,7 +121,7 @@ function _add_icon!(parent_cell, icon_path; width=Relative(0.18), height=Relativ
     )
 
     icon = FileIO.load(icon_path)
-    icon_small = imresize(icon, (256, 256))
+    icon_small = imresize(icon, (320, 320))
     image!(axicon, rotr90(icon_small))
     hidedecorations!(axicon)
     hidespines!(axicon)
@@ -127,7 +129,7 @@ function _add_icon!(parent_cell, icon_path; width=Relative(0.18), height=Relativ
     return axicon
 end
 
-function _plot_taylor_small!(ax, df::DataFrame, palette; take=:all, markersize=4.5, strokewidth=0.45)
+function _plot_taylor_small!(ax, df::DataFrame, palette; take=:all, markersize=MARKER_SIZE, strokewidth=0.65)
     if take isa Integer && nrow(df) > take
         Random.seed!(1234)
         df = df[randperm(nrow(df))[1:take], :]
@@ -161,14 +163,23 @@ function _plot_taylor_small!(ax, df::DataFrame, palette; take=:all, markersize=4
         xtl = range(minimum(all_m), maximum(all_m); length=200)
         x0 = minimum(all_m)
         y0 = minimum(all_v)
-        lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0; linewidth=1.2, color=:black, linestyle=(:dash, :dense))
-        lines!(ax, xtl, (xtl .- x0) .+ y0; linewidth=1.0, color=:grey, linestyle=(:dash, :dense))
+        lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0; linewidth=1.2 * LINE_WIDTH_SCALE, color=:black, linestyle=(:dash, :dense))
+        lines!(ax, xtl, (xtl .- x0) .+ y0; linewidth=1.0 * LINE_WIDTH_SCALE, color=:grey, linestyle=(:dash, :dense))
     end
 
     return ax
 end
 
-function _plot_taylor_component_bins!(ax, component_bins::DataFrame, palette; take=:all, markersize=4.5, strokewidth=0.45)
+function _plot_taylor_component_bins!(
+    ax,
+    component_bins::DataFrame,
+    palette;
+    take=:all,
+    markersize=MARKER_SIZE,
+    strokewidth=0.65,
+    black_yshift=0.0,
+    gray_yshift=0.0,
+)
     markers = [:circle, :rect, :diamond, :cross, :x, :utriangle, :dtriangle, :star4, :star6, :pentagon, :hexagon, :octagon]
     classes = unique(component_bins.class)
     all_m = Float64[]
@@ -208,8 +219,8 @@ function _plot_taylor_component_bins!(ax, component_bins::DataFrame, palette; ta
         xtl = range(minimum(all_m), maximum(all_m); length=200)
         x0 = minimum(all_m)
         y0 = minimum(all_v)
-        lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0; linewidth=1.2, color=:black, linestyle=(:dash, :dense))
-        lines!(ax, xtl, (xtl .- x0) .+ y0; linewidth=1.0, color=:grey, linestyle=(:dash, :dense))
+        lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0 .+ black_yshift; linewidth=1.2 * LINE_WIDTH_SCALE, color=:black, linestyle=(:dash, :dense))
+        lines!(ax, xtl, (xtl .- x0) .+ y0 .+ gray_yshift; linewidth=1.0 * LINE_WIDTH_SCALE, color=:grey, linestyle=(:dash, :dense))
     end
 
     return ax
@@ -239,7 +250,7 @@ function _selected_bins_by_class(component_bins::DataFrame, coeff_order::Int; mi
     return selected
 end
 
-function _plot_bin_panel!(ax, component_bins::DataFrame, selected_row; markersize=4.5, strokewidth=0.45)
+function _plot_bin_panel!(ax, component_bins::DataFrame, selected_row; markersize=MARKER_SIZE, strokewidth=0.65)
     isnothing(selected_row) && return ax
 
     d = component_bins[
@@ -269,7 +280,7 @@ function _plot_bin_panel!(ax, component_bins::DataFrame, selected_row; markersiz
         logxs,
         log10.(xs .+ selected_row.C_est .* xs .^ 2);
         color=:black,
-        linewidth=1.2,
+        linewidth=1.2 * LINE_WIDTH_SCALE,
         linestyle=(:dot, :dense),
     )
 
@@ -282,8 +293,8 @@ function _plot_bin_panel_all_classes!(
     selected_rows::DataFrame,
     palette;
     take=:all,
-    markersize=4.5,
-    strokewidth=0.45,
+    markersize=MARKER_SIZE,
+    strokewidth=0.65,
 )
     isempty(selected_rows.class) && return ax
 
@@ -334,7 +345,7 @@ function _plot_bin_panel_all_classes!(
         logxs,
         log10.(xs .+ C_est .* xs .^ 2);
         color=:black,
-        linewidth=1.2,
+        linewidth=1.2 * LINE_WIDTH_SCALE,
         linestyle=(:dot, :dense),
     )
 
@@ -390,8 +401,8 @@ function plot_test_bins(
             log10.(d.var);
             color = (:white, 1.0),
             strokecolor = :black,
-            markersize = 5,
-            strokewidth = 0.5,
+            markersize = MARKER_SIZE,
+            strokewidth = 0.7,
         )
 
         logxmin, logxmax = extrema(log10.(d.mean))
@@ -403,7 +414,7 @@ function plot_test_bins(
             logxs,
             log10.(xs .+ row.C_est .* xs .^ 2);
             color = :black,
-            linewidth = 1.4,
+            linewidth = 1.4 * LINE_WIDTH_SCALE,
             linestyle = (:dot, :dense),
         )
     end
@@ -451,7 +462,7 @@ function plot_grid(;
             xgridvisible=false,
             ygridvisible=false,
         )
-        _plot_taylor_component_bins!(ax_tl, component_bins, spec.palette; take=spec.take)
+        _plot_taylor_component_bins!(ax_tl, component_bins, spec.palette; take=spec.take, black_yshift=0.4, gray_yshift=-0.55)
         _add_icon!(fig[r, axis_cols[1]], spec.icon; spec.icon_kw...)
 
         for (j, coeff_order) in enumerate(coeff_orders)

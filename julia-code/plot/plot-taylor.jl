@@ -96,13 +96,15 @@ function _load_tldf(path::AbstractString)
     return JLD2.load(path)["tldf"]
 end
 
-"""Compute centered log10 mean/var vectors (and drop nonpositive variance)."""
-function _centered_logs(df; mean_col=:omeanfrequency, var_col=:ovarfrequency)
+"""Compute log10 mean/var vectors (and drop nonpositive variance)."""
+function _log_mean_var(df; mean_col=:omeanfrequency, var_col=:ovarfrequency, center::Bool=true)
     dff = df[df[!, var_col] .> 0.0, :]
     m = log10.(dff[!, mean_col])
     s = log10.(dff[!, var_col])
-    m .-= mean(m)
-    s .-= mean(s)
+    if center
+        m .-= mean(m)
+        s .-= mean(s)
+    end
     return dff, m, s
 end
 
@@ -164,6 +166,7 @@ function plot!(parent;
     markersize_small = 6,
     markersize_big = 6,
     strokewidth = 0.4,
+    center_data::Bool = true,
 )
     # Theme: keep the same MakiePublication look as SADPlotter
     sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
@@ -221,7 +224,7 @@ function plot!(parent;
         push!(axs_small, ax)
     end
 
-    xtl = -10:0.1:10.0
+    xtl = center_data ? (-10:0.1:10.0) : (-12:0.1:0.5)
     datasets = reverse(datasets)
     palettes = reverse(palettes)
     color_num = reverse(color_num)
@@ -259,7 +262,7 @@ function plot!(parent;
         for (c,class) in enumerate(class_order)
             sdf = df[df.class .== class, :]
             df_small = spec.occ_small > 0 ? sdf[sdf.occupancy .> spec.occ_small, :] : sdf
-            df_small, m_small, s_small = _centered_logs(df_small)
+            df_small, m_small, s_small = _log_mean_var(df_small; center=center_data)
             isempty(m_small) && continue
 
             append!(m_small_vec, m_small)
@@ -274,11 +277,15 @@ function plot!(parent;
             )
         end
 
-        # same guide lines you used: y=2x and y=x, with the slight x-shift
+        # Guide lines: centered data keep the local shift; raw logs anchor the
+        # wedge near the lower-left of each panel's observed cloud.
         if !isempty(m_small_vec) && !isempty(s_small_vec)
-            x0 = minimum(m_small_vec)
-            y0 = minimum(s_small_vec)
-            lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0; linewidth=2, color=:black, linestyle=(:dash, :dense))
+            xpad = center_data ? 0.0 : 0.35
+            ypad = center_data ? 0.0 : 0.7
+            black_ypad = center_data ? 0.0 : 0.4
+            x0 = minimum(m_small_vec) - xpad
+            y0 = minimum(s_small_vec) - ypad
+            lines!(ax, xtl, 2 .* (xtl .- x0) .+ y0 .+ black_ypad; linewidth=2, color=:black, linestyle=(:dash, :dense))
             lines!(ax, xtl, (xtl .- x0) .+ y0; linewidth=2, color=:grey, linestyle=(:dash, :dense))
         end
 
@@ -292,7 +299,7 @@ function plot!(parent;
         for (c,class) in enumerate(class_order)
             sdf = df[df.class .== class, :]
             df_big = spec.occ_big > 0 ? sdf[sdf.occupancy .> spec.occ_big, :] : sdf
-            df_big, m_big, s_big = _centered_logs(df_big)
+            df_big, m_big, s_big = _log_mean_var(df_big; center=center_data)
             isempty(m_big) && continue
 
             scatter!(
