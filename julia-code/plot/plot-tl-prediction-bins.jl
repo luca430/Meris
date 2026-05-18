@@ -43,7 +43,32 @@ end
 
 function _load_bin_data(path::AbstractString)
     d = JLD2.load(path)
-    return d["component_bins"], d["selected_bins"]
+    component_bins = _normalize_prediction_columns!(d["component_bins"])
+    selected_bins = _normalize_prediction_columns!(d["selected_bins"])
+    return component_bins, selected_bins
+end
+
+function _normalize_prediction_columns!(df::DataFrame)
+    if :mean ∉ propertynames(df) && :mean_B in propertynames(df)
+        df.mean = df.mean_B
+    end
+    if :var ∉ propertynames(df) && :var_B in propertynames(df)
+        df.var = df.var_B
+    end
+    if :C_est ∉ propertynames(df) && :C_fit_A in propertynames(df)
+        df.C_est = df.C_fit_A
+    end
+    if :C_fit ∉ propertynames(df) && :C_fit_B in propertynames(df)
+        df.C_fit = df.C_fit_B
+    end
+    if :C_est_err ∉ propertynames(df) && :C_fit_A_err in propertynames(df)
+        df.C_est_err = df.C_fit_A_err
+    end
+    if :C_fit_err ∉ propertynames(df) && :C_fit_B_err in propertynames(df)
+        df.C_fit_err = df.C_fit_B_err
+    end
+
+    return df
 end
 
 function _load_tldf(path::AbstractString)
@@ -209,6 +234,8 @@ function _plot_taylor_component_bins!(
     black_yshift=0.0,
     gray_yshift=0.0,
 )
+    component_bins = _normalize_prediction_columns!(copy(component_bins))
+
     markers = [:circle, :rect, :diamond, :cross, :x, :utriangle, :dtriangle, :star4, :star6, :pentagon, :hexagon, :octagon]
     classes = unique(component_bins.class)
     all_m = Float64[]
@@ -262,6 +289,8 @@ function _selected_bin(selected_bins::DataFrame, coeff_order::Int)
 end
 
 function _selected_bins_by_class(component_bins::DataFrame, coeff_order::Int; min_components::Int=10)
+    component_bins = _normalize_prediction_columns!(copy(component_bins))
+
     bin_counts = combine(
         groupby(component_bins, [:class, :coeff_order, :coeff_bin, :bin_center_log, :bin_center, :C_est, :C_fit]),
         nrow => :ncomponents,
@@ -280,6 +309,9 @@ function _selected_bins_by_class(component_bins::DataFrame, coeff_order::Int; mi
 end
 
 function _bin_point_groups(component_bins::DataFrame, selected_rows::DataFrame; take=:all, seed_offset::Int=0)
+    component_bins = _normalize_prediction_columns!(copy(component_bins))
+    selected_rows = _normalize_prediction_columns!(copy(selected_rows))
+
     isempty(selected_rows.class) && return NamedTuple[]
 
     groups = NamedTuple[]
@@ -410,6 +442,7 @@ end
 
 function _plot_bin_panel!(ax, component_bins::DataFrame, selected_row; markersize=MARKER_SIZE, strokewidth=0.65)
     isnothing(selected_row) && return ax
+    component_bins = _normalize_prediction_columns!(copy(component_bins))
 
     d = component_bins[
         (component_bins.class .== selected_row.class) .&
@@ -455,6 +488,8 @@ function _plot_bin_panel_all_classes!(
     strokewidth=0.65,
 )
     isempty(selected_rows.class) && return ax
+    component_bins = _normalize_prediction_columns!(copy(component_bins))
+    selected_rows = _normalize_prediction_columns!(copy(selected_rows))
 
     all_means = Float64[]
     all_vars = Float64[]
@@ -516,6 +551,9 @@ function plot_test_bins(
     savefig::Bool=true,
     filename=Meris.FIGDIR * "gutenberg-gtex-test-bin-mean-var.pdf",
 )
+    component_bins = _normalize_prediction_columns!(copy(component_bins))
+    selected_bins = _normalize_prediction_columns!(copy(selected_bins))
+
     sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
     set_theme!(__theme)

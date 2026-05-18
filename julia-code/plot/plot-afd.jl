@@ -19,14 +19,40 @@ const NATURE_TICK_PT = 6
 const NATURE_PANEL_LABEL_PT = 8
 const LINGUISTIC_STOPWORDS = Meris.arXivLoader.STOPWORDS
 
-function ax_afd(ax, df, colors, markers; nbins::Int=25, occ::Float64=0.999, min_points::Int=50)
+function _moment_regime_filter(df; occ::Float64=0.999)
+    nrow(df) == 0 && return df
+
+    keep = Set{Any}()
+    nsamples = length(unique(df.sample_id))
+
+    for sdf in groupby(df, :component_id)
+        occupancy = nrow(sdf) / nsamples
+        occupancy > occ || continue
+
+        counts = Float64.(sdf.counts ./ sdf.nreads)
+        μ = mean(counts)
+        σ2 = var(counts, corrected=false)
+
+        (!isfinite(μ) || !isfinite(σ2) || μ <= 0 || σ2 <= 0) && continue
+        μ < μ^2 / σ2 || continue
+
+        push!(keep, sdf.component_id[1])
+    end
+
+    return filter(row -> row.component_id in keep, df)
+end
+
+function ax_afd(ax, df, colors, markers; nbins::Int=25, occ::Float64=0.999, min_points::Int=50, component_filter=nothing)
     classes = unique(df.class)
     xs = Float64[]
     ys = Float64[]
 
     for (i, class) in enumerate(classes)
         sdf = df[df.class .== class, :]
-        afd = Meris.AFD.compute(sdf, :component_id; maxfrequency=1.0, minoccupancy=occ)
+        sdf = isnothing(component_filter) ? sdf : component_filter(sdf; occ=occ)
+        nrow(sdf) == 0 && continue
+
+        afd = Meris.AFD.compute(copy(sdf), :component_id; maxfrequency=1.0, minoccupancy=occ)
 
         length(afd.z) < min_points && continue
 
@@ -49,11 +75,14 @@ function ax_afd(ax, df, colors, markers; nbins::Int=25, occ::Float64=0.999, min_
     return (; ax, x=xs, y=ys)
 end
 
-function _gamma_shape_moment(df; occ::Float64=0.999)
+function _gamma_shape_moment(df; occ::Float64=0.999, component_filter=nothing)
     ratios = Float64[]
 
     for class in unique(df.class)
         sdf = df[df.class .== class, :]
+        sdf = isnothing(component_filter) ? sdf : component_filter(sdf; occ=occ)
+        nrow(sdf) == 0 && continue
+
         freqs = Meris.DataTools.get_frequencies(sdf; occ=occ, rescale=false)
 
         size(freqs, 2) == 0 && continue
@@ -239,6 +268,7 @@ end
 
 function _plot_subfigure!(parent;
     datasets=_default_datasets(),
+    component_filter=nothing,
     font_scale::Float64=1.2,
     xlimits=(-12, 8),
     ylimits=(1e-5, 1.0),
@@ -271,26 +301,26 @@ function _plot_subfigure!(parent;
         df = hasproperty(spec, :df) ? spec.df : spec.loader()
         nclasses = length(unique(df.class))
         colors = [spec.palette[mod1(j, length(spec.palette))] for j in 1:nclasses]
-        afd_out = ax_afd(ax, df, colors, markers; nbins=spec.nbins, occ=spec.occ)
+        afd_out = ax_afd(ax, df, colors, markers; nbins=spec.nbins, occ=spec.occ, component_filter=component_filter)
 
         xrange = -8:1e-2:5
         if spec.key == :biology
             df_gen = df[startswith.(df.class, "gen-"), :]
             df_eco = df[startswith.(df.class, "eco-"), :]
-            _plot_gamma_fit!(ax, xrange, _gamma_shape_moment(df_gen; occ=spec.occ), β -> latexstring("\\beta_{\\mathrm{gen}} = ", string(β));
+            _plot_gamma_fit!(ax, xrange, _gamma_shape_moment(df_gen; occ=spec.occ, component_filter=component_filter), β -> latexstring("\\beta_{\\mathrm{gen}} = ", string(β));
                 color=:black,
                 linestyle=:dash,
                 position=(0.08, 0.72),
                 font_scale=font_scale,
             )
-            _plot_gamma_fit!(ax, xrange, _gamma_shape_moment(df_eco; occ=spec.occ), β -> latexstring("\\beta_{\\mathrm{eco}} = ", string(β));
+            _plot_gamma_fit!(ax, xrange, _gamma_shape_moment(df_eco; occ=spec.occ, component_filter=component_filter), β -> latexstring("\\beta_{\\mathrm{eco}} = ", string(β));
                 color=:black,
                 linestyle=:dot,
                 position=(0.08, 0.62),
                 font_scale=font_scale,
             )
         else
-            βmoment = _gamma_shape_moment(df; occ=spec.occ)
+            βmoment = _gamma_shape_moment(df; occ=spec.occ, component_filter=component_filter)
             _plot_gamma_fit!(ax, xrange, βmoment, β -> latexstring("\\beta = ", string(β));
                 color=:black,
                 linestyle=:dash,
@@ -355,10 +385,11 @@ function plot!(parent;
     container = GridLayout(parent)
     base_datasets = _materialize_datasets(datasets)
 
-    for (i, occ) in enumerate(occs)
-        subfig = GridLayout(container[1, i])
+    for (occ_i, occ) in enumerate(occs)
+        subfig = GridLayout(container[1, occ_i])
         _plot_subfigure!(subfig;
             datasets=_datasets_with_occ(base_datasets, occ),
+            component_filter=nothing,
             font_scale=font_scale,
             xlimits=xlimits,
             ylimits=ylimits,
@@ -366,10 +397,10 @@ function plot!(parent;
             panel_rowgap=panel_rowgap,
             panel_colgap=panel_colgap,
         )
-        if i <= length(letters)
+        if occ_i <= length(letters)
             Label(
-                container[1, i, TopLeft()],
-                string(letters[i]);
+                container[1, occ_i, TopLeft()],
+                string(letters[occ_i]);
                 fontsize=NATURE_PANEL_LABEL_PT * font_scale,
                 font=:bold,
                 color=:black,

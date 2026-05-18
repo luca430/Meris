@@ -130,13 +130,13 @@ function bin_logcoeff(df::DataFrame, nbins::Int)
 
     sort!(bin_summary, :coeff_bin)
 
-    component_bins = select(
-        d,
-        :component_id,
-        :coeff,
-        :coeff_std,
-        :coeff_bin,
-    )
+    component_cols = [:component_id, :coeff, :coeff_bin]
+    :mean in propertynames(d) && push!(component_cols, :mean)
+    :var in propertynames(d) && push!(component_cols, :var)
+    :nobs in propertynames(d) && push!(component_cols, :nobs)
+
+    component_bins = select(d, component_cols)
+    :coeff_std in propertynames(d) && (component_bins.coeff_std = d.coeff_std)
 
     return innerjoin(bin_summary, component_bins, on=:coeff_bin)
 end
@@ -212,6 +212,22 @@ function train_summary(
     return train_summaries
 end
 
+# Compute direct train-side component coefficients and bin them in log10 space.
+function train_summary_direct(
+    class_dfs::Dict;
+    nbins::Int = 60
+)
+    train_summaries = Dict{keytype(class_dfs), DataFrame}()
+
+    for (c, cdf) in class_dfs
+        coeff_summary = summary_df(cdf)
+        coeff_summary.coeff_std = zeros(nrow(coeff_summary))
+        train_summaries[c] = bin_logcoeff(coeff_summary, nbins)
+    end
+
+    return train_summaries
+end
+
 # Join held-out component statistics to training bins and fit each coefficient bin.
 function test_summary(test_dfs::Dict, train_summaries::Dict; nbins=100)
     test_summaries = Dict{keytype(test_dfs), DataFrame}()
@@ -232,6 +248,118 @@ function test_summary(test_dfs::Dict, train_summaries::Dict; nbins=100)
     end
 
     return test_summaries
+end
+
+function _quadratic_fit_row(g::AbstractDataFrame; mean_col::Symbol=:mean, var_col::Symbol=:var, fit_col::Symbol=:C_fit)
+    model(x, p) = x .+ p[1] .* x .^ 2
+
+    x = Float64.(g[!, mean_col])
+    y = Float64.(g[!, var_col])
+    finite = isfinite.(x) .& isfinite.(y) .& (x .> 0) .& (y .> 0)
+    x = x[finite]
+    y = y[finite]
+
+    if length(y) < 10
+        return nothing
+    end
+
+    numerator = sum((x .^ 2) .* (y .- x))
+    denominator = sum(x .^ 4)
+    C0 = denominator > 0 ? numerator / denominator : 0.0
+    isfinite(C0) || (C0 = 0.0)
+
+    try
+        fit = curve_fit(model, x, y, [C0])
+        fit_err = stderror(fit)[1]
+
+        names = (:coeff_bin, :ncomponents, fit_col, Symbol(fit_col, :_err))
+        values = (first(g.coeff_bin), length(y), fit.param[1], fit_err)
+        return NamedTuple{names}(values)
+    catch err
+        @warn "Quadratic fit failed for bin $(first(g.coeff_bin))" err
+        return nothing
+    end
+end
+
+function quadratic_fit_by_bin(
+    binned::DataFrame;
+    mean_col::Symbol=:mean,
+    var_col::Symbol=:var,
+    fit_col::Symbol=:C_fit
+)
+    rows = NamedTuple[]
+
+    for g in groupby(binned, :coeff_bin)
+        row = _quadratic_fit_row(g; mean_col=mean_col, var_col=var_col, fit_col=fit_col)
+        isnothing(row) || push!(rows, row)
+    end
+
+    if isempty(rows)
+        df = DataFrame(coeff_bin=Int[], ncomponents=Int[])
+        df[!, fit_col] = Float64[]
+        df[!, Symbol(fit_col, :_err)] = Float64[]
+        return df
+    end
+
+    return DataFrame(rows)
+end
+
+function train_fit_summary(train_summaries::Dict)
+    summaries = Dict{keytype(train_summaries), DataFrame}()
+
+    for (c, train_summary) in train_summaries
+        summaries[c] = quadratic_fit_by_bin(
+            train_summary;
+            mean_col=:mean,
+            var_col=:var,
+            fit_col=:C_fit_A
+        )
+    end
+
+    return summaries
+end
+
+function test_fit_summary(test_dfs::Dict, train_summaries::Dict)
+    summaries = Dict{keytype(test_dfs), DataFrame}()
+
+    for (c, cdf) in test_dfs
+        test_summary = select(
+            summary_df(cdf),
+            :component_id,
+            :mean => :mean_B,
+            :var => :var_B
+        )
+        test_binned = innerjoin(
+            test_summary,
+            select(train_summaries[c], :component_id, :coeff_bin),
+            on=:component_id
+        )
+
+        summaries[c] = quadratic_fit_by_bin(
+            test_binned;
+            mean_col=:mean_B,
+            var_col=:var_B,
+            fit_col=:C_fit_B
+        )
+    end
+
+    return summaries
+end
+
+function fit_comparison_summary(train_fit_summaries::Dict, test_fit_summaries::Dict)
+    summaries = Dict{keytype(train_fit_summaries), DataFrame}()
+
+    for c in keys(train_fit_summaries)
+        train_summary = rename(copy(train_fit_summaries[c]), :ncomponents => :ncomponents_A)
+        test_summary = rename(copy(test_fit_summaries[c]), :ncomponents => :ncomponents_B)
+        summaries[c] = innerjoin(
+            train_summary,
+            test_summary,
+            on=:coeff_bin
+        )
+    end
+
+    return summaries
 end
 
 # Fit var = mean + C * mean^2 within each coefficient bin and compare to C estimates.

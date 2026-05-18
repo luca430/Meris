@@ -67,37 +67,49 @@ Returns a count matrix with samples in rows and species in columns.
 """
 function downsample(df; N=10_000, class=nothing)
 
-    sdf = deepcopy(df)
-    if !isnothing(class)
-        sdf = df[df.class.==class, :]
+    sdf = isnothing(class) ? df : @view df[df.class .== class, :]
+
+    components = unique(sdf.component_id)
+    samples = unique(sdf.sample_id)
+    S = length(components)
+
+    comp_index = Dict(ci => i for (i, ci) in enumerate(components))
+    sample_groups = groupby(sdf, :sample_id)
+
+    nreads = Dict{eltype(samples), Int}()
+    occupancy = zeros(Int, S)
+    for g in sample_groups
+        nreads[g.sample_id[1]] = Int(g.nreads[1])
+        for (ci, c) in zip(g.component_id, g.counts)
+            if c != 0
+                occupancy[comp_index[ci]] += 1
+            end
+        end
     end
 
-    # Convert df into counts matrix
-    counts, nreads = get_counts(sdf, occ=0.0)
-    mask = nreads .>= N
-    counts = Int.(counts[mask, :])
-    nreads = Int.(nreads[mask])
+    col_order = sortperm(length(samples) .- occupancy)
+    ordered_index = Dict(components[j] => i for (i, j) in enumerate(col_order))
+    valid_samples = [sm for sm in samples if nreads[sm] >= N]
 
-    nrows, ncols = size(counts)
-    ds_counts = zeros(Int, nrows, ncols)
+    ds_counts = zeros(Int, length(valid_samples), S)
+    samp_index = Dict(sm => i for (i, sm) in enumerate(valid_samples))
 
-    for q in 1:nrows
-        row = counts[q, :]
-        total = sum(row)
+    for g in sample_groups
+        sm = g.sample_id[1]
+        !haskey(samp_index, sm) && continue
+
+        i = samp_index[sm]
         remaining = N
-        rest = total
+        rest = sum(g.counts)
 
-        for k in 1:ncols
-            if remaining == 0
-                break
-            end
+        for (ci, c0) in zip(g.component_id, g.counts)
+            remaining == 0 && break
 
-            c = row[k]
+            c = Int(c0)
             if c == 0
                 continue
             end
 
-            # enforce feasibility
             max_possible = min(c, remaining)
             min_possible = max(0, remaining - (rest - c))
 
@@ -107,13 +119,86 @@ function downsample(df; N=10_000, class=nothing)
                 x = rand(Hypergeometric(c, rest - c, remaining))
             end
 
-            ds_counts[q, k] = x
+            ds_counts[i, ordered_index[ci]] = x
             remaining -= x
             rest -= c
         end
     end
 
     return ds_counts
+end
+
+"""
+Downsample a standardized DataFrame and return a standardized long DataFrame.
+If `N` is not provided, each class is downsampled to its smallest sample `nreads`.
+"""
+function downsample_df(df::DataFrame; N=nothing, class=nothing)
+    if isnothing(class)
+        dfs = DataFrame[]
+        for c in unique(df.class)
+            cdf = downsample_df(df; N=N, class=c)
+            nrow(cdf) > 0 && push!(dfs, cdf)
+        end
+        return isempty(dfs) ? similar(df, 0) : vcat(dfs...)
+    end
+
+    sdf = @view df[df.class .== class, :]
+    isempty(sdf.class) && return similar(df, 0)
+
+    sample_groups = groupby(sdf, :sample_id)
+    sample_nreads = Dict(g.sample_id[1] => Int(g.nreads[1]) for g in sample_groups)
+    sample_totals = Dict(g.sample_id[1] => Int(sum(g.counts)) for g in sample_groups)
+    feasible_nreads = [
+        min(sample_nreads[sm], sample_totals[sm])
+        for sm in keys(sample_nreads)
+        if min(sample_nreads[sm], sample_totals[sm]) > 0
+    ]
+    isempty(feasible_nreads) && return similar(df, 0)
+
+    N_c = isnothing(N) ? minimum(feasible_nreads) : min(Int(N), minimum(feasible_nreads))
+    N_c <= 0 && return similar(df, 0)
+
+    out = DataFrame(
+        class=eltype(sdf.class)[],
+        sample_id=eltype(sdf.sample_id)[],
+        component_id=eltype(sdf.component_id)[],
+        counts=Int[],
+        nreads=Int[],
+    )
+
+    for g in sample_groups
+        min(sample_nreads[g.sample_id[1]], sample_totals[g.sample_id[1]]) < N_c && continue
+
+        remaining = N_c
+        rest = sum(g.counts)
+
+        for (component_id, c0) in zip(g.component_id, g.counts)
+            remaining == 0 && break
+
+            c = Int(c0)
+            if c == 0
+                continue
+            end
+
+            max_possible = min(c, remaining)
+            min_possible = max(0, remaining - (rest - c))
+
+            if min_possible == max_possible
+                x = min_possible
+            else
+                x = rand(Hypergeometric(c, rest - c, remaining))
+            end
+
+            if x > 0
+                push!(out, (class, g.sample_id[1], component_id, x, N_c))
+            end
+
+            remaining -= x
+            rest -= c
+        end
+    end
+
+    return out
 end
 
 """

@@ -128,6 +128,8 @@ function _plot_shaded_groups!(ax, groups, palette; markersize=MARKER_SIZE, strok
 end
 
 function _selected_bins_by_omega(component_bins::DataFrame, omega_log::Real; min_components::Int=10)
+    component_bins = TLPredictionBinPlotter._normalize_prediction_columns!(copy(component_bins))
+
     bin_counts = combine(
         groupby(component_bins, [:class, :coeff_bin, :bin_center_log, :bin_center, :C_est, :C_fit]),
         nrow => :ncomponents,
