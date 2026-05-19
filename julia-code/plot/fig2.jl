@@ -15,12 +15,12 @@ using Statistics
 using Meris
 
 include(joinpath(@__DIR__, "plot-fig2-A.jl"))
-using .Figure2
+using .Figure2A
 
 include(joinpath(@__DIR__, "plot-fig2-B.jl"))
 using .Figure2B
 
-const TaylorPlotter = Figure2.TaylorPlotter
+const TaylorPlotter = Figure2A.TaylorPlotter
 const TLPredictionBinPlotter = Figure2B.TLPredictionBinPlotter
 
 const NATURE_DOUBLE_WIDTH_PT = TLPredictionBinPlotter.NATURE_DOUBLE_WIDTH_PT

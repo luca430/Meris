@@ -1,5 +1,5 @@
 #= Module to plot Figure 2 of main paper =#
-module Figure2
+module Figure2A
 
 using Meris
 using DataFrames, DataFramesMeta, StatsBase
@@ -57,7 +57,7 @@ function plot(;
         ext="pdf",
         big_limits=(-9, 0, -18, 0),
         small_limits=reverse([[-8, 0, -14, -3], [-8, 0, -14, -1], [-11, 0, -19, -1], [-12, 0, -22, 0]]),
-        font_scale=1.5,
+        font_scale=0.1,
         height_scale=0.55,
         panel_colgap=6,
         small_rowgap=2,
@@ -89,7 +89,7 @@ function plot(;
         small_colgap=small_colgap,
         center_data=false
         )
-    save(Meris.FIGDIR * "fig2.$ext", fig, pt_per_unit=1)
+    save(Meris.FIGDIR * "fig2_A.$ext", fig, pt_per_unit=1)
     return fig
 end
 

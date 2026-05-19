@@ -429,8 +429,8 @@ function _add_regime_labels!(ax, threshold; xmin=-2, xmax=10, font_scale=1.0)
 
     text!(
         ax,
-        0.8,
-        -0.8;
+        1.2,
+        -0.1;
         text="quadratic",
         align=(:center, :center),
         fontsize=fontsize,

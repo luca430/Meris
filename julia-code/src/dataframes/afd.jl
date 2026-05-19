@@ -13,10 +13,15 @@ function compute(
     idcolname::Symbol;
     maxfrequency::Float64=1e-2,
     minoccupancy::Float64=1e-2,
-    occ::Bool=true
+    occ::Bool=true,
+    normalize_by_nreads::Bool=true
 )
-	  #~ Compute the (log) relative frequency of each of the "species"/"component"
-    @transform!(df, :frequency = :counts ./ :nreads)
+	  #~ Compute the (log) relative frequency/abundance of each "species"/"component"
+    if normalize_by_nreads
+        @transform!(df, :frequency = :counts ./ :nreads)
+    else
+        @transform!(df, :frequency = :counts)
+    end
     @transform!(df, :logfrequency = log.(:frequency))
     #~ Compute some summary statistics
     nsamples = length(unique(df[!,:sample_id]))

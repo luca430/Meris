@@ -93,33 +93,54 @@ function _selected_bins_by_omega(component_bins::DataFrame, omega::Real; min_com
     return selected
 end
 
-function _class_count_dfs(spec, prediction_data; downsample::Bool=false)
-    occ = Float64(prediction_data["occ"])
+function _tl_component_mapping(cdf::DataFrame; occ::Float64)
+    components = unique(cdf.component_id)
+    samples = unique(cdf.sample_id)
+    S, T = length(components), length(samples)
 
-    class_dfs = TLPrediction.divide_in_class(
-        _load_downsampled_domain_df(spec, prediction_data);
-        downsample=downsample,
-        occ=occ,
-    )
+    counts = zeros(T, S)
+    comp_index = Dict(ci => i for (i, ci) in enumerate(components))
+    samp_index = Dict(sm => i for (i, sm) in enumerate(samples))
 
-    out = Dict{String, DataFrame}()
-    for (class, df) in class_dfs
-        cdf = copy(df)
-        cdf.class = fill(string(class), nrow(cdf))
-        out[string(class)] = cdf
+    for g in groupby(cdf, :sample_id)
+        i = samp_index[g.sample_id[1]]
+        for (ci, val) in zip(g.component_id, g.counts)
+            counts[i, comp_index[ci]] = val
+        end
     end
 
-    return out
+    zero_counts = vec(sum(counts .== 0, dims=1))
+    col_order = sortperm(zero_counts)
+    ordered_components = components[col_order]
+    ordered_zero_counts = zero_counts[col_order]
+
+    max_idx = findfirst(>((1 - occ) * T), ordered_zero_counts)
+    isnothing(max_idx) && (max_idx = S)
+
+    selected_components = ordered_components[1:max_idx]
+    return Dict("x$i" => component for (i, component) in enumerate(selected_components))
 end
 
-function _afd_groups(component_bins::DataFrame, selected_rows::DataFrame, class_dfs::Dict{String, DataFrame};
+function _component_mappings(spec, prediction_data; occ=nothing)
+    occ_value = isnothing(occ) ? Float64(prediction_data["occ"]) : Float64(occ)
+    df = _load_downsampled_domain_df(spec, prediction_data)
+
+    mappings = Dict{String, Dict{String, eltype(df.component_id)}}()
+    for class in unique(df.class)
+        cdf = df[df.class .== class, :]
+        mappings[string(class)] = _tl_component_mapping(cdf; occ=occ_value)
+    end
+
+    return mappings
+end
+
+function _afd_groups(component_bins::DataFrame, selected_rows::DataFrame, component_mappings, downsampled_df::DataFrame;
     omega::Real,
     min_points::Int=10,
     minoccupancy::Float64=0.05,
 )
     isempty(selected_rows.class) && return NamedTuple[]
     mean_threshold = omega^(-1)
-
     groups = NamedTuple[]
     markers = [:circle, :rect, :diamond, :cross, :x, :utriangle, :dtriangle, :star4, :star6, :pentagon, :hexagon, :octagon]
 
@@ -132,13 +153,25 @@ function _afd_groups(component_bins::DataFrame, selected_rows::DataFrame, class_
         mean_col = :mean in propertynames(bin_components) ? :mean : :mean_B
         filter!(mean_col => m -> isfinite(m) && m > mean_threshold, bin_components)
         isempty(bin_components.component_id) && continue
-        haskey(class_dfs, row.class) || continue
+        haskey(component_mappings, row.class) || continue
 
-        keep = Set(bin_components.component_id)
-        cdf = filter(r -> r.component_id in keep, class_dfs[row.class])
+        mapping = component_mappings[row.class]
+        keep = Set(mapping[id] for id in bin_components.component_id if haskey(mapping, id))
+        isempty(keep) && continue
+
+        cdf = filter(
+            r -> r.class == row.class && r.component_id in keep,
+            downsampled_df,
+        )
         nrow(cdf) == 0 && continue
 
-        afd = Meris.AFD.compute(copy(cdf), :component_id; maxfrequency=1.0, minoccupancy=minoccupancy)
+        afd = Meris.AFD.compute(
+            copy(cdf),
+            :component_id;
+            maxfrequency=Inf,
+            minoccupancy=minoccupancy,
+            normalize_by_nreads=false,
+        )
         length(afd.z) < min_points && continue
 
         push!(
@@ -170,13 +203,32 @@ function _plot_afd_groups!(ax, groups, palette; nbins::Int=25)
     return ax
 end
 
+function _plot_gamma_fit!(ax, xrange, beta;
+    color=:black,
+    linestyle=:dash,
+    font_scale::Float64=1.0,
+)
+    isfinite(beta) || return ax
+
+    lines!(
+        ax,
+        xrange,
+        exp.(Meris.LRDistr.lr_gamma(xrange, beta));
+        color=color,
+        linestyle=linestyle,
+        linewidth=1.2,
+    )
+
+    return ax
+end
+
 function plot!(parent;
     datasets=_default_datasets(),
     omegas=(0.1, 1.0, 10.0),
     min_components::Int=10,
     min_points::Int=10,
-    nbins::Int=25,
-    downsample::Bool=false,
+    nbins::Int=15,
+    occ=nothing,
     font_scale::Float64=1.2,
     xlimits=(-4, 4),
     ylimits=(1e-3, 1.0),
@@ -189,8 +241,12 @@ function plot!(parent;
     ncols = length(datasets)
 
     prediction_data_by_key = Dict(spec.key => _load_prediction_data(spec.file) for spec in datasets)
-    class_dfs_by_key = Dict(
-        spec.key => _class_count_dfs(spec, prediction_data_by_key[spec.key]; downsample=downsample)
+    component_mappings_by_key = Dict(
+        spec.key => _component_mappings(spec, prediction_data_by_key[spec.key]; occ=occ)
+        for spec in datasets
+    )
+    downsampled_df_by_key = Dict(
+        spec.key => _load_downsampled_domain_df(spec, prediction_data_by_key[spec.key])
         for spec in datasets
     )
 
@@ -210,17 +266,24 @@ function plot!(parent;
 
             prediction_data = prediction_data_by_key[spec.key]
             component_bins = prediction_data["component_bins"]
-            minoccupancy = Float64(prediction_data["occ"])
+            minoccupancy = isnothing(occ) ? Float64(prediction_data["occ"]) : Float64(occ)
             selected_rows = _selected_bins_by_omega(component_bins, omega; min_components=min_components)
             groups = _afd_groups(
                 component_bins,
                 selected_rows,
-                class_dfs_by_key[spec.key];
+                component_mappings_by_key[spec.key],
+                downsampled_df_by_key[spec.key];
                 omega=omega,
                 min_points=min_points,
                 minoccupancy=minoccupancy,
             )
             _plot_afd_groups!(ax, groups, spec.palette; nbins=nbins)
+            _plot_gamma_fit!(
+                ax,
+                range(xlimits[1], xlimits[2]; length=500),
+                inv(omega);
+                font_scale=font_scale,
+            )
 
             if r == 1
                 Label(

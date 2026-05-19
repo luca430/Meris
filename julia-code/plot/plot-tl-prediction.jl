@@ -335,7 +335,7 @@ function plot(;
     savefig::Bool = true,
     figname = nothing,
     datasets = _default_datasets(; RESULTDIR=RESULTDIR),
-    min_components::Int = 11,
+    min_components::Int = 50,
     kwargs...
 )
     selected = if isnothing(FILENAME)
