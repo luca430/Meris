@@ -72,10 +72,16 @@ function ax_afd(ax, df, colors, markers;
     min_points::Int=50,
     component_filter=nothing,
     rescale_by_occupancy::Bool=true,
+    class_order=nothing,
+    class_color=nothing,
 )
     classes = unique(df.class)
+    if !isnothing(class_order)
+        classes = sort(collect(classes); by=class_order)
+    end
     xs = Float64[]
     ys = Float64[]
+    plotted_classes = eltype(df.class)[]
 
     for (i, class) in enumerate(classes)
         sdf = df[df.class .== class, :]
@@ -91,6 +97,7 @@ function ax_afd(ax, df, colors, markers;
         )
 
         length(afd.z) < min_points && continue
+        push!(plotted_classes, class)
 
         x, y = Meris.DataTools.make_hist(afd.z; nbins=nbins)
 
@@ -98,7 +105,7 @@ function ax_afd(ax, df, colors, markers;
             ax, x, y;
             label=string(class),
             color=:white,
-            strokecolor=colors[i],
+            strokecolor=isnothing(class_color) ? colors[i] : class_color(class),
             marker=markers[mod1(i, length(markers))],
             markersize=8,
             strokewidth=0.8,
@@ -108,7 +115,7 @@ function ax_afd(ax, df, colors, markers;
         append!(ys, y)
     end
 
-    return (; ax, x=xs, y=ys)
+    return (; ax, x=xs, y=ys, plotted_classes)
 end
 
 function _gamma_shape_moment(df; occ::Float64=0.999, component_filter=nothing)
@@ -375,6 +382,26 @@ function _plot_subfigure!(parent;
         df = hasproperty(spec, :df) ? spec.df : spec.loader()
         nclasses = length(unique(df.class))
         colors = [spec.palette[mod1(j, length(spec.palette))] for j in 1:nclasses]
+        biology_color = if spec.key == :biology
+            gen_classes = sort([class for class in unique(df.class) if startswith(String(class), "gen-")]; by=String)
+            eco_classes = sort([class for class in unique(df.class) if startswith(String(class), "eco-")]; by=String)
+            gen_rank = Dict(class => i for (i, class) in enumerate(gen_classes))
+            eco_rank = Dict(class => i for (i, class) in enumerate(eco_classes))
+            gen_palette = spec.palette[1:4]
+            eco_palette = spec.palette[5:end]
+
+            class -> begin
+                if startswith(String(class), "gen-")
+                    gen_palette[mod1(gen_rank[class], length(gen_palette))]
+                elseif startswith(String(class), "eco-")
+                    eco_palette[mod1(eco_rank[class], length(eco_palette))]
+                else
+                    colors[mod1(findfirst(==(class), collect(unique(df.class))), length(colors))]
+                end
+            end
+        else
+            nothing
+        end
         afd_out = ax_afd(
             ax,
             df,
@@ -384,12 +411,20 @@ function _plot_subfigure!(parent;
             occ=spec.occ,
             component_filter=component_filter,
             rescale_by_occupancy=rescale_by_occupancy,
+            class_order=spec.key == :biology ? class -> (
+                startswith(String(class), "gen-") ? 0 :
+                startswith(String(class), "eco-") ? 1 : 2,
+                String(class)
+            ) : nothing,
+            class_color=biology_color,
         )
 
         xrange = -18:1e-2:5
+        df_for_fit = df[in.(df.class, Ref(afd_out.plotted_classes)), :]
+
         if spec.key == :biology
-            df_gen = df[startswith.(df.class, "gen-"), :]
-            df_eco = df[startswith.(df.class, "eco-"), :]
+            df_gen = df_for_fit[startswith.(df_for_fit.class, "gen-"), :]
+            df_eco = df_for_fit[startswith.(df_for_fit.class, "eco-"), :]
             βmoment_gen = _gamma_shape_moment(df_gen; occ=spec.occ, component_filter=component_filter)
             βmoment_eco = _gamma_shape_moment(df_eco; occ=spec.occ, component_filter=component_filter)
             _plot_gamma_fit!(ax, xrange, βmoment_gen, β -> latexstring("\\beta_{\\mathrm{gen}} = ", string(β));
@@ -405,7 +440,7 @@ function _plot_subfigure!(parent;
                 font_scale=font_scale,
             )
         else
-            βmoment = _gamma_shape_moment(df; occ=spec.occ, component_filter=component_filter)
+            βmoment = _gamma_shape_moment(df_for_fit; occ=spec.occ, component_filter=component_filter)
             _plot_gamma_fit!(ax, xrange, βmoment, β -> latexstring("\\beta = ", string(β));
                 color=:black,
                 linestyle=:dash,
