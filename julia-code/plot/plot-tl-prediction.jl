@@ -170,7 +170,7 @@ function plot_C_est_vs_C_fit(
     logscale::Bool = true,
     markersize::Int = 6,
     strokewidth::Float64 = 0.7,
-    font_scale::Float64 = 1.8,
+    font_scale::Float64 = 2.0,
 )
     sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
@@ -303,7 +303,7 @@ function plot_C_est_vs_C_fit(
         text!(
             ax,
             0.05,
-            0.83;
+            0.89;
             text = L"a = %$(round(a_fit; digits=2)) \pm %$(round(a_fit_err; digits=2))",
             space = :relative,
             align = (:left, :top),

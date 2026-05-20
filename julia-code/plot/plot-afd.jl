@@ -5,7 +5,7 @@ using Meris
 using DataFrames, StatsBase
 using CairoMakie, MakiePublication, LaTeXStrings
 using Colors, ColorTypes
-using FileIO, ImageTransformations
+using FileIO
 
 include("./../plot/colors/shadetester.jl")
 using .Shades: shades
@@ -14,9 +14,9 @@ const ICONDIR = Meris.FIGDIR .* "icons"
 const MM_TO_PT = 72.0 / 25.4
 const NATURE_DOUBLE_WIDTH_PT = 183.0 * MM_TO_PT
 const NATURE_MAX_HEIGHT_PT = 170.0 * MM_TO_PT
-const NATURE_AXIS_LABEL_PT = 7
-const NATURE_TICK_PT = 6
-const NATURE_PANEL_LABEL_PT = 8
+const NATURE_AXIS_LABEL_PT = 11
+const NATURE_TICK_PT = 8
+const NATURE_PANEL_LABEL_PT = 10
 const LINGUISTIC_STOPWORDS = Meris.arXivLoader.STOPWORDS
 
 function _moment_regime_filter(df; occ::Float64=0.999)
@@ -101,26 +101,35 @@ function _gamma_shape_moment(df; occ::Float64=0.999, component_filter=nothing)
     return mean(ratios)
 end
 
+function _valid_moment(βmoment)
+    return !isnothing(βmoment) && isfinite(βmoment)
+end
+
 function _plot_gamma_fit!(ax, xrange, βmoment, label_fn;
     color=:black,
     linestyle=:dash,
-    position=(0.08, 0.72),
+    position=(0.08, 0.08),
     font_scale::Float64=1.0,
+    show_curve::Bool=true,
+    show_label::Bool=true,
 )
-    if !isnothing(βmoment) && isfinite(βmoment)
-        lines!(
-            ax, xrange, exp.(Meris.LRDistr.lr_gamma(xrange, βmoment));
-            color=color,
-            linestyle=linestyle,
-            linewidth=1.2,
-        )
+    if _valid_moment(βmoment)
+        if show_curve
+            lines!(
+                ax, xrange, exp.(Meris.LRDistr.lr_gamma(xrange, βmoment));
+                color=color,
+                linestyle=linestyle,
+                linewidth=1.2,
+            )
+        end
+        show_label || return
         text!(
             ax, position[1], position[2];
             space=:relative,
             text=label_fn(round(βmoment, digits=2)),
             color=color,
             fontsize=NATURE_TICK_PT * font_scale,
-            align=(:left, :top),
+            align=(:left, :bottom),
         )
     end
 end
@@ -133,12 +142,12 @@ function _add_icon!(parent_cell, icon_path;
         parent_cell;
         width=width, height=height,
         halign=halign, valign=valign,
+        aspect=DataAspect(),
         tellwidth=false, tellheight=false,
     )
 
     icon = FileIO.load(icon_path)
-    icon_small = imresize(icon, (256, 256))
-    image!(axicon, rotr90(icon_small))
+    image!(axicon, rotr90(icon))
     hidedecorations!(axicon)
     hidespines!(axicon)
 
@@ -221,9 +230,9 @@ function _default_datasets()
             loader=_load_linguistic_df,
             palette=shades(bases[1], 10),
             icon=joinpath(ICONDIR, "document.png"),
-            icon_kw=(; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92),
+            icon_kw=(; width=Relative(0.24), height=Relative(0.24), halign=0.08, valign=0.92),
             occ=0.999,
-            nbins=25,
+            nbins=18,
         ),
         (;
             key=:microbial,
@@ -231,9 +240,9 @@ function _default_datasets()
             loader=_load_microbial_df,
             palette=shades(bases[2], 10),
             icon=joinpath(ICONDIR, "bacteria.png"),
-            icon_kw=(; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92),
+            icon_kw=(; width=Relative(0.24), height=Relative(0.24), halign=0.08, valign=0.92),
             occ=0.999,
-            nbins=25,
+            nbins=18,
         ),
         (;
             key=:social,
@@ -241,9 +250,9 @@ function _default_datasets()
             loader=_load_social_df,
             palette=shades(bases[3], 8),
             icon=joinpath(ICONDIR, "socio-economic.png"),
-            icon_kw=(; width=Relative(0.77 * 0.18), height=Relative(0.18), halign=0.08, valign=0.92),
+            icon_kw=(; width=Relative(0.77 * 0.24), height=Relative(0.24), halign=0.08, valign=0.92),
             occ=0.999,
-            nbins=25,
+            nbins=18,
         ),
         (;
             key=:biology,
@@ -251,9 +260,9 @@ function _default_datasets()
             loader=_load_biology_df,
             palette=vcat(shades(bases[5], 8)[1:4], shades(bases[4], 10)[1:7]),
             icon=joinpath(ICONDIR, "eco.png"),
-            icon_kw=(; width=Relative(0.18), height=Relative(0.18), halign=0.08, valign=0.92),
+            icon_kw=(; width=Relative(0.30), height=Relative(0.30), halign=0.08, valign=0.92),
             occ=0.999,
-            nbins=25,
+            nbins=18,
         ),
     ]
 end
@@ -269,12 +278,14 @@ end
 function _plot_subfigure!(parent;
     datasets=_default_datasets(),
     component_filter=nothing,
-    font_scale::Float64=1.2,
-    xlimits=(-12, 8),
+    font_scale::Float64=2.0,
+    xlimits=(-18, 8),
     ylimits=(1e-5, 1.0),
     show_icons::Bool=true,
     panel_rowgap=5,
     panel_colgap=6,
+    axis_width=190,
+    axis_height=115,
 )
     sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
     __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
@@ -303,20 +314,22 @@ function _plot_subfigure!(parent;
         colors = [spec.palette[mod1(j, length(spec.palette))] for j in 1:nclasses]
         afd_out = ax_afd(ax, df, colors, markers; nbins=spec.nbins, occ=spec.occ, component_filter=component_filter)
 
-        xrange = -8:1e-2:5
+        xrange = -18:1e-2:5
         if spec.key == :biology
             df_gen = df[startswith.(df.class, "gen-"), :]
             df_eco = df[startswith.(df.class, "eco-"), :]
-            _plot_gamma_fit!(ax, xrange, _gamma_shape_moment(df_gen; occ=spec.occ, component_filter=component_filter), β -> latexstring("\\beta_{\\mathrm{gen}} = ", string(β));
+            βmoment_gen = _gamma_shape_moment(df_gen; occ=spec.occ, component_filter=component_filter)
+            βmoment_eco = _gamma_shape_moment(df_eco; occ=spec.occ, component_filter=component_filter)
+            _plot_gamma_fit!(ax, xrange, βmoment_gen, β -> latexstring("\\beta_{\\mathrm{gen}} = ", string(β));
                 color=:black,
                 linestyle=:dash,
-                position=(0.08, 0.72),
+                position=(0.035, 0.18),
                 font_scale=font_scale,
             )
-            _plot_gamma_fit!(ax, xrange, _gamma_shape_moment(df_eco; occ=spec.occ, component_filter=component_filter), β -> latexstring("\\beta_{\\mathrm{eco}} = ", string(β));
+            _plot_gamma_fit!(ax, xrange, βmoment_eco, β -> latexstring("\\beta_{\\mathrm{eco}} = ", string(β));
                 color=:black,
                 linestyle=:dot,
-                position=(0.08, 0.62),
+                position=(0.035, 0.055),
                 font_scale=font_scale,
             )
         else
@@ -324,7 +337,7 @@ function _plot_subfigure!(parent;
             _plot_gamma_fit!(ax, xrange, βmoment, β -> latexstring("\\beta = ", string(β));
                 color=:black,
                 linestyle=:dash,
-                position=(0.08, 0.72),
+                position=(0.035, 0.07),
                 font_scale=font_scale,
             )
         end
@@ -334,6 +347,9 @@ function _plot_subfigure!(parent;
         end
 
         push!(axes, ax)
+        df = nothing
+        afd_out = nothing
+        GC.gc()
     end
 
     for ax in axes[2:end]
@@ -346,79 +362,82 @@ function _plot_subfigure!(parent;
     hideydecorations!(axes[2]; grid=false)
     hideydecorations!(axes[4]; grid=false)
 
-    rowsize!(panel, 1, Relative(0.5))
-    rowsize!(panel, 2, Relative(0.5))
-    colsize!(panel, 1, Relative(0.5))
-    colsize!(panel, 2, Relative(0.5))
+    rowsize!(panel, 1, Fixed(axis_height))
+    rowsize!(panel, 2, Fixed(axis_height))
+    colsize!(panel, 1, Fixed(axis_width))
+    colsize!(panel, 2, Fixed(axis_width))
     rowgap!(panel, panel_rowgap)
     colgap!(panel, panel_colgap)
-
-    Label(
-        panel[1:2, 0],
-        L"p(z)";
-        rotation=π / 2,
-        fontsize=NATURE_AXIS_LABEL_PT * font_scale,
-        tellheight=false,
-    )
-    Label(
-        panel[3, 1:2],
-        L"z";
-        fontsize=NATURE_AXIS_LABEL_PT * font_scale,
-        tellwidth=false,
-    )
 
     return (; panel, axes)
 end
 
 function plot!(parent;
     datasets=_default_datasets(),
-    occs=(0.999, 0.5),
-    letters=('A', 'B'),
-    font_scale::Float64=1.2,
-    xlimits=(-12, 8),
+    occ::Float64=0.999,
+    letter='A',
+    font_scale::Float64=1.5,
+    xlimits=(-18, 8),
     ylimits=(1e-5, 1.0),
     show_icons::Bool=true,
-    panel_rowgap=5,
+    panel_rowgap=14,
     panel_colgap=6,
-    subfigure_colgap=12,
 )
     container = GridLayout(parent)
-    base_datasets = _materialize_datasets(datasets)
 
-    for (occ_i, occ) in enumerate(occs)
-        subfig = GridLayout(container[1, occ_i])
-        _plot_subfigure!(subfig;
-            datasets=_datasets_with_occ(base_datasets, occ),
-            component_filter=nothing,
-            font_scale=font_scale,
-            xlimits=xlimits,
-            ylimits=ylimits,
-            show_icons=show_icons,
-            panel_rowgap=panel_rowgap,
-            panel_colgap=panel_colgap,
-        )
-        if occ_i <= length(letters)
-            Label(
-                container[1, occ_i, TopLeft()],
-                string(letters[occ_i]);
-                fontsize=NATURE_PANEL_LABEL_PT * font_scale,
-                font=:bold,
-                color=:black,
-                halign=:left,
-                valign=:bottom,
-                padding=(0, 0, 6, 0),
-            )
-        end
-    end
+    Label(
+        container[0, 1:2],
+        string(letter);
+        fontsize=NATURE_PANEL_LABEL_PT * font_scale,
+        font=:bold,
+        color=:black,
+        halign=:left,
+        valign=:center,
+        padding=(0, 0, 0, 0),
+        tellwidth=false,
+    )
+    rowsize!(container, 0, Fixed(NATURE_PANEL_LABEL_PT * font_scale + 2))
 
-    colgap!(container, subfigure_colgap)
+    body = GridLayout(container[1, 1])
+    panel = GridLayout(body[1, 2])
+
+    Label(
+        body[1, 1],
+        L"p(z)";
+        rotation=π / 2,
+        fontsize=NATURE_AXIS_LABEL_PT * font_scale,
+        tellheight=false,
+    )
+    Label(
+        body[2, 2],
+        L"z";
+        fontsize=NATURE_AXIS_LABEL_PT * font_scale,
+        tellwidth=false,
+    )
+
+    _plot_subfigure!(panel;
+        datasets=_datasets_with_occ(datasets, occ),
+        component_filter=nothing,
+        font_scale=font_scale,
+        xlimits=xlimits,
+        ylimits=ylimits,
+        show_icons=show_icons,
+        panel_rowgap=panel_rowgap,
+        panel_colgap=panel_colgap,
+    )
+
+    colsize!(body, 1, Fixed(36))
+    rowsize!(body, 2, Fixed(34))
+    colgap!(body, 4)
+    rowgap!(body, 6)
+
     return (; panel=container)
 end
 
 function plot_afd(; ext="pdf", savefig::Bool=true, figname=nothing, kwargs...)
     fig = Figure(
-        size=(1.24 * NATURE_DOUBLE_WIDTH_PT, 0.44 * NATURE_MAX_HEIGHT_PT),
-        figure_padding=(6, 12, 10, 10),
+        size=(0.94 * NATURE_DOUBLE_WIDTH_PT, 0.76 * NATURE_MAX_HEIGHT_PT),
+        figure_padding=(14, 14, 18, 18),
     )
 
     plot!(fig[1, 1]; kwargs...)

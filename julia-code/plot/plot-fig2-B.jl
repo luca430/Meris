@@ -227,7 +227,7 @@ function plot(;
     ext::AbstractString="pdf",
     savefig::Bool=true,
     figname=Meris.FIGDIR * "fig2_B.$ext",
-    font_scale::Float64=1.0,
+    font_scale::Float64=1.2,
     omega_font_scale::Float64=1.25,
     panel_colgap::Real=14,
 )
