@@ -496,7 +496,7 @@ function plot!(parent;
 
     Label(
         container[0, 1:2],
-        string(letter);
+        letter isa AbstractChar ? string(letter) : letter;
         fontsize=NATURE_PANEL_LABEL_PT * font_scale,
         font=:bold,
         color=:black,
