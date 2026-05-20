@@ -10,10 +10,12 @@ using JLD2
 using DataFrames
 using Colors
 using Statistics
+using FileIO
 
 #/ Modules
 using Meris
 
+const ICONDIR = Meris.FIGDIR .* "icons"
 const MM_TO_PT = 72.0 / 25.4
 const NATURE_SINGLE_WIDTH_PT = 89.0 * MM_TO_PT
 const NATURE_DOUBLE_WIDTH_PT = 183.0 * MM_TO_PT
@@ -67,7 +69,7 @@ function _default_datasets(; RESULTDIR = Meris.DATADIR * "macro/tl-prediction/")
         _shades(bases[1], 10),
         _shades(bases[2], 10),
         _shades(bases[3], 8),
-        vcat(_shades(bases[4], 10)[1:7], _shades(bases[5], 8)),
+        vcat(_shades(bases[5], 8)[1:4], _shades(bases[4], 10)[1:7]),
     ]
 
     return [
@@ -76,24 +78,32 @@ function _default_datasets(; RESULTDIR = Meris.DATADIR * "macro/tl-prediction/")
             title="Linguistic",
             prediction_file=joinpath(RESULTDIR, "linguistic.jld2"),
             palette=palettes[1],
+            icon=joinpath(ICONDIR, "document.png"),
+            icon_kw=(; width=Relative(0.16), height=Relative(0.16), halign=0.18, valign=0.92),
         ),
         (;
             key="microbial",
             title="Microbial",
             prediction_file=joinpath(RESULTDIR, "microbial.jld2"),
             palette=palettes[2],
+            icon=joinpath(ICONDIR, "bacteria.png"),
+            icon_kw=(; width=Relative(0.16), height=Relative(0.16), halign=0.18, valign=0.92),
         ),
         (;
             key="social",
             title="Social",
             prediction_file=joinpath(RESULTDIR, "social.jld2"),
             palette=palettes[3],
+            icon=joinpath(ICONDIR, "socio-economic.png"),
+            icon_kw=(; width=Relative(0.77 * 0.16), height=Relative(0.16), halign=0.18, valign=0.92),
         ),
         (;
             key="biology",
             title="Biology",
             prediction_file=joinpath(RESULTDIR, "biology.jld2"),
             palette=palettes[4],
+            icon=joinpath(ICONDIR, "eco.png"),
+            icon_kw=(; width=Relative(0.20), height=Relative(0.20), halign=0.18, valign=0.92),
         ),
     ]
 end
@@ -123,12 +133,43 @@ function _class_name(class)
     return s
 end
 
+function _ntget(nt::NamedTuple, field::Symbol, default)
+    return hasproperty(nt, field) ? getproperty(nt, field) : default
+end
+
+function _add_icon!(parent_cell, icon_path;
+    width=Relative(0.20), height=Relative(0.20),
+    halign=0.18, valign=0.95
+)
+    axicon = Axis(
+        parent_cell;
+        width=width, height=height,
+        halign=halign, valign=valign,
+        tellwidth=false, tellheight=false,
+        aspect=DataAspect(),
+    )
+
+    icon = FileIO.load(icon_path)
+    image!(axicon, rotr90(icon))
+    hidedecorations!(axicon)
+    hidespines!(axicon)
+
+    return axicon
+end
+
 function _plot_records(datasets; min_components::Int=11)
     records = NamedTuple[]
 
     for spec in datasets
         summaries, component_bins, summary_kind = _load_prediction_data(spec.prediction_file)
-        classes = sort(collect(keys(summaries)); by=string)
+        classes = if String(spec.key) == "biology"
+            sort(
+                collect(keys(summaries));
+                by=class -> (startswith(String(class), "gen-") ? 0 : 1, string(class)),
+            )
+        else
+            sort(collect(keys(summaries)); by=string)
+        end
 
         for (i, class) in enumerate(classes)
             valid_bins = _valid_bins(component_bins, class; min_components=min_components)
@@ -147,6 +188,8 @@ function _plot_records(datasets; min_components::Int=11)
                 (;
                     dataset=String(spec.title),
                     dataset_key=String(spec.key),
+                    icon=_ntget(spec, :icon, nothing),
+                    icon_kw=_ntget(spec, :icon_kw, (;)),
                     class=class,
                     df=df,
                     color=spec.palette[mod1(i, length(spec.palette))],
@@ -159,72 +202,102 @@ function _plot_records(datasets; min_components::Int=11)
     return records
 end
 
-#################
-### FUNCTIONS ###
-
-function plot_C_est_vs_C_fit(
-    records;
-    errorbars::Bool = false,
-    xerr_col::Symbol = :C_est_err,
-    yerr_col::Symbol = :C_fit_err,
-    logscale::Bool = true,
-    markersize::Int = 6,
-    strokewidth::Float64 = 0.7,
-    font_scale::Float64 = 2.0,
-)
-    sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
-    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
-    set_theme!(__theme)
-
-    fig = Figure(
-        size = (300, 256),
-        figure_padding = (4, 6, 4, 4)
+function _clean_record_data(record)
+    d = copy(record.df)
+    filter!(
+        [:C_est, :C_fit] =>
+            (x, y) -> all(isfinite, (x, y)) && x > 0 && y > 0,
+        d
     )
+    return d
+end
 
-    ax = Axis(
-        fig[1, 1],
-        xlabel = L"\Omega_{\mathrm{fit},A}",
-        ylabel = L"\Omega_{\mathrm{fit},B}",
-        xscale = logscale ? log10 : identity,
-        yscale = logscale ? log10 : identity,
-        xlabelsize = NATURE_AXIS_LABEL_PT * font_scale,
-        ylabelsize = NATURE_AXIS_LABEL_PT * font_scale,
-        xticklabelsize = NATURE_TICK_PT * font_scale,
-        yticklabelsize = NATURE_TICK_PT * font_scale,
-        aspect = AxisAspect(1),
-        xgridvisible = false,
-        ygridvisible = false,
-    )
-
-    all_x = Float64[]
-    all_y = Float64[]
-    fit_groups = Dict{String, Tuple{Vector{Float64}, Vector{Float64}}}()
+function _fit_slope(records)
+    slopes = Float64[]
 
     for record in records
-        d = copy(record.df)
-        color = record.color
+        d = _clean_record_data(record)
+        nrow(d) == 0 && continue
 
-        filter!(
-            [:C_est, :C_fit] =>
-                (x, y) -> all(isfinite, (x, y)) && x > 0 && y > 0,
-            d
-        )
+        x = Float64.(d.C_est)
+        y = Float64.(d.C_fit)
+        denom = sum(abs2, x)
+        denom > 0 || continue
+
+        push!(slopes, sum(x .* y) / denom)
+    end
+
+    isempty(slopes) && return nothing
+
+    return (;
+        a=mean(slopes),
+        err=length(slopes) > 1 ? std(slopes) / sqrt(length(slopes)) : 0.0,
+        n=length(slopes),
+    )
+end
+
+function _record_groups_by_dataset(records)
+    order = String[]
+    groups = Dict{String, Vector{NamedTuple}}()
+
+    for record in records
+        key = record.dataset_key
+        if !haskey(groups, key)
+            groups[key] = NamedTuple[]
+            push!(order, key)
+        end
+        push!(groups[key], record)
+    end
+
+    return [(key, groups[key]) for key in order]
+end
+
+function _global_limits(records; logscale::Bool=true)
+    values = Float64[]
+
+    for record in records
+        d = _clean_record_data(record)
+        nrow(d) == 0 && continue
+        append!(values, d.C_est)
+        append!(values, d.C_fit)
+    end
+
+    isempty(values) && return nothing
+
+    lo = minimum(values)
+    hi = maximum(values)
+    if lo == hi
+        lo, hi = logscale ? (lo / 10, hi * 10) : (lo - 1, hi + 1)
+    end
+
+    return (lo, hi)
+end
+
+function _plot_dataset_records!(
+    ax,
+    records;
+    errorbars::Bool=false,
+    xerr_col::Symbol=:C_est_err,
+    yerr_col::Symbol=:C_fit_err,
+    logscale::Bool=true,
+    markersize::Int=6,
+    strokewidth::Float64=0.7,
+    font_scale::Float64=2.0,
+    limits=nothing,
+)
+    any_points = false
+
+    for record in records
+        d = _clean_record_data(record)
 
         if nrow(d) == 0
             @warn "Skipping class $(record.class): no valid points"
             continue
         end
 
+        any_points = true
         x = d.C_est
         y = d.C_fit
-
-        append!(all_x, x)
-        append!(all_y, y)
-
-        fit_key = "$(record.dataset_key):$(record.class)"
-        gx, gy = get!(fit_groups, fit_key, (Float64[], Float64[]))
-        append!(gx, x)
-        append!(gy, y)
 
         if errorbars
             d_err = copy(d)
@@ -245,7 +318,7 @@ function plot_C_est_vs_C_fit(
                     d_err.C_est,
                     d_err.C_fit,
                     d_err[:, yerr_col];
-                    color = color,
+                    color = record.color,
                     whiskerwidth = 4,
                     linewidth = 0.7,
                 )
@@ -256,7 +329,7 @@ function plot_C_est_vs_C_fit(
                     d_err.C_fit,
                     d_err[:, xerr_col];
                     direction = :x,
-                    color = color,
+                    color = record.color,
                     whiskerwidth = 4,
                     linewidth = 0.7,
                 )
@@ -269,60 +342,145 @@ function plot_C_est_vs_C_fit(
             y;
             marker = record.marker,
             color = (:white, 1.0),
-            strokecolor = color,
+            strokecolor = record.color,
             markersize = markersize,
             strokewidth = strokewidth,
         )
     end
 
-    if !isempty(all_x) && !isempty(all_y)
-        slopes = [
-            sum(x .* y) / sum(abs2, x)
-            for (x, y) in values(fit_groups)
-            if !isempty(x) && sum(abs2, x) > 0
-        ]
-        a_fit = mean(slopes)
-        a_fit_err = length(slopes) > 1 ? std(slopes) / sqrt(length(slopes)) : 0.0
-        fit_y = a_fit .* all_x
-        lo = minimum(vcat(all_x, all_y, fit_y))
-        hi = maximum(vcat(all_x, all_y, fit_y))
+    fit = _fit_slope(records)
 
+    if any_points && !isnothing(fit)
+        lo, hi = isnothing(limits) ? _global_limits(records; logscale=logscale) : limits
         xs = logscale ? exp10.(range(log10(lo), log10(hi); length=300)) :
                         range(lo, hi; length=300)
 
         lines!(
             ax,
             xs,
-            a_fit .* xs;
+            fit.a .* xs;
             linestyle = (:dash, :dense),
             color = :black,
-            linewidth = 2.0,
-            label = L"\Omega_{\mathrm{fit},B} = a\Omega_{\mathrm{fit},A}",
+            linewidth = 2.2,
         )
 
         text!(
             ax,
-            0.05,
-            0.89;
-            text = L"a = %$(round(a_fit; digits=2)) \pm %$(round(a_fit_err; digits=2))",
+            0.95,
+            0.10;
+            text = L"a = %$(round(fit.a; digits=2)) \pm %$(round(fit.err; digits=2))",
             space = :relative,
-            align = (:left, :top),
+            align = (:right, :bottom),
             fontsize = NATURE_TEXT_PT * font_scale,
             color = :black,
         )
-
-        limits!(ax, lo, hi, lo, hi)
     end
 
-    axislegend(
-        ax;
-        position = :lt,
-        patchsize = (14, 8),
-        nbanks = 2,
-        labelsize = NATURE_TEXT_PT * font_scale,
-        padding = 2,
-        framevisible = false,
+    return (; ax, fit, any_points)
+end
+
+#################
+### FUNCTIONS ###
+
+function plot_C_est_vs_C_fit(
+    records;
+    errorbars::Bool = false,
+    xerr_col::Symbol = :C_est_err,
+    yerr_col::Symbol = :C_fit_err,
+    logscale::Bool = true,
+    markersize::Int = 8,
+    strokewidth::Float64 = 0.7,
+    font_scale::Float64 = 2.4,
+    show_icons::Bool = true,
+    xlimits = (nothing, 1e2),
+)
+    sc = Cycle([:color => :markercolor, :strokecolor => :color, :marker], covary=true)
+    __theme = MakiePublication.theme_acs(; scattercycle=sc, ishollowmarkers=[true, true])
+    set_theme!(__theme)
+
+    dataset_groups = _record_groups_by_dataset(records)
+    positions = [(1, 1), (1, 2), (2, 1), (2, 2)]
+    nplots = length(dataset_groups)
+    nrows = cld(max(nplots, 1), 2)
+    limits = _global_limits(records; logscale=logscale)
+    plot_xlimits = if isnothing(limits)
+        nothing
+    else
+        lo, hi = limits
+        (
+            isnothing(xlimits[1]) ? lo : xlimits[1],
+            isnothing(xlimits[2]) ? hi : xlimits[2],
+        )
+    end
+
+    fig = Figure(
+        size = (NATURE_DOUBLE_WIDTH_PT, 0.78 * NATURE_DOUBLE_WIDTH_PT),
+        figure_padding = (4, 6, 4, 4)
     )
+
+    axes = Axis[]
+
+    for (i, (_, group_records)) in enumerate(dataset_groups)
+        i <= length(positions) || break
+        row, col = positions[i]
+
+        ax = Axis(
+            fig[row, col],
+            xlabel = row == nrows ? L"\Omega_{\mathrm{fit},A}" : "",
+            ylabel = col == 1 ? L"\Omega_{\mathrm{fit},B}" : "",
+            xscale = logscale ? log10 : identity,
+            yscale = logscale ? log10 : identity,
+            xlabelsize = NATURE_AXIS_LABEL_PT * font_scale,
+            ylabelsize = NATURE_AXIS_LABEL_PT * font_scale,
+            xticklabelsize = NATURE_TICK_PT * font_scale,
+            yticklabelsize = NATURE_TICK_PT * font_scale,
+            aspect = AxisAspect(1),
+            xgridvisible = false,
+            ygridvisible = false,
+        )
+
+        _plot_dataset_records!(
+            ax,
+            group_records;
+            errorbars=errorbars,
+            xerr_col=xerr_col,
+            yerr_col=yerr_col,
+            logscale=logscale,
+            markersize=markersize,
+            strokewidth=strokewidth,
+            font_scale=font_scale,
+            limits=isnothing(plot_xlimits) || isnothing(limits) ? limits : plot_xlimits,
+        )
+
+        if !isnothing(limits)
+            xlo, xhi = isnothing(plot_xlimits) ? limits : plot_xlimits
+            ylo, yhi = limits
+            limits!(ax, xlo, xhi, ylo, yhi)
+        end
+
+        icon = group_records[1].icon
+        if show_icons && !isnothing(icon) && isfile(icon)
+            _add_icon!(fig[row, col], icon; group_records[1].icon_kw...)
+        end
+
+        push!(axes, ax)
+    end
+
+    if length(axes) > 1
+        for ax in axes[2:end]
+            linkxaxes!(axes[1], ax)
+            linkyaxes!(axes[1], ax)
+        end
+    end
+
+    for (i, ax) in enumerate(axes)
+        row, col = positions[i]
+        row < nrows && hidexdecorations!(ax; grid=false)
+        col > 1 && hideydecorations!(ax; grid=false)
+    end
+
+    rowgap!(fig.layout, 6)
+    colgap!(fig.layout, -40)
 
     return fig
 end
@@ -335,13 +493,13 @@ function plot(;
     savefig::Bool = true,
     figname = nothing,
     datasets = _default_datasets(; RESULTDIR=RESULTDIR),
-    min_components::Int = 50,
+    min_components::Int = 40,
     kwargs...
 )
     selected = if isnothing(FILENAME)
         _select_datasets(category, datasets)
     else
-        [(; key=category, title=String(category), prediction_file=joinpath(RESULTDIR, FILENAME), palette=_shades(colorant"#1f77b4", 10))]
+        [(; key=category, title=String(category), prediction_file=joinpath(RESULTDIR, FILENAME), palette=_shades(colorant"#1f77b4", 10), icon=nothing, icon_kw=(;))]
     end
 
     records = _plot_records(selected; min_components=min_components)

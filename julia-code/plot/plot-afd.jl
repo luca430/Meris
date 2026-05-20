@@ -6,6 +6,7 @@ using DataFrames, StatsBase
 using CairoMakie, MakiePublication, LaTeXStrings
 using Colors, ColorTypes
 using FileIO
+using JLD2, CSV
 
 include("./../plot/colors/shadetester.jl")
 using .Shades: shades
@@ -42,7 +43,36 @@ function _moment_regime_filter(df; occ::Float64=0.999)
     return filter(row -> row.component_id in keep, df)
 end
 
-function ax_afd(ax, df, colors, markers; nbins::Int=25, occ::Float64=0.999, min_points::Int=50, component_filter=nothing)
+function _mean_omega_filter(df; occ::Float64=0.99, threshold::Float64=10.0)
+    nrow(df) == 0 && return df
+
+    keep = Set{Any}()
+    nsamples = length(unique(df.sample_id))
+
+    for sdf in groupby(df, :component_id)
+        counts = Float64.(sdf.counts)
+        μ = sum(counts) / nsamples
+        σ2 = sum(abs2, counts) / nsamples - μ^2
+
+        (!isfinite(μ) || !isfinite(σ2) || μ <= 0) && continue
+
+        Ω = (σ2 - μ) / μ^2
+        (!isfinite(Ω)) && continue
+
+        μ * Ω > threshold || continue
+        push!(keep, sdf.component_id[1])
+    end
+
+    return filter(row -> row.component_id in keep, df)
+end
+
+function ax_afd(ax, df, colors, markers;
+    nbins::Int=25,
+    occ::Float64=0.999,
+    min_points::Int=50,
+    component_filter=nothing,
+    rescale_by_occupancy::Bool=true,
+)
     classes = unique(df.class)
     xs = Float64[]
     ys = Float64[]
@@ -52,7 +82,13 @@ function ax_afd(ax, df, colors, markers; nbins::Int=25, occ::Float64=0.999, min_
         sdf = isnothing(component_filter) ? sdf : component_filter(sdf; occ=occ)
         nrow(sdf) == 0 && continue
 
-        afd = Meris.AFD.compute(copy(sdf), :component_id; maxfrequency=1.0, minoccupancy=occ)
+        afd = Meris.AFD.compute(
+            copy(sdf),
+            :component_id;
+            maxfrequency=1.0,
+            minoccupancy=occ,
+            rescale_by_occupancy=rescale_by_occupancy,
+        )
 
         length(afd.z) < min_points && continue
 
@@ -214,6 +250,25 @@ function _load_biology_df()
     return df
 end
 
+function _load_downsampled_group_df(group::AbstractString; downsampled_dir=joinpath(Meris.DATADIR, "downsampled"))
+    filename = joinpath(downsampled_dir, "$(group).jld2")
+    isfile(filename) || error("Missing downsampled dataset: $filename")
+
+    data = JLD2.load(filename)
+    haskey(data, "ds_df") || error("Downsampled file does not contain ds_df: $filename")
+
+    df = data["ds_df"]
+    select!(df, :class, :sample_id, :component_id, :counts, :nreads)
+
+    if group == "linguistic"
+        filter!(row -> !(lowercase(String(row.component_id)) in LINGUISTIC_STOPWORDS), df)
+    elseif group == "biology"
+        sort!(df, :class; by=cls -> (startswith(String(cls), "gen-") ? 0 : 1, cls))
+    end
+
+    return df
+end
+
 function _default_datasets()
     bases = [
         colorant"#1f77b4",
@@ -267,6 +322,13 @@ function _default_datasets()
     ]
 end
 
+function _default_downsampled_datasets(; downsampled_dir=joinpath(Meris.DATADIR, "downsampled"))
+    return [
+        merge(spec, (; loader=() -> _load_downsampled_group_df(String(spec.key); downsampled_dir=downsampled_dir)))
+        for spec in _default_datasets()
+    ]
+end
+
 function _datasets_with_occ(datasets, occ::Float64)
     return [merge(spec, (; occ=occ)) for spec in datasets]
 end
@@ -278,6 +340,7 @@ end
 function _plot_subfigure!(parent;
     datasets=_default_datasets(),
     component_filter=nothing,
+    rescale_by_occupancy::Bool=true,
     font_scale::Float64=2.0,
     xlimits=(-18, 8),
     ylimits=(1e-5, 1.0),
@@ -312,7 +375,16 @@ function _plot_subfigure!(parent;
         df = hasproperty(spec, :df) ? spec.df : spec.loader()
         nclasses = length(unique(df.class))
         colors = [spec.palette[mod1(j, length(spec.palette))] for j in 1:nclasses]
-        afd_out = ax_afd(ax, df, colors, markers; nbins=spec.nbins, occ=spec.occ, component_filter=component_filter)
+        afd_out = ax_afd(
+            ax,
+            df,
+            colors,
+            markers;
+            nbins=spec.nbins,
+            occ=spec.occ,
+            component_filter=component_filter,
+            rescale_by_occupancy=rescale_by_occupancy,
+        )
 
         xrange = -18:1e-2:5
         if spec.key == :biology
@@ -374,6 +446,8 @@ end
 
 function plot!(parent;
     datasets=_default_datasets(),
+    component_filter=nothing,
+    rescale_by_occupancy::Bool=true,
     occ::Float64=0.999,
     letter='A',
     font_scale::Float64=1.5,
@@ -417,7 +491,8 @@ function plot!(parent;
 
     _plot_subfigure!(panel;
         datasets=_datasets_with_occ(datasets, occ),
-        component_filter=nothing,
+        component_filter=component_filter,
+        rescale_by_occupancy=rescale_by_occupancy,
         font_scale=font_scale,
         xlimits=xlimits,
         ylimits=ylimits,
@@ -448,6 +523,28 @@ function plot_afd(; ext="pdf", savefig::Bool=true, figname=nothing, kwargs...)
     end
 
     return fig
+end
+
+function plot_downsampled_afd(;
+    ext="pdf",
+    savefig::Bool=true,
+    figname=nothing,
+    occ::Float64=0.99,
+    mean_omega_threshold::Float64=10.0,
+    downsampled_dir=joinpath(Meris.DATADIR, "downsampled"),
+    kwargs...
+)
+    outfile = isnothing(figname) ? (Meris.FIGDIR * "afd-downsampled.$ext") : figname
+
+    return plot_afd(;
+        ext=ext,
+        savefig=savefig,
+        figname=outfile,
+        datasets=_default_downsampled_datasets(; downsampled_dir=downsampled_dir),
+        component_filter=(df; occ) -> _mean_omega_filter(df; occ=occ, threshold=mean_omega_threshold),
+        occ=occ,
+        kwargs...
+    )
 end
 
 end # module AFDPlotter

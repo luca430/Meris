@@ -14,8 +14,10 @@ function compute(
     maxfrequency::Float64=1e-2,
     minoccupancy::Float64=1e-2,
     occ::Bool=true,
+    rescale_by_occupancy::Union{Nothing,Bool}=nothing,
     normalize_by_nreads::Bool=true
 )
+    occupancy_rescale = isnothing(rescale_by_occupancy) ? occ : rescale_by_occupancy
 	  #~ Compute the (log) relative frequency/abundance of each "species"/"component"
     if normalize_by_nreads
         @transform!(df, :frequency = :counts ./ :nreads)
@@ -46,8 +48,8 @@ function compute(
         @subset(:meanfrequency .< maxfrequency)
         #~ Take the occupation number into account
         #~ this means that μ → o⋅μ and σ² → o⋅[σ²+μ²(1-o)], where o the occupancy
-        @transform(:varlog  = occ ? :occupancy .* (:varlog .+ :meanlog.^2 .* (1 .- :occupancy)) : :varlog)
-        @transform(:meanlog = occ ? :meanlog .* :occupancy : :meanlog)
+        @transform(:varlog  = occupancy_rescale ? :occupancy .* (:varlog .+ :meanlog.^2 .* (1 .- :occupancy)) : :varlog)
+        @transform(:meanlog = occupancy_rescale ? :meanlog .* :occupancy : :meanlog)
     end
     df = innerjoin(df, sdf, on=idcolname)
     df = @chain df begin
