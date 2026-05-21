@@ -174,5 +174,27 @@ function _parse_cli(args)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    plot_downsampled_omega_afd(; _parse_cli(ARGS)...)
+    if isempty(ARGS)
+        plot_downsampled_omega_afd(;
+            omega=1,
+            occ=0.5,
+            log10_half_width=0.01,
+            letter='C',
+            font_scale=2.0,
+            panel_label_font_scale=1.5,
+            figname=Meris.FIGDIR * "afd-omega-1-occ0p5-C.pdf",
+        )
+
+        plot_downsampled_omega_afd(;
+            omega=5,
+            occ=0.5,
+            log10_half_width=0.01,
+            letter='D',
+            font_scale=2.0,
+            panel_label_font_scale=1.5,
+            figname=Meris.FIGDIR * "afd-omega-5-occ0p5-D.pdf",
+        )
+    else
+        plot_downsampled_omega_afd(; _parse_cli(ARGS)...)
+    end
 end

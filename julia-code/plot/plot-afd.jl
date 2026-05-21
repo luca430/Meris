@@ -486,6 +486,7 @@ function plot!(parent;
     occ::Float64=0.999,
     letter='A',
     font_scale::Float64=1.5,
+    panel_label_font_scale::Float64=font_scale,
     xlimits=(-18, 8),
     ylimits=(1e-5, 1.0),
     show_icons::Bool=true,
@@ -497,7 +498,7 @@ function plot!(parent;
     Label(
         container[0, 1:2],
         letter isa AbstractChar ? string(letter) : letter;
-        fontsize=NATURE_PANEL_LABEL_PT * font_scale,
+        fontsize=NATURE_PANEL_LABEL_PT * panel_label_font_scale,
         font=:bold,
         color=:black,
         halign=:left,
@@ -505,7 +506,7 @@ function plot!(parent;
         padding=(0, 0, 0, 0),
         tellwidth=false,
     )
-    rowsize!(container, 0, Fixed(NATURE_PANEL_LABEL_PT * font_scale + 2))
+    rowsize!(container, 0, Fixed(NATURE_PANEL_LABEL_PT * panel_label_font_scale + 2))
 
     body = GridLayout(container[1, 1])
     panel = GridLayout(body[1, 2])
@@ -583,3 +584,24 @@ function plot_downsampled_afd(;
 end
 
 end # module AFDPlotter
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    using Meris
+    using .AFDPlotter
+
+    AFDPlotter.plot_afd(;
+        occ=0.99,
+        letter='A',
+        font_scale=2.0,
+        panel_label_font_scale=1.5,
+        figname=Meris.FIGDIR * "afd-occ-0p99-A.pdf",
+    )
+
+    AFDPlotter.plot_afd(;
+        occ=0.5,
+        letter='B',
+        font_scale=2.0,
+        panel_label_font_scale=1.5,
+        figname=Meris.FIGDIR * "afd-occ-0p5-B.pdf",
+    )
+end
