@@ -96,8 +96,9 @@ function binned_average(x, y; nbins=20)
     bin_indices = searchsortedfirst.(Ref(edges), x) .- 1  # get bin index for each x
     bin_indices = clamp.(bin_indices, 1, nbins)  # ensure indices are within range
 
-    y_mean = [mean(y[bin_indices.==i]) for i in 1:nbins]
-    x_center = [(edges[i] + edges[i+1]) / 2 for i in 1:nbins]
+    keep = [any(bin_indices .== i) for i in 1:nbins]
+    y_mean = [mean(y[bin_indices .== i]) for i in 1:nbins if keep[i]]
+    x_center = [(edges[i] + edges[i+1]) / 2 for i in 1:nbins if keep[i]]
 
     return x_center, y_mean
 end

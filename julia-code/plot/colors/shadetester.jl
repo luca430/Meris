@@ -8,7 +8,6 @@ function shades(base::Colorant, n)
     hsl_base = convert(HSL, base)
     h, s = hsl_base.h, hsl_base.s
     _colors = [HSL(h, s, l) for l in range(0.25, 0.85, length=n)]
-    println(_colors)
     return _colors
 end
 
