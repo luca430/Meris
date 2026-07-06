@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# In this CodeOcean interface, postInstall runs while building the environment
+# image, before /code is mounted. We therefore install dependencies from the
+# copied environment/Project.toml rather than from /code/julia-code.
+
+cd /julia-env
+julia --project=. -e 'using Pkg; Pkg.instantiate()'

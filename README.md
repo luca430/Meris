@@ -48,12 +48,38 @@ Unless otherwise noted, the commands below are run from the repository root.
 The root `run.sh` script is the recommended CodeOcean entrypoint:
 
 ```bash
-./run.sh
+cd /code
+RESULTS_DIR=/results ./run.sh
 ```
 
-By default it uses the checked-in intermediate data under `julia-code/data/`,
-recomputes the Taylor-law power-vs-quadratic AIC table, and redraws the main
-figures into `results/`.
+By default it reads prepared intermediate data from `/data` when that folder is
+available, otherwise from `julia-code/data/` for local runs. It recomputes the
+Taylor-law power-vs-quadratic AIC table and redraws the main figures into
+`/results`.
+
+For CodeOcean, upload source code to `/code` and data files to `/data`; do not
+put data in `/code`. Install Julia packages through the CodeOcean environment
+editor. The run script does not install dependencies during runtime unless
+`RUN_INSTANTIATE=1` is set explicitly for a local/debug run.
+
+If CodeOcean only offers Julia 1.12, upload `julia-code/Project.toml` but do
+not upload the local `julia-code/Manifest.toml` generated with Julia 1.11.
+The `environment/Project.toml` file mirrors the project dependencies so the
+CodeOcean Docker build can instantiate them with Julia 1.12 before `/code` is
+mounted. The run script then creates a writable runtime Julia project under
+`/results/work/` and uses those installed dependencies.
+
+In the CodeOcean interface used for this capsule, `environment/postInstall`
+runs before `/code` is mounted, so it cannot install project-specific Julia
+packages directly. The runtime script checks for missing Julia dependencies and
+instantiates `julia-code/Project.toml` into a writable depot under `/results`
+if needed.
+
+The default `REPRO_MODE=bundled` path does **not** require the heavy
+`downsampled/` files. Those grouped downsampled files are only needed for
+`REPRO_MODE=regenerate`, which rebuilds the TL-prediction intermediates before
+recomputing AIC and figures. If `/data/downsampled/` is not included in the
+capsule, users should run the default bundled mode.
 
 Useful variants:
 
@@ -140,26 +166,18 @@ Useful options:
 julia --project=julia-code julia-code/scripts/cli-scripts/downsample-dataset-groups.jl --groups=linguistic,social --seed=123 --csv
 ```
 
-To downsample each source dataset separately instead of by plotted group:
+## Reproduction scripts
 
-```bash
-julia --project=julia-code julia-code/scripts/cli-scripts/downsample-datasets.jl
-```
+This capsule keeps only the scripts needed for the reviewer workflow:
 
-## Run analysis scripts
+- `julia-code/scripts/cli-scripts/downsample-dataset-groups.jl`
+- `julia-code/scripts/cli-scripts/macropatterns/tl-prediction.jl`
+- `julia-code/scripts/cli-scripts/macropatterns/tl-prediction-aic.jl`
+- `julia-code/scripts/module-scripts/macropatterns/TL_prediction.jl`
+- `julia-code/scripts/module-scripts/macropatterns/SAD.jl`
+- `julia-code/plot/`
 
-Most analysis entrypoints are in:
-
-- `julia-code/scripts/cli-scripts/scaling-laws/`
-- `julia-code/scripts/cli-scripts/goodness-of-fit/`
-- `julia-code/scripts/cli-scripts/macro-laws/`
-
-Example:
-
-```bash
-cd julia-code
-julia --project scripts/cli-scripts/scaling-laws/heaps/rfc-heaps.jl
-```
+Use `./run.sh` for the complete CodeOcean path.
 
 ## Dataset download scripts
 
@@ -190,8 +208,8 @@ intermediates:
 julia --project=julia-code -e 'include("julia-code/plot/plot-fig3.jl"); Figure3.plot()'
 ```
 
-If the Figure 3 intermediates need to be rebuilt from raw loaders and
-goodness-of-fit outputs, run:
+If the Figure 3 intermediates need to be rebuilt from raw loaders and the
+bundled goodness-of-fit outputs, run:
 
 ```bash
 julia --project=julia-code -e 'include("julia-code/plot/plot-fig3.jl"); Figure3.prepare(); Figure3.plot()'

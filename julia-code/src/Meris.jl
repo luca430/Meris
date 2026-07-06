@@ -5,8 +5,10 @@ const minsamples::Int = 30
 const mincomponents::Int = 100
 
 ## DIRECTORIES
-const DATADIR = normpath(joinpath(@__DIR__, "..", "data/"))
-const FIGDIR = normpath(joinpath(@__DIR__, "..", "figures/"))
+_with_trailing_separator(path) = joinpath(normpath(path), "")
+
+const DATADIR = _with_trailing_separator(get(ENV, "MERIS_DATADIR", joinpath(@__DIR__, "..", "data")))
+const FIGDIR = _with_trailing_separator(get(ENV, "MERIS_FIGDIR", joinpath(@__DIR__, "..", "figures")))
 
 const ARXIVDIR = DATADIR * "datasets/arxiv/"
 const TREEDIR = DATADIR * "datasets/bci.tree/"

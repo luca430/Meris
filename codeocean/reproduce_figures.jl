@@ -49,6 +49,16 @@ function include_plot(filename)
     include(joinpath(julia_dir, "plot", filename))
 end
 
+function _getfield_latest(parent, name::Symbol)
+    return Base.invokelatest(getfield, parent, name)
+end
+
+function call_latest(module_name::Symbol, function_name::Symbol, args...; kwargs...)
+    mod = _getfield_latest(Main, module_name)
+    func = _getfield_latest(mod, function_name)
+    return Base.invokelatest(func, args...; kwargs...)
+end
+
 function render_main_figures()
     include_plot("plot-fig2-A.jl")
     if !isfile(joinpath(julia_dir, "plot", "plot-tl-prediction-bins.jl"))
@@ -59,15 +69,15 @@ function render_main_figures()
     include_plot("plot-fig3.jl")
 
     @info "Rendering Figure 2A"
-    Base.invokelatest(Figure2A.plot)
+    call_latest(:Figure2A, :plot)
     copy_figure("fig2_A.pdf")
 
     @info "Rendering Figure 2B"
-    Base.invokelatest(Figure2B.plot)
+    call_latest(:Figure2B, :plot)
     copy_figure("fig2_B.pdf")
 
     @info "Rendering Figure 3"
-    Base.invokelatest(Figure3.plot)
+    call_latest(:Figure3, :plot)
     copy_figure("fig3.pdf")
 end
 
@@ -76,31 +86,31 @@ function render_taylor_figures()
     include_plot("plot-tl-prediction.jl")
 
     @info "Rendering Taylor-law supplementary figures"
-    Base.invokelatest(TaylorPlotter.plot_taylor_downsampled)
+    call_latest(:TaylorPlotter, :plot_taylor_downsampled)
     copy_figure("taylor.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_taylor_unbinned_downsampled)
+    call_latest(:TaylorPlotter, :plot_taylor_unbinned_downsampled)
     copy_figure("taylor-unbinned.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_taylor_reference_downsampled)
+    call_latest(:TaylorPlotter, :plot_taylor_reference_downsampled)
     copy_figure("taylor-reference.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_taylor_omega)
+    call_latest(:TaylorPlotter, :plot_taylor_omega)
     copy_figure("taylor-omega.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_taylor_omega_binned)
+    call_latest(:TaylorPlotter, :plot_taylor_omega_binned)
     copy_figure("taylor-omega-binned.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_gutenberg_en_count_distribution)
+    call_latest(:TaylorPlotter, :plot_gutenberg_en_count_distribution)
     copy_figure("gutenberg-en-count-distribution.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_single_domain_count_distributions)
+    call_latest(:TaylorPlotter, :plot_single_domain_count_distributions)
     copy_figure("single-domain-count-distributions.pdf")
 
-    Base.invokelatest(TaylorPlotter.plot_dataset_key)
+    call_latest(:TaylorPlotter, :plot_dataset_key)
     copy_figure("dataset-key.pdf")
 
-    Base.invokelatest(TLPredictionPlotter.plot)
+    call_latest(:TLPredictionPlotter, :plot)
     copy_figure("tl-prediction-all.pdf")
 end
 
