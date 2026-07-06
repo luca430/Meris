@@ -8,6 +8,7 @@ julia-code/Manifest.toml
 /poetry.lock
 
 # Exclude directories
+/results
 /julia-code/data/datasets/arxiv/raw-data/*
 /julia-code/data/datasets/arxiv/processed/*
 /julia-code/data/datasets/bci.tree/raw-data/*
