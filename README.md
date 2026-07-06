@@ -43,6 +43,28 @@ using Meris
 
 Unless otherwise noted, the commands below are run from the repository root.
 
+## CodeOcean / reviewer reproduction
+
+The root `run.sh` script is the recommended CodeOcean entrypoint:
+
+```bash
+./run.sh
+```
+
+By default it uses the checked-in intermediate data under `julia-code/data/`,
+recomputes the Taylor-law power-vs-quadratic AIC table, and redraws the main
+figures into `results/`.
+
+Useful variants:
+
+```bash
+REPRO_MODE=regenerate ./run.sh   # rebuild TL-prediction bins from grouped downsampled data
+FIGURE_SET=taylor ./run.sh       # Taylor-law and TL-prediction supplementary figures
+FIGURE_SET=all ./run.sh          # main + Taylor-law figure sets
+```
+
+See `codeocean/README.md` for the full capsule workflow and output list.
+
 ## Load or import data
 
 Raw dataset download and parsing helpers live under `julia-code/data/datasets/`.

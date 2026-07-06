@@ -34,6 +34,7 @@ julia-code/Manifest.toml
 # Exclude temporary files
 tmp/
 tmp.*/
+/results/
 /.git-old/
 .ipynb_checkpoints/
 /.dir-locals.el
