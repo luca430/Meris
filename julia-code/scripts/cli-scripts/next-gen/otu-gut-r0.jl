@@ -18,13 +18,11 @@ function parse_args(args)
         "class" => DEFAULT_CLASS,
         "outfile" => DEFAULT_OUTFILE,
         "seed" => "123",
-        "connectivity" => "0.1",
+        "connectivity" => "0.01",
         "beta-mean" => "1e-2",
         "beta-sigma" => "1.0",
         "diagonal-factor" => "10.0",
         "biomass-mean" => string(exp(1.5)),
-        "biomass-var" => string((exp(1.0) - 1.0) * exp(3.0)),
-        "biomass-mu" => "1.0",
         "biomass-sigma" => "1.0",
         "n-runs" => "1",
         "maxiter" => "1_000",
@@ -42,44 +40,25 @@ function parse_args(args)
               --outfile=PATH         Output JLD2 file. Default: $(DEFAULT_OUTFILE)
               --seed=N               Random seed. Default: 123
               --c=P                  Alias for --connectivity.
-              --connectivity=P       Off-diagonal Erdos-Renyi edge probability. Default: 0.1
+              --connectivity=P       Off-diagonal Erdos-Renyi edge probability. Default: 0.01
               --beta-mean=M          Arithmetic mean of beta_ij. Default: 1e-2
               --beta-sigma=S         LogNormal log-space sigma for beta_ij. Default: 1
               --diagonal-factor=X    Multiplier applied to beta_ii after drawing beta. Default: 10
-              --biomass-mean=M       Arithmetic mean of B^r. Default matches log-space mu=1, sigma=1.
-              --biomass-var=V        Arithmetic variance of B^r. Default matches log-space mu=1, sigma=1.
+              --biomass-mean=M       Arithmetic mean \\bar{B} of B^r. Default: exp(1.5)
+              --biomass-sigma=S      LogNormal sigma_B for B^r. Default: 1
               --n-runs=N             Number of runs; each run samples a new beta matrix. Default: 1
               --maxiter=N            Power iteration limit per sample. Default: 1000
               --tol=X                Power iteration tolerance. Default: 1e-8
 
             Parameters can be comma-separated lists, read in order as distinct distributions.
             Scalar values are reused for all distributions. For example:
-              --beta-mean=1e-3,1e-2 --biomass-var=10,1e4 --n-runs=5
+              --beta-mean=1e-3,1e-2 --biomass-mean=100,1000 --biomass-sigma=0.5,1 --n-runs=5
             """)
             exit(0)
         elseif startswith(arg, "--") && occursin("=", arg)
             key, value = split(arg[3:end], "="; limit=2)
             key == "c" && (key = "connectivity")
             key == "runs" && (key = "n-runs")
-            key == "biomass-variance" && (key = "biomass-var")
-            if key == "biomass-mu"
-                options["biomass-mu"] = value
-                mu = parse(Float64, value)
-                sigma = parse(Float64, options["biomass-sigma"])
-                options["biomass-mean"] = string(exp(mu + sigma^2 / 2))
-                options["biomass-var"] = string((exp(sigma^2) - 1) * exp(2 * mu + sigma^2))
-                continue
-            elseif key == "biomass-sigma"
-                options["biomass-sigma"] = value
-                sigma = parse(Float64, value)
-                mean_value = parse(Float64, options["biomass-mean"])
-                var_value = parse(Float64, options["biomass-var"])
-                current_sigma2 = log(1 + var_value / mean_value^2)
-                current_mu = log(mean_value) - current_sigma2 / 2
-                options["biomass-mean"] = string(exp(current_mu + sigma^2 / 2))
-                options["biomass-var"] = string((exp(sigma^2) - 1) * exp(2 * current_mu + sigma^2))
-                continue
-            end
             haskey(options, key) || error("Unknown option: --$key")
             options[key] = value
         else
@@ -99,7 +78,7 @@ function parse_args(args)
         beta_sigma = parse_float_list(options["beta-sigma"]),
         diagonal_factor = parse_float_list(options["diagonal-factor"]),
         biomass_mean = parse_float_list(options["biomass-mean"]),
-        biomass_var = parse_float_list(options["biomass-var"]),
+        biomass_sigma = parse_float_list(options["biomass-sigma"]),
         n_runs = parse_int_list(options["n-runs"]),
         maxiter = parse(Int, replace(options["maxiter"], "_" => "")),
         tol = parse(Float64, options["tol"]),
@@ -119,7 +98,7 @@ function distribution_parameters(options)
         options.beta_sigma,
         options.diagonal_factor,
         options.biomass_mean,
-        options.biomass_var,
+        options.biomass_sigma,
         options.n_runs,
     ])
     n_distributions = maximum(lengths)
@@ -129,7 +108,7 @@ function distribution_parameters(options)
     beta_sigma = _broadcast_parameter(options.beta_sigma, n_distributions, "beta-sigma")
     diagonal_factor = _broadcast_parameter(options.diagonal_factor, n_distributions, "diagonal-factor")
     biomass_mean = _broadcast_parameter(options.biomass_mean, n_distributions, "biomass-mean")
-    biomass_var = _broadcast_parameter(options.biomass_var, n_distributions, "biomass-var")
+    biomass_sigma = _broadcast_parameter(options.biomass_sigma, n_distributions, "biomass-sigma")
     n_runs = _broadcast_parameter(options.n_runs, n_distributions, "n-runs")
 
     params_df = DataFrame(
@@ -140,9 +119,9 @@ function distribution_parameters(options)
         beta_mu = fill(NaN, n_distributions),
         diagonal_factor = diagonal_factor,
         biomass_mean = biomass_mean,
-        biomass_var = biomass_var,
-        biomass_mu = fill(NaN, n_distributions),
-        biomass_sigma = fill(NaN, n_distributions),
+        biomass_var = [lognormal_var_from_mean_sigma(mean_value, sigma) for (mean_value, sigma) in zip(biomass_mean, biomass_sigma)],
+        biomass_mu = [lognormal_mu_from_mean_sigma(mean_value, sigma) for (mean_value, sigma) in zip(biomass_mean, biomass_sigma)],
+        biomass_sigma = biomass_sigma,
         n_runs = n_runs,
     )
 
@@ -155,7 +134,7 @@ function validate_options(options, params_df::DataFrame)
     all(>(0.0), params_df.beta_sigma) || error("--beta-sigma must be positive")
     all(>=(0.0), params_df.diagonal_factor) || error("--diagonal-factor must be non-negative")
     all(>(0.0), params_df.biomass_mean) || error("--biomass-mean must be positive")
-    all(>(0.0), params_df.biomass_var) || error("--biomass-var must be positive")
+    all(>=(0.0), params_df.biomass_sigma) || error("--biomass-sigma must be non-negative")
     all(>(0), params_df.n_runs) || error("--n-runs must be positive")
     options.maxiter > 0 || error("--maxiter must be positive")
     options.tol > 0.0 || error("--tol must be positive")
@@ -166,10 +145,12 @@ function beta_distribution(mean_value::Real, sigma::Real)
     return LogNormal(mu, sigma)
 end
 
-function lognormal_from_mean_var(mean_value::Real, var_value::Real)
-    sigma2 = log(1 + var_value / mean_value^2)
-    mu = log(mean_value) - sigma2 / 2
-    return LogNormal(mu, sqrt(sigma2))
+function lognormal_mu_from_mean_sigma(mean_value::Real, sigma::Real)
+    return log(mean_value) - sigma^2 / 2
+end
+
+function lognormal_var_from_mean_sigma(mean_value::Real, sigma::Real)
+    return (exp(sigma^2) - 1) * mean_value^2
 end
 
 function load_class_df(class_name::AbstractString)
@@ -303,13 +284,11 @@ function main(args=ARGS)
 
     for dist_row in eachrow(distribution_params)
         beta_dist = beta_distribution(dist_row.beta_mean, dist_row.beta_sigma)
-        biomass_dist = lognormal_from_mean_var(dist_row.biomass_mean, dist_row.biomass_var)
+        biomass_dist = LogNormal(dist_row.biomass_mu, dist_row.biomass_sigma)
         distribution_params[dist_row.distribution_id, :beta_mu] = params(beta_dist)[1]
-        distribution_params[dist_row.distribution_id, :biomass_mu] = params(biomass_dist)[1]
-        distribution_params[dist_row.distribution_id, :biomass_sigma] = params(biomass_dist)[2]
 
         edge_counts = zeros(Int, dist_row.n_runs)
-        @info "Starting distribution" distribution_id=dist_row.distribution_id n_runs=dist_row.n_runs connectivity=dist_row.connectivity beta_mean=dist_row.beta_mean biomass_mean=dist_row.biomass_mean biomass_var=dist_row.biomass_var
+        @info "Starting distribution" distribution_id=dist_row.distribution_id n_runs=dist_row.n_runs connectivity=dist_row.connectivity beta_mean=dist_row.beta_mean biomass_mean=dist_row.biomass_mean biomass_sigma=dist_row.biomass_sigma
 
         for run in 1:dist_row.n_runs
             @info "Building beta matrix" distribution_id=dist_row.distribution_id run n_runs=dist_row.n_runs components=length(data.component_ids) connectivity=dist_row.connectivity

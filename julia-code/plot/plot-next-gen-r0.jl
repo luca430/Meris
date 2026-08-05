@@ -87,7 +87,10 @@ function _distribution_label(distribution_id::Int, distribution_params)
     nrow(matches) == 0 && return "distribution $distribution_id"
 
     row = first(eachrow(matches))
-    return latexstring("\\bar{B}=$(pow10_label(row.biomass_mean)),\\;\\sigma^2_B=$(pow10_label(row.biomass_var))")
+    clean_zero(x) = isapprox(x, 0.0; atol=5e-3) ? 0.0 : x
+    mean_text = @sprintf("%.0f", row.biomass_mean)
+    sigma_text = @sprintf("%.2f", clean_zero(row.biomass_sigma))
+    return latexstring("\\bar{B}=$(mean_text),\\;\\sigma_B=$(sigma_text)")
 end
 
 function pow10_label(x::Real)
@@ -144,15 +147,19 @@ function plot(;
     __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
     set_theme!(__theme)
 
-    width = 1.15 * 246
-    height = 3 * width / 4.67
-    fig = Figure(; size=(width, height), figure_padding=(6, 8, 4, 12))
+    width = 1.55 * 246
+    height = 0.58 * width
+    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
     ax = Axis(
         fig[1, 1],
         xlabel=L"\log_{10} R_0",
-        ylabel=L"\textrm{density}",
-        xlabelsize=11,
-        ylabelsize=11,
+        ylabel=L"\textrm{pdf }p(\log_{10} R_0)",
+        xlabelsize=17,
+        ylabelsize=17,
+        xticklabelsize=13,
+        yticklabelsize=13,
+        xminorgridvisible=false,
+        yminorgridvisible=false,
     )
 
     log_values = r0df.logR0
@@ -160,7 +167,7 @@ function plot(;
     lo == hi && ((lo, hi) = (lo - 0.5, hi + 0.5))
     edges = collect(range(lo, hi, length=nbins + 1))
     dist_ids = sort(unique(r0df.distribution_id))
-    palette = Makie.wong_colors()
+    palette = [:black, "#1f77b4", "#ff7f0e"]
     xlims!(ax, lo, hi)
 
     if hi > 0.0
@@ -168,7 +175,7 @@ function plot(;
             ax,
             0.0,
             hi;
-            color=(:lightcoral, 0.16),
+            color=(:lightgray, 0.35),
         )
     end
 
@@ -183,7 +190,7 @@ function plot(;
             x,
             y;
             color=color,
-            linewidth=1.5,
+            linewidth=1.3,
             label=_distribution_label(distribution_id, distribution_params),
         )
         vlines!(ax, [mean(sdf.logR0)]; color=color, linewidth=0.8, linestyle=:dash)
@@ -192,21 +199,12 @@ function plot(;
     axislegend(
         ax;
         position=:lt,
-        labelsize=8,
-        patchsize=(10, 6),
-        rowgap=0,
-        padding=(2, 2, 2, 2),
+        labelsize=12,
+        patchsize=(14, 8),
+        rowgap=3,
+        padding=(3, 3, 3, 3),
+        framevisible=false,
     )
-
-    title = "OTU $(first(r0df.class))"
-    if parameters !== nothing
-        if :n_distributions in propertynames(parameters)
-            title *= ", distributions=$(parameters.n_distributions), n=$(parameters.ncomponents)"
-        elseif :connectivity in propertynames(parameters)
-            title *= ", c=$(parameters.connectivity), n=$(parameters.ncomponents)"
-        end
-    end
-    Label(fig[0, 1], title; fontsize=10, tellwidth=false)
 
     if savefig
         mkpath(outdir)

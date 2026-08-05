@@ -1,4 +1,4 @@
-#= Grid analysis for P(R0 > 1) over var(B) and mean(beta). =#
+#= Grid analysis for P(R0 > 1) over sigma_B and mean(beta). =#
 
 using DataFrames
 using Dates
@@ -14,17 +14,21 @@ using Meris
 
 const DEFAULT_CLASS = "GUT1"
 const DEFAULT_OUTFILE = joinpath(Meris.DATADIR, "next-gen", "otu-gut1-r0-grid.jld2")
+const DEFAULT_BIOMASS_MEAN = "1000.0"
+const DEFAULT_BIOMASS_SIGMA_MIN = "0.1"
+const DEFAULT_BIOMASS_SIGMA_MAX = "3.0"
 
 function parse_args(args)
     options = Dict(
         "class" => DEFAULT_CLASS,
         "outfile" => DEFAULT_OUTFILE,
         "seed" => "123",
-        "connectivity" => "0.1",
-        "biomass-mean" => "1000.0",
-        "biomass-var-min" => "1e1",
-        "biomass-var-max" => "1e6",
-        "biomass-vars" => "",
+        "connectivity" => "0.01",
+        "biomass-mean" => DEFAULT_BIOMASS_MEAN,
+        "biomass-sigma-min" => DEFAULT_BIOMASS_SIGMA_MIN,
+        "biomass-sigma-max" => DEFAULT_BIOMASS_SIGMA_MAX,
+        "biomass-sigmas" => "",
+        "biomass-means" => "",
         "beta-mean-min" => "1e-5",
         "beta-mean-max" => "1e-1",
         "beta-means" => "",
@@ -49,17 +53,18 @@ function parse_args(args)
               --outfile=PATH            Output JLD2 file. Default: $(DEFAULT_OUTFILE)
               --seed=N                  Random seed. Default: 123
               --c=P                     Alias for --connectivity.
-              --connectivity=P          Off-diagonal Erdos-Renyi edge probability. Default: 0.1
-              --biomass-mean=M          Arithmetic mean of B. Default: 1000
-              --biomass-var-min=V       Minimum arithmetic var(B). Default: 1e1
-              --biomass-var-max=V       Maximum arithmetic var(B). Default: 1e6
-              --biomass-vars=a,b,c      Explicit comma-separated Var(B) values; overrides min/max/n-grid.
+              --connectivity=P          Off-diagonal Erdos-Renyi edge probability. Default: 0.01
+              --biomass-mean=M          Arithmetic mean \\bar{B} of B. Default: $(DEFAULT_BIOMASS_MEAN)
+              --biomass-means=a,b,c     Explicit \\bar{B} values, scalar or one per sigma_B.
+              --biomass-sigma-min=S     Minimum LogNormal sigma_B. Default: $(DEFAULT_BIOMASS_SIGMA_MIN)
+              --biomass-sigma-max=S     Maximum LogNormal sigma_B. Default: $(DEFAULT_BIOMASS_SIGMA_MAX)
+              --biomass-sigmas=a,b,c    Explicit sigma_B values; overrides min/max/n-grid.
               --beta-mean-min=M         Minimum arithmetic mean(beta). Default: 1e-5
               --beta-mean-max=M         Maximum arithmetic mean(beta). Default: 1e-1
               --beta-means=a,b,c        Explicit comma-separated mean(beta) values; overrides min/max/n-grid.
               --beta-sigma=S            LogNormal log-space sigma for beta shape. Default: 1
               --diagonal-factor=X       Multiplier applied to beta_ii after drawing beta. Default: 10
-              --n-grid=N                Number of log-spaced values per axis. Default: 20
+              --n-grid=N                Number of grid values per axis. Default: 20
               --n-runs=N                Number of beta matrix runs. Default: 10
               --n-threads=N             Expected Julia thread count. Default: 10
               --maxiter=N               Power iteration limit per sample. Default: 1000
@@ -71,9 +76,7 @@ function parse_args(args)
             key, value = split(arg[3:end], "="; limit=2)
             key == "c" && (key = "connectivity")
             key == "runs" && (key = "n-runs")
-            key == "biomass-variance-min" && (key = "biomass-var-min")
-            key == "biomass-variance-max" && (key = "biomass-var-max")
-            key == "biomass-variances" && (key = "biomass-vars")
+            key == "biomass-sigma" && (key = "biomass-sigmas")
             haskey(options, key) || error("Unknown option: --$key")
             options[key] = value
         else
@@ -89,9 +92,10 @@ function parse_args(args)
         seed = parse(Int, options["seed"]),
         connectivity = parse(Float64, options["connectivity"]),
         biomass_mean = parse(Float64, options["biomass-mean"]),
-        biomass_var_min = parse(Float64, options["biomass-var-min"]),
-        biomass_var_max = parse(Float64, options["biomass-var-max"]),
-        biomass_vars = parse_optional_grid(options["biomass-vars"]),
+        biomass_means = parse_optional_grid(options["biomass-means"]),
+        biomass_sigma_min = parse(Float64, options["biomass-sigma-min"]),
+        biomass_sigma_max = parse(Float64, options["biomass-sigma-max"]),
+        biomass_sigmas = parse_optional_grid(options["biomass-sigmas"]),
         beta_mean_min = parse(Float64, options["beta-mean-min"]),
         beta_mean_max = parse(Float64, options["beta-mean-max"]),
         beta_means = parse_optional_grid(options["beta-means"]),
@@ -108,13 +112,17 @@ end
 
 function validate_options(options)
     0.0 <= options.connectivity <= 1.0 || error("--connectivity must be between 0 and 1")
-    options.biomass_mean > 0.0 || error("--biomass-mean must be positive")
-    options.biomass_var_min > 0.0 || error("--biomass-var-min must be positive")
-    options.biomass_var_max >= options.biomass_var_min || error("--biomass-var-max must be >= --biomass-var-min")
-    if options.biomass_vars !== nothing
-        all(>(0.0), options.biomass_vars) || error("--biomass-vars values must be positive")
-        length(options.biomass_vars) > 0 || error("--biomass-vars cannot be empty")
+    options.biomass_sigma_min >= 0.0 || error("--biomass-sigma-min must be non-negative")
+    options.biomass_sigma_max >= options.biomass_sigma_min || error("--biomass-sigma-max must be >= --biomass-sigma-min")
+    if options.biomass_sigmas !== nothing
+        all(>=(0.0), options.biomass_sigmas) || error("--biomass-sigmas values must be non-negative")
+        length(options.biomass_sigmas) > 0 || error("--biomass-sigmas cannot be empty")
     end
+    if options.biomass_means !== nothing
+        all(>(0.0), options.biomass_means) || error("--biomass-means values must be positive")
+        length(options.biomass_means) > 0 || error("--biomass-means cannot be empty")
+    end
+    options.biomass_mean > 0.0 || error("--biomass-mean must be positive")
     options.beta_mean_min > 0.0 || error("--beta-mean-min must be positive")
     options.beta_mean_max >= options.beta_mean_min || error("--beta-mean-max must be >= --beta-mean-min")
     if options.beta_means !== nothing
@@ -137,10 +145,16 @@ function log_grid(lo::Real, hi::Real, n::Int)
     return exp10.(range(log10(lo), log10(hi), length=n))
 end
 
-function lognormal_from_mean_var(mean_value::Real, var_value::Real)
-    sigma2 = log(1 + var_value / mean_value^2)
-    mu = log(mean_value) - sigma2 / 2
-    return LogNormal(mu, sqrt(sigma2))
+function linear_grid(lo::Real, hi::Real, n::Int)
+    return collect(range(lo, hi, length=n))
+end
+
+function lognormal_mu_from_mean_sigma(mean_value::Real, sigma::Real)
+    return log(mean_value) - sigma^2 / 2
+end
+
+function lognormal_var_from_mean_sigma(mean_value::Real, sigma::Real)
+    return (exp(sigma^2) - 1) * mean_value^2
 end
 
 function unit_mean_lognormal(sigma::Real)
@@ -250,17 +264,20 @@ function compute_base_rhos(counts::AbstractMatrix, nreads::AbstractVector, suppo
     return base_rhos, support_sizes
 end
 
-function update_probability_counts!(gt1_counts, total_counts, biomass_var_index::Int,
+function update_probability_counts!(gt1_counts, total_counts, biomass_index::Int,
                                     r0_values, beta_means)
     for j in eachindex(beta_means)
         r0_scaled = beta_means[j] .* r0_values
-        gt1_counts[biomass_var_index, j] += count(>(1.0), r0_scaled)
-        total_counts[biomass_var_index, j] += length(r0_values)
+        gt1_counts[biomass_index, j] += count(>(1.0), r0_scaled)
+        total_counts[biomass_index, j] += length(r0_values)
     end
 end
 
-function result_dataframe(biomass_vars, beta_means, gt1_counts, total_counts)
+function result_dataframe(biomass_means, biomass_sigmas, beta_means, gt1_counts, total_counts)
     result = DataFrame(
+        biomass_mu = Float64[],
+        biomass_sigma = Float64[],
+        biomass_mean = Float64[],
         biomass_var = Float64[],
         beta_mean = Float64[],
         n_gt1 = Int[],
@@ -268,12 +285,17 @@ function result_dataframe(biomass_vars, beta_means, gt1_counts, total_counts)
         probability_gt1 = Float64[],
     )
 
-    for i in eachindex(biomass_vars), j in eachindex(beta_means)
+    for i in eachindex(biomass_sigmas), j in eachindex(beta_means)
         total = total_counts[i, j]
+        mean_value = biomass_means[i]
+        sigma = biomass_sigmas[i]
         push!(
             result,
             (
-                biomass_vars[i],
+                lognormal_mu_from_mean_sigma(mean_value, sigma),
+                sigma,
+                mean_value,
+                lognormal_var_from_mean_sigma(mean_value, sigma),
                 beta_means[j],
                 gt1_counts[i, j],
                 total,
@@ -294,21 +316,32 @@ function main(args=ARGS)
     beta_means = isnothing(options.beta_means) ?
         log_grid(options.beta_mean_min, options.beta_mean_max, options.n_grid) :
         sort(options.beta_means)
-    biomass_vars = isnothing(options.biomass_vars) ?
-        log_grid(options.biomass_var_min, options.biomass_var_max, options.n_grid) :
-        sort(options.biomass_vars)
-    biomass_dists = [lognormal_from_mean_var(options.biomass_mean, v) for v in biomass_vars]
+    biomass_sigmas = isnothing(options.biomass_sigmas) ?
+        linear_grid(options.biomass_sigma_min, options.biomass_sigma_max, options.n_grid) :
+        sort(options.biomass_sigmas)
+    biomass_means = if options.biomass_means === nothing
+        fill(options.biomass_mean, length(biomass_sigmas))
+    elseif length(options.biomass_means) == 1
+        fill(first(options.biomass_means), length(biomass_sigmas))
+    elseif length(options.biomass_means) == length(biomass_sigmas)
+        options.biomass_means
+    else
+        error("--biomass-means must have either one value or one value per sigma_B")
+    end
+    biomass_mus = [lognormal_mu_from_mean_sigma(mean_value, sigma) for (mean_value, sigma) in zip(biomass_means, biomass_sigmas)]
+    biomass_dists = [LogNormal(mu, sigma) for (mu, sigma) in zip(biomass_mus, biomass_sigmas)]
 
     classdf = load_class_df(options.class)
     data = count_matrix(classdf)
     nsamples = length(data.sample_ids)
 
-    gt1_counts = zeros(Int, length(biomass_vars), length(beta_means))
-    total_counts = zeros(Int, length(biomass_vars), length(beta_means))
+    gt1_counts = zeros(Int, length(biomass_sigmas), length(beta_means))
+    total_counts = zeros(Int, length(biomass_sigmas), length(beta_means))
     edge_counts = zeros(Int, options.n_runs)
     support_sizes = zeros(Int, nsamples)
     r0_records = options.save_r0 ? DataFrame(
-        run=Int[], sample_id=String[], biomass_var=Float64[], biomass=Float64[],
+        run=Int[], sample_id=String[], biomass_mu=Float64[], biomass_sigma=Float64[],
+        biomass_mean=Float64[], biomass_var=Float64[], biomass=Float64[],
         beta_mean=Float64[], R0=Float64[]
     ) : nothing
 
@@ -338,7 +371,7 @@ function main(args=ARGS)
         )
         support_sizes .= run_support_sizes
 
-        for i in eachindex(biomass_vars)
+        for i in eachindex(biomass_sigmas)
             biomass = rand(biomass_rng, biomass_dists[i], nsamples)
             r0_without_beta_mean = biomass .* base_rhos
             update_probability_counts!(gt1_counts, total_counts, i, r0_without_beta_mean, beta_means)
@@ -350,7 +383,10 @@ function main(args=ARGS)
                         DataFrame(
                             run=fill(run, nsamples),
                             sample_id=data.sample_ids,
-                            biomass_var=fill(biomass_vars[i], nsamples),
+                            biomass_mu=fill(biomass_mus[i], nsamples),
+                            biomass_sigma=fill(biomass_sigmas[i], nsamples),
+                            biomass_mean=fill(biomass_means[i], nsamples),
+                            biomass_var=fill(lognormal_var_from_mean_sigma(biomass_means[i], biomass_sigmas[i]), nsamples),
                             biomass=biomass,
                             beta_mean=fill(beta_means[j], nsamples),
                             R0=beta_means[j] .* r0_without_beta_mean,
@@ -364,7 +400,7 @@ function main(args=ARGS)
         GC.gc()
     end
 
-    result = result_dataframe(biomass_vars, beta_means, gt1_counts, total_counts)
+    result = result_dataframe(biomass_means, biomass_sigmas, beta_means, gt1_counts, total_counts)
     mkpath(dirname(options.outfile))
     created_at = string(now())
     parameters = (
@@ -372,9 +408,11 @@ function main(args=ARGS)
         class = options.class,
         connectivity = options.connectivity,
         biomass_mean = options.biomass_mean,
-        biomass_var_min = options.biomass_var_min,
-        biomass_var_max = options.biomass_var_max,
-        biomass_vars = biomass_vars,
+        biomass_means = biomass_means,
+        biomass_mus = biomass_mus,
+        biomass_sigma_min = options.biomass_sigma_min,
+        biomass_sigma_max = options.biomass_sigma_max,
+        biomass_sigmas = biomass_sigmas,
         beta_mean_min = options.beta_mean_min,
         beta_mean_max = options.beta_mean_max,
         beta_means = beta_means,
@@ -397,7 +435,9 @@ function main(args=ARGS)
             options.outfile;
             result,
             r0_records,
-            biomass_vars,
+            biomass_mus,
+            biomass_means,
+            biomass_sigmas,
             beta_means,
             gt1_counts,
             total_counts,
@@ -408,7 +448,9 @@ function main(args=ARGS)
         jldsave(
             options.outfile;
             result,
-            biomass_vars,
+            biomass_mus,
+            biomass_means,
+            biomass_sigmas,
             beta_means,
             gt1_counts,
             total_counts,
@@ -421,4 +463,6 @@ function main(args=ARGS)
     return result
 end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

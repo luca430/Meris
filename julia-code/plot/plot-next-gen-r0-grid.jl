@@ -6,6 +6,7 @@ using DataFrames
 using JLD2
 using LaTeXStrings
 using MakiePublication
+using Makie
 
 using Meris
 
@@ -20,8 +21,9 @@ function parse_args(args)
         "pmin" => "",
         "pmax" => "",
         "log-color" => "false",
-        "biomass-var-min" => "",
-        "biomass-var-max" => "",
+        "probability-gamma" => "0.35",
+        "biomass-sigma-min" => "",
+        "biomass-sigma-max" => "",
         "beta-mean-min" => "",
         "beta-mean-max" => "",
     )
@@ -38,9 +40,10 @@ function parse_args(args)
               --basename=NAME          Output filename stem. Default: otu-gut1-r0-grid-heatmap
               --pmin=P                 Heatmap color minimum. Default: 0, or auto for --log-color=true
               --pmax=P                 Heatmap color maximum. Default: 1, or auto for --log-color=true
-              --log-color=true|false   Plot log10 probabilities; zero cells are grey. Default: false
-              --biomass-var-min=V      Keep only Var(B) >= V.
-              --biomass-var-max=V      Keep only Var(B) <= V.
+              --log-color=true|false   Plot log10 probabilities; zero cells are white. Default: false
+              --probability-gamma=G    Display P^G for linear color; smaller emphasizes low P. Default: 0.35
+              --biomass-sigma-min=S    Keep only sigma_B >= S.
+              --biomass-sigma-max=S    Keep only sigma_B <= S.
               --beta-mean-min=M        Keep only mean(beta) >= M.
               --beta-mean-max=M        Keep only mean(beta) <= M.
             """)
@@ -62,8 +65,9 @@ function parse_args(args)
         pmin = parse_optional_float(options["pmin"]),
         pmax = parse_optional_float(options["pmax"]),
         log_color = lowercase(options["log-color"]) in ("true", "1", "yes"),
-        biomass_var_min = parse_optional_float(options["biomass-var-min"]),
-        biomass_var_max = parse_optional_float(options["biomass-var-max"]),
+        probability_gamma = parse(Float64, options["probability-gamma"]),
+        biomass_sigma_min = parse_optional_float(options["biomass-sigma-min"]),
+        biomass_sigma_max = parse_optional_float(options["biomass-sigma-max"]),
         beta_mean_min = parse_optional_float(options["beta-mean-min"]),
         beta_mean_max = parse_optional_float(options["beta-mean-max"]),
     )
@@ -76,14 +80,21 @@ function _load_grid(path::AbstractString)
     return data["result"], get(data, "biomass_vars", nothing), get(data, "beta_means", nothing), get(data, "parameters", nothing)
 end
 
-function _filter_result(result::DataFrame; biomass_var_min=nothing, biomass_var_max=nothing,
+function biomass_axis_column(result::DataFrame)
+    :biomass_sigma in propertynames(result) && return :biomass_sigma
+    :biomass_var in propertynames(result) && return :biomass_var
+    error("Expected either `biomass_sigma` or `biomass_var` in result")
+end
+
+function _filter_result(result::DataFrame; biomass_sigma_min=nothing, biomass_sigma_max=nothing,
                         beta_mean_min=nothing, beta_mean_max=nothing)
     filtered = result
-    if biomass_var_min !== nothing
-        filtered = filtered[filtered.biomass_var .>= biomass_var_min, :]
+    axis_col = biomass_axis_column(filtered)
+    if biomass_sigma_min !== nothing
+        filtered = filtered[filtered[!, axis_col] .>= biomass_sigma_min, :]
     end
-    if biomass_var_max !== nothing
-        filtered = filtered[filtered.biomass_var .<= biomass_var_max, :]
+    if biomass_sigma_max !== nothing
+        filtered = filtered[filtered[!, axis_col] .<= biomass_sigma_max, :]
     end
     if beta_mean_min !== nothing
         filtered = filtered[filtered.beta_mean .>= beta_mean_min, :]
@@ -95,24 +106,26 @@ function _filter_result(result::DataFrame; biomass_var_min=nothing, biomass_var_
     return filtered
 end
 
-function _grid_matrix(result::DataFrame, biomass_vars, beta_means)
-    biomass_vars = sort(unique(result.biomass_var))
+function _grid_matrix(result::DataFrame, biomass_values, beta_means)
+    axis_col = biomass_axis_column(result)
+    biomass_values = sort(unique(result[!, axis_col]))
     beta_means = sort(unique(result.beta_mean))
 
-    z = fill(NaN, length(biomass_vars), length(beta_means))
+    z = fill(NaN, length(biomass_values), length(beta_means))
     lookup = Dict(
-        (row.biomass_var, row.beta_mean) => row.probability_gt1
+        (row[axis_col], row.beta_mean) => row.probability_gt1
         for row in eachrow(result)
     )
 
-    for i in eachindex(biomass_vars), j in eachindex(beta_means)
-        z[i, j] = lookup[(biomass_vars[i], beta_means[j])]
+    for i in eachindex(biomass_values), j in eachindex(beta_means)
+        z[i, j] = lookup[(biomass_values[i], beta_means[j])]
     end
 
-    return collect(biomass_vars), collect(beta_means), z
+    return collect(biomass_values), collect(beta_means), z, axis_col
 end
 
-function _color_values(probabilities; log_color::Bool=false, pmin=nothing, pmax=nothing)
+function _color_values(probabilities; log_color::Bool=false, pmin=nothing, pmax=nothing,
+                       probability_gamma::Real=1.0)
     if log_color
         values = copy(probabilities)
         values[values .<= 0.0] .= NaN
@@ -126,11 +139,19 @@ function _color_values(probabilities; log_color::Bool=false, pmin=nothing, pmax=
         return values, colorrange, L"\log_{10} P(R_0 > 1)"
     end
 
+    probability_gamma > 0.0 || error("--probability-gamma must be positive")
     colorrange = (
-        isnothing(pmin) ? 0.0 : pmin,
-        isnothing(pmax) ? 1.0 : pmax,
+        isnothing(pmin) ? 0.0 : pmin^probability_gamma,
+        isnothing(pmax) ? 1.0 : pmax^probability_gamma,
     )
-    return probabilities, colorrange, L"P(R_0 > 1)"
+    return probabilities .^ probability_gamma, colorrange, L"P(R_0 > 1)"
+end
+
+function _colorbar_ticks(; log_color::Bool=false, probability_gamma::Real=1.0)
+    log_color && return Makie.automatic
+    probabilities = [0.0, 1e-2, 0.1, 0.5, 1.0]
+    labels = [L"0", L"10^{-2}", L"0.1", L"0.5", L"1.0"]
+    return (probabilities .^ probability_gamma, labels)
 end
 
 function plot(;
@@ -140,8 +161,9 @@ function plot(;
     pmin=nothing,
     pmax=nothing,
     log_color::Bool=false,
-    biomass_var_min=nothing,
-    biomass_var_max=nothing,
+    probability_gamma::Real=0.35,
+    biomass_sigma_min=nothing,
+    biomass_sigma_max=nothing,
     beta_mean_min=nothing,
     beta_mean_max=nothing,
     savefig::Bool=true,
@@ -149,17 +171,18 @@ function plot(;
     result, biomass_vars, beta_means, parameters = _load_grid(input)
     result = _filter_result(
         result;
-        biomass_var_min=biomass_var_min,
-        biomass_var_max=biomass_var_max,
+        biomass_sigma_min=biomass_sigma_min,
+        biomass_sigma_max=biomass_sigma_max,
         beta_mean_min=beta_mean_min,
         beta_mean_max=beta_mean_max,
     )
-    biomass_vars, beta_means, probabilities = _grid_matrix(result, biomass_vars, beta_means)
+    biomass_values, beta_means, probabilities, biomass_axis = _grid_matrix(result, biomass_vars, beta_means)
     color_values, colorrange, colorbar_label = _color_values(
         probabilities;
         log_color=log_color,
         pmin=pmin,
         pmax=pmax,
+        probability_gamma=probability_gamma,
     )
 
     __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
@@ -167,41 +190,91 @@ function plot(;
 
     width = 1.2 * 246
     height = 0.95 * width
-    fig = Figure(; size=(width, height), figure_padding=(8, 12, 6, 12))
+    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
 
     ax = Axis(
         fig[1, 1],
-        xlabel=L"\log_{10}\,\mathrm{Var}(B)",
+        xlabel=biomass_axis == :biomass_sigma ? L"\sigma_B" : L"\log_{10}\,\mathrm{Var}(B)",
         ylabel=L"\log_{10}\,\langle \beta \rangle",
-        xlabelsize=11,
-        ylabelsize=11,
+        xlabelsize=17,
+        ylabelsize=17,
+        xticklabelsize=13,
+        yticklabelsize=13,
+        xminorgridvisible=false,
+        yminorgridvisible=false,
     )
 
+    blue_colormap = cgrad([:white, "#d8edf8", "#75b4d8", "#1f77b4"])
     hm = heatmap!(
         ax,
-        log10.(biomass_vars),
+        biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values),
         log10.(beta_means),
         color_values;
-        colormap=:viridis,
+        colormap=blue_colormap,
         colorrange=colorrange,
-        nan_color=:lightgray,
+        interpolate=true,
+        nan_color=:white,
     )
+
+    if !log_color && minimum(probabilities) <= 1e-3 <= maximum(probabilities)
+        contour!(
+            ax,
+            biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values),
+            log10.(beta_means),
+            probabilities;
+            levels=[1e-3],
+            color=:black,
+            linewidth=1.2,
+            linestyle=:dash,
+        )
+        xlo, xhi = extrema(biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values))
+        ylo, yhi = extrema(log10.(beta_means))
+        text!(
+            ax,
+            xlo + 0.50 * (xhi - xlo),
+            ylo + 0.21 * (yhi - ylo);
+            text=L"P \approx 0",
+            color=:black,
+            fontsize=15,
+            rotation=0.10pi,
+            align=(:center, :center),
+        )
+    end
+
+    if !log_color && minimum(probabilities) <= 0.95 <= maximum(probabilities)
+        contour!(
+            ax,
+            biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values),
+            log10.(beta_means),
+            probabilities;
+            levels=[0.95],
+            color=:white,
+            linewidth=1.4,
+            linestyle=:dash,
+        )
+        xlo, xhi = extrema(biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values))
+        ylo, yhi = extrema(log10.(beta_means))
+        text!(
+            ax,
+            xlo + 0.54 * (xhi - xlo),
+            ylo + 0.83 * (yhi - ylo);
+            text=L"P \approx 1",
+            color=:white,
+            fontsize=16,
+            rotation=0.18pi,
+            align=(:center, :center),
+        )
+    end
 
     Colorbar(
         fig[1, 2],
         hm;
         label=colorbar_label,
-        labelsize=10,
-        ticklabelsize=8,
-        width=10,
+        ticks=_colorbar_ticks(; log_color=log_color, probability_gamma=probability_gamma),
+        labelsize=14,
+        ticklabelsize=12,
+        width=8,
     )
-
-    title = "OTU GUT1"
-    if parameters !== nothing
-        title *= ", c=$(parameters.connectivity), runs=$(parameters.n_runs)"
-    end
-    log_color && (title *= ", log color")
-    Label(fig[0, 1:2], title; fontsize=10, tellwidth=false)
 
     if savefig
         mkpath(outdir)
@@ -226,8 +299,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
         pmin=options.pmin,
         pmax=options.pmax,
         log_color=options.log_color,
-        biomass_var_min=options.biomass_var_min,
-        biomass_var_max=options.biomass_var_max,
+        probability_gamma=options.probability_gamma,
+        biomass_sigma_min=options.biomass_sigma_min,
+        biomass_sigma_max=options.biomass_sigma_max,
         beta_mean_min=options.beta_mean_min,
         beta_mean_max=options.beta_mean_max,
     )
