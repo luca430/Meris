@@ -174,14 +174,22 @@ function smooth_marker_curve(x::AbstractVector, y::AbstractVector; points_per_in
     return xs, ys
 end
 
-function plot(;
+function plot!(parent;
     input::AbstractString=DEFAULT_INPUT,
-    outdir::AbstractString=DEFAULT_OUTDIR,
-    basename::AbstractString="otu-gut1-r0-beta-scan",
     biomass_sigmas=nothing,
     beta_mean_min=nothing,
     beta_mean_max=nothing,
-    savefig::Bool=true,
+    show_legend::Bool=true,
+    font_scale::Real=1.0,
+    labelsize=nothing,
+    ticklabelsize=nothing,
+    textsize=nothing,
+    markersize::Real=7,
+    linewidth_scale::Real=1.0,
+    legend_position=:rb,
+    legend_margin=(0, 8, 2, 0),
+    legend_patchlabelgap::Real=5,
+    axis_kwargs=(;),
 )
     result, parameters = _load_scan(input)
     result = _filter_result(
@@ -194,21 +202,26 @@ function plot(;
     __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
     set_theme!(__theme)
 
-    width = 1.55 * 246
-    height = 0.58 * width
-    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
-
+    panel = parent isa GridLayout ? parent : GridLayout(parent)
+    axis_labelsize = isnothing(labelsize) ? 17 * font_scale : labelsize
+    axis_ticklabelsize = isnothing(ticklabelsize) ? 13 * font_scale : ticklabelsize
+    annotation_size = isnothing(textsize) ? 15 * font_scale : textsize
     ax = Axis(
-        fig[1, 1],
+        panel[1, 1];
         xscale=log10,
+        xticks=(
+            [1e-5, 1e-4, 1e-3, 1e-2, 1e-1],
+            ["10⁻⁵", "10⁻⁴", "10⁻³", "10⁻²", "10⁻¹"],
+        ),
         xlabel=L"\textrm{mean infection ratio }\bar{\beta}",
         ylabel=L"P[R_0 > 1]",
-        xlabelsize=17,
-        ylabelsize=20,
-        xticklabelsize=13,
-        yticklabelsize=13,
+        xlabelsize=axis_labelsize,
+        ylabelsize=axis_labelsize,
+        xticklabelsize=axis_ticklabelsize,
+        yticklabelsize=axis_ticklabelsize,
         xminorgridvisible=false,
         yminorgridvisible=false,
+        axis_kwargs...,
     )
 
     palette = [:black, "#1f77b4", "#ff7f0e"]
@@ -233,7 +246,7 @@ function plot(;
                 ax,
                 [beta_c];
                 color=color,
-                linewidth=0.7,
+                linewidth=0.7 * linewidth_scale,
                 linestyle=:dash,
             )
         end
@@ -249,7 +262,7 @@ function plot(;
             x_smooth,
             y_smooth;
             color=color,
-            linewidth=1.0,
+            linewidth=1.0 * linewidth_scale,
             linestyle=:dashdot,
         )
         scatter!(
@@ -258,9 +271,9 @@ function plot(;
             y_marker;
             color=:white,
             strokecolor=color,
-            strokewidth=1.3,
+            strokewidth=1.3 * linewidth_scale,
             marker=markers[mod1(k, length(markers))],
-            markersize=7,
+            markersize=markersize,
             label=curve_label,
         )
     end
@@ -268,28 +281,59 @@ function plot(;
     if beta_c_label !== nothing
         text!(
             ax,
-            0.96 * beta_c_label,
+            1.08 * beta_c_label,
             0.62;
             text=L"\beta_c",
             rotation=0.0,
-            align=(:right, :center),
-            offset=(-3, 0),
-            fontsize=15,
+            align=(:left, :center),
+            offset=(4, 0),
+            fontsize=annotation_size,
             color=:black,
         )
     end
 
     ylims!(ax, -0.02, 1.02)
     xlims!(ax, 0.75 * minimum(result.beta_mean), maximum(result.beta_mean))
-    axislegend(
-        ax;
-        position=:rb,
-        labelsize=13,
-        patchsize=(16, 10),
-        rowgap=4,
-        padding=(3, 3, 3, 3),
-        framevisible=false,
-        backgroundcolor=(:white, 0.86),
+    if show_legend
+        axislegend(
+            ax;
+            position=legend_position,
+            labelsize=axis_ticklabelsize,
+            patchsize=(16 * font_scale, 10 * font_scale),
+            rowgap=4,
+            patchlabelgap=legend_patchlabelgap,
+            margin=legend_margin,
+            padding=(3, 3, 3, 3),
+            framevisible=false,
+            backgroundcolor=(:white, 0.86),
+        )
+    end
+
+    return (axis=ax, result=result, parameters=parameters)
+end
+
+function plot(;
+    input::AbstractString=DEFAULT_INPUT,
+    outdir::AbstractString=DEFAULT_OUTDIR,
+    basename::AbstractString="otu-gut1-r0-beta-scan",
+    biomass_sigmas=nothing,
+    beta_mean_min=nothing,
+    beta_mean_max=nothing,
+    savefig::Bool=true,
+)
+    __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
+    set_theme!(__theme)
+
+    width = 1.55 * 246
+    height = 0.58 * width
+    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
+
+    plot!(
+        fig[1, 1];
+        input=input,
+        biomass_sigmas=biomass_sigmas,
+        beta_mean_min=beta_mean_min,
+        beta_mean_max=beta_mean_max,
     )
 
     if savefig

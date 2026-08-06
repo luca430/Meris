@@ -150,14 +150,12 @@ end
 function _colorbar_ticks(; log_color::Bool=false, probability_gamma::Real=1.0)
     log_color && return Makie.automatic
     probabilities = [0.0, 1e-2, 0.1, 0.5, 1.0]
-    labels = [L"0", L"10^{-2}", L"0.1", L"0.5", L"1.0"]
+    labels = ["0", "10⁻²", "0.1", "0.5", "1.0"]
     return (probabilities .^ probability_gamma, labels)
 end
 
-function plot(;
+function plot!(parent;
     input::AbstractString=DEFAULT_INPUT,
-    outdir::AbstractString=DEFAULT_OUTDIR,
-    basename::AbstractString="otu-gut1-r0-grid-heatmap",
     pmin=nothing,
     pmax=nothing,
     log_color::Bool=false,
@@ -166,7 +164,15 @@ function plot(;
     biomass_sigma_max=nothing,
     beta_mean_min=nothing,
     beta_mean_max=nothing,
-    savefig::Bool=true,
+    font_scale::Real=1.0,
+    labelsize=nothing,
+    ticklabelsize=nothing,
+    textsize=nothing,
+    linewidth_scale::Real=1.0,
+    colorbar_width::Real=8,
+    colorbar_gap::Real=8,
+    colorbar_spinewidth::Real=2.0,
+    axis_kwargs=(;),
 )
     result, biomass_vars, beta_means, parameters = _load_grid(input)
     result = _filter_result(
@@ -188,20 +194,21 @@ function plot(;
     __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
     set_theme!(__theme)
 
-    width = 1.2 * 246
-    height = 0.95 * width
-    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
-
+    panel = parent isa GridLayout ? parent : GridLayout(parent)
+    axis_labelsize = isnothing(labelsize) ? 17 * font_scale : labelsize
+    axis_ticklabelsize = isnothing(ticklabelsize) ? 13 * font_scale : ticklabelsize
+    annotation_size = isnothing(textsize) ? 15 * font_scale : textsize
     ax = Axis(
-        fig[1, 1],
+        panel[1, 1];
         xlabel=biomass_axis == :biomass_sigma ? L"\sigma_B" : L"\log_{10}\,\mathrm{Var}(B)",
-        ylabel=L"\log_{10}\,\langle \beta \rangle",
-        xlabelsize=17,
-        ylabelsize=17,
-        xticklabelsize=13,
-        yticklabelsize=13,
+        ylabel=L"\log_{10}\,\bar{\beta}",
+        xlabelsize=axis_labelsize,
+        ylabelsize=axis_labelsize,
+        xticklabelsize=axis_ticklabelsize,
+        yticklabelsize=axis_ticklabelsize,
         xminorgridvisible=false,
         yminorgridvisible=false,
+        axis_kwargs...,
     )
 
     blue_colormap = cgrad([:white, "#d8edf8", "#75b4d8", "#1f77b4"])
@@ -224,18 +231,18 @@ function plot(;
             probabilities;
             levels=[1e-3],
             color=:black,
-            linewidth=1.2,
+            linewidth=1.2 * linewidth_scale,
             linestyle=:dash,
         )
         xlo, xhi = extrema(biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values))
         ylo, yhi = extrema(log10.(beta_means))
         text!(
             ax,
-            xlo + 0.50 * (xhi - xlo),
-            ylo + 0.21 * (yhi - ylo);
+            xlo + 0.64 * (xhi - xlo),
+            ylo + 0.18 * (yhi - ylo);
             text=L"P \approx 0",
             color=:black,
-            fontsize=15,
+            fontsize=annotation_size,
             rotation=0.10pi,
             align=(:center, :center),
         )
@@ -249,7 +256,7 @@ function plot(;
             probabilities;
             levels=[0.95],
             color=:white,
-            linewidth=1.4,
+            linewidth=1.4 * linewidth_scale,
             linestyle=:dash,
         )
         xlo, xhi = extrema(biomass_axis == :biomass_sigma ? biomass_values : log10.(biomass_values))
@@ -260,20 +267,65 @@ function plot(;
             ylo + 0.83 * (yhi - ylo);
             text=L"P \approx 1",
             color=:white,
-            fontsize=16,
+            fontsize=annotation_size,
             rotation=0.18pi,
             align=(:center, :center),
         )
     end
 
     Colorbar(
-        fig[1, 2],
+        panel[1, 2],
         hm;
         label=colorbar_label,
         ticks=_colorbar_ticks(; log_color=log_color, probability_gamma=probability_gamma),
-        labelsize=14,
-        ticklabelsize=12,
-        width=8,
+        labelsize=axis_labelsize,
+        ticklabelsize=axis_ticklabelsize,
+        ticklabelfont="TeX Gyre Heros",
+        width=colorbar_width,
+        tickalign=0,
+        ticksize=7,
+        tickwidth=1.2,
+        minorticksvisible=false,
+        spinewidth=colorbar_spinewidth,
+    )
+
+    colgap!(panel, colorbar_gap)
+
+    return (axis=ax, colorbar=hm, result=result, parameters=parameters)
+end
+
+function plot(;
+    input::AbstractString=DEFAULT_INPUT,
+    outdir::AbstractString=DEFAULT_OUTDIR,
+    basename::AbstractString="otu-gut1-r0-grid-heatmap",
+    pmin=nothing,
+    pmax=nothing,
+    log_color::Bool=false,
+    probability_gamma::Real=0.35,
+    biomass_sigma_min=nothing,
+    biomass_sigma_max=nothing,
+    beta_mean_min=nothing,
+    beta_mean_max=nothing,
+    savefig::Bool=true,
+)
+    __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
+    set_theme!(__theme)
+
+    width = 1.2 * 246
+    height = 0.95 * width
+    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
+
+    plot!(
+        fig[1, 1];
+        input=input,
+        pmin=pmin,
+        pmax=pmax,
+        log_color=log_color,
+        probability_gamma=probability_gamma,
+        biomass_sigma_min=biomass_sigma_min,
+        biomass_sigma_max=biomass_sigma_max,
+        beta_mean_min=beta_mean_min,
+        beta_mean_max=beta_mean_max,
     )
 
     if savefig

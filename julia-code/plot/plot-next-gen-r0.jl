@@ -88,7 +88,7 @@ function _distribution_label(distribution_id::Int, distribution_params)
 
     row = first(eachrow(matches))
     clean_zero(x) = isapprox(x, 0.0; atol=5e-3) ? 0.0 : x
-    mean_text = @sprintf("%.0f", row.biomass_mean)
+    mean_text = pow10_label(row.biomass_mean)
     sigma_text = @sprintf("%.2f", clean_zero(row.biomass_sigma))
     return latexstring("\\bar{B}=$(mean_text),\\;\\sigma_B=$(sigma_text)")
 end
@@ -129,13 +129,19 @@ function _stairs_xy(edges::AbstractVector, density::AbstractVector)
     return x, y
 end
 
-function plot(;
+function plot!(parent;
     input::AbstractString=DEFAULT_INPUT,
-    outdir::AbstractString=DEFAULT_OUTDIR,
-    basename::AbstractString="otu-gut1-log-r0-distribution",
     nbins::Int=28,
     distribution_ids=nothing,
-    savefig::Bool=true,
+    show_legend::Bool=true,
+    font_scale::Real=1.0,
+    labelsize=nothing,
+    ticklabelsize=nothing,
+    linewidth_scale::Real=1.0,
+    legend_position=:lt,
+    legend_margin=(6, 6, 6, 6),
+    legend_labelsize=nothing,
+    axis_kwargs=(;),
 )
     r0df, parameters, distribution_params = _load_r0(input)
     _prepare_r0df!(r0df)
@@ -147,19 +153,21 @@ function plot(;
     __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
     set_theme!(__theme)
 
-    width = 1.55 * 246
-    height = 0.58 * width
-    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
+    panel = parent isa GridLayout ? parent : GridLayout(parent)
+    axis_labelsize = isnothing(labelsize) ? 17 * font_scale : labelsize
+    axis_ticklabelsize = isnothing(ticklabelsize) ? 13 * font_scale : ticklabelsize
+    legend_textsize = isnothing(legend_labelsize) ? axis_ticklabelsize : legend_labelsize
     ax = Axis(
-        fig[1, 1],
+        panel[1, 1];
         xlabel=L"\log_{10} R_0",
         ylabel=L"\textrm{pdf }p(\log_{10} R_0)",
-        xlabelsize=17,
-        ylabelsize=17,
-        xticklabelsize=13,
-        yticklabelsize=13,
+        xlabelsize=axis_labelsize,
+        ylabelsize=axis_labelsize,
+        xticklabelsize=axis_ticklabelsize,
+        yticklabelsize=axis_ticklabelsize,
         xminorgridvisible=false,
         yminorgridvisible=false,
+        axis_kwargs...,
     )
 
     log_values = r0df.logR0
@@ -190,20 +198,48 @@ function plot(;
             x,
             y;
             color=color,
-            linewidth=1.3,
+            linewidth=1.3 * linewidth_scale,
             label=_distribution_label(distribution_id, distribution_params),
         )
-        vlines!(ax, [mean(sdf.logR0)]; color=color, linewidth=0.8, linestyle=:dash)
+        vlines!(ax, [mean(sdf.logR0)]; color=color, linewidth=0.8 * linewidth_scale, linestyle=:dash)
     end
 
-    axislegend(
-        ax;
-        position=:lt,
-        labelsize=12,
-        patchsize=(14, 8),
-        rowgap=3,
-        padding=(3, 3, 3, 3),
-        framevisible=false,
+    if show_legend
+        axislegend(
+            ax;
+            position=legend_position,
+            labelsize=legend_textsize,
+            patchsize=(14 * font_scale, 8 * font_scale),
+            rowgap=3,
+            margin=legend_margin,
+            padding=(3, 3, 3, 3),
+            framevisible=false,
+        )
+    end
+
+    return (axis=ax, result=r0df, parameters=parameters, distribution_parameters=distribution_params)
+end
+
+function plot(;
+    input::AbstractString=DEFAULT_INPUT,
+    outdir::AbstractString=DEFAULT_OUTDIR,
+    basename::AbstractString="otu-gut1-log-r0-distribution",
+    nbins::Int=28,
+    distribution_ids=nothing,
+    savefig::Bool=true,
+)
+    __theme = MakiePublication.theme_acs(; ishollowmarkers=[true, true])
+    set_theme!(__theme)
+
+    width = 1.55 * 246
+    height = 0.58 * width
+    fig = Figure(; size=(width, height), figure_padding=(6, 14, 6, 8))
+
+    plot!(
+        fig[1, 1];
+        input=input,
+        nbins=nbins,
+        distribution_ids=distribution_ids,
     )
 
     if savefig
