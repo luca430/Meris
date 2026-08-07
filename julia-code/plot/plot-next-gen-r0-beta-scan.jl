@@ -228,7 +228,7 @@ function plot!(parent;
     markers = [:rect, :circle, :utriangle, :diamond, :cross]
     group_col = biomass_group_column(result)
     biomass_groups = sort(unique(result[!, group_col]))
-    epsilon = 1e-6
+    epsilon = 1e-4
     beta_c_values = Float64[]
     beta_c_label = nothing
 

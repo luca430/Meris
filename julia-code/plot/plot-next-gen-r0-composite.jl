@@ -117,8 +117,8 @@ function plot(;
     beta_panel = NextGenR0BetaScanPlot.plot!(
         left;
         input=beta_input,
-        labelsize=17,
-        ticklabelsize=12,
+        labelsize=20,
+        ticklabelsize=13,
         textsize=15,
         markersize=7,
         linewidth_scale=1.05,
@@ -148,8 +148,8 @@ function plot(;
         right;
         input=grid_input,
         probability_gamma=probability_gamma,
-        labelsize=17,
-        ticklabelsize=12,
+        labelsize=20,
+        ticklabelsize=13,
         textsize=15,
         linewidth_scale=1.05,
         colorbar_width=8,
@@ -188,8 +188,8 @@ function plot(;
         bottom;
         input=distribution_input,
         nbins=distribution_nbins,
-        labelsize=22,
-        ticklabelsize=16,
+        labelsize=20,
+        ticklabelsize=13,
         linewidth_scale=1.25,
         legend_labelsize=14,
         axis_kwargs=(;
@@ -232,7 +232,7 @@ function plot(;
     rowsize!(fig.layout, 3, Fixed(154))
     colsize!(fig.layout, 1, Fixed(260))
     colsize!(fig.layout, 2, Fixed(155))
-    rowgap!(fig.layout, 0)
+    rowgap!(fig.layout, 5)
     colgap!(fig.layout, -12)
 
     if savefig
