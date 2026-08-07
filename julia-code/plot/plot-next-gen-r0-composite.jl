@@ -18,12 +18,14 @@ using .NextGenR0Plot
 const DEFAULT_BETA_INPUT = NextGenR0BetaScanPlot.DEFAULT_INPUT
 const DEFAULT_GRID_INPUT = NextGenR0GridPlot.DEFAULT_INPUT
 const DEFAULT_DISTRIBUTION_INPUT = NextGenR0Plot.DEFAULT_INPUT
+const DEFAULT_DISTRIBUTION_FIT_INPUT = NextGenR0Plot.DEFAULT_FIT_INPUT
 const DEFAULT_OUTDIR = joinpath(Meris.FIGDIR, "next-gen")
 function parse_args(args)
     options = Dict(
         "beta-input" => DEFAULT_BETA_INPUT,
         "grid-input" => DEFAULT_GRID_INPUT,
         "distribution-input" => DEFAULT_DISTRIBUTION_INPUT,
+        "distribution-fit-input" => DEFAULT_DISTRIBUTION_FIT_INPUT,
         "outdir" => DEFAULT_OUTDIR,
         "basename" => "otu-gut1-r0-composite",
         "probability-gamma" => "0.35",
@@ -41,6 +43,8 @@ function parse_args(args)
               --grid-input=PATH        Input JLD2 grid file. Default: $(DEFAULT_GRID_INPUT)
               --distribution-input=PATH
                                        Input JLD2 R0 distribution file. Default: $(DEFAULT_DISTRIBUTION_INPUT)
+              --distribution-fit-input=PATH
+                                       Cached distribution fit file. Default: $(DEFAULT_DISTRIBUTION_FIT_INPUT)
               --outdir=PATH            Output directory. Default: $(DEFAULT_OUTDIR)
               --basename=NAME          Output filename stem. Default: otu-gut1-r0-composite
               --probability-gamma=G    Heatmap display gamma. Default: 0.35
@@ -60,6 +64,7 @@ function parse_args(args)
         beta_input = options["beta-input"],
         grid_input = options["grid-input"],
         distribution_input = options["distribution-input"],
+        distribution_fit_input = options["distribution-fit-input"],
         outdir = options["outdir"],
         basename = options["basename"],
         probability_gamma = parse(Float64, options["probability-gamma"]),
@@ -71,6 +76,7 @@ function plot(;
     beta_input::AbstractString=DEFAULT_BETA_INPUT,
     grid_input::AbstractString=DEFAULT_GRID_INPUT,
     distribution_input::AbstractString=DEFAULT_DISTRIBUTION_INPUT,
+    distribution_fit_input::Union{Nothing, AbstractString}=DEFAULT_DISTRIBUTION_FIT_INPUT,
     outdir::AbstractString=DEFAULT_OUTDIR,
     basename::AbstractString="otu-gut1-r0-composite",
     probability_gamma::Real=0.35,
@@ -187,6 +193,7 @@ function plot(;
     distribution_panel = NextGenR0Plot.plot!(
         bottom;
         input=distribution_input,
+        fit_input=distribution_fit_input,
         nbins=distribution_nbins,
         labelsize=20,
         ticklabelsize=13,
@@ -255,6 +262,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         beta_input=options.beta_input,
         grid_input=options.grid_input,
         distribution_input=options.distribution_input,
+        distribution_fit_input=options.distribution_fit_input,
         outdir=options.outdir,
         basename=options.basename,
         probability_gamma=options.probability_gamma,

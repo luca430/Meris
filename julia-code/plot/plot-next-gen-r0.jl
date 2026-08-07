@@ -12,11 +12,13 @@ using Statistics
 using Meris
 
 const DEFAULT_INPUT = joinpath(Meris.DATADIR, "next-gen", "otu-gut1-r0.jld2")
+const DEFAULT_FIT_INPUT = joinpath(Meris.DATADIR, "next-gen", "otu-gut1-r0-distribution-fit.jld2")
 const DEFAULT_OUTDIR = joinpath(Meris.FIGDIR, "next-gen")
 
 function parse_args(args)
     options = Dict(
         "input" => DEFAULT_INPUT,
+        "fit-input" => DEFAULT_FIT_INPUT,
         "outdir" => DEFAULT_OUTDIR,
         "basename" => "otu-gut1-log-r0-distribution",
         "nbins" => "28",
@@ -31,6 +33,7 @@ function parse_args(args)
 
             Options:
               --input=PATH              Input JLD2 file. Default: $(DEFAULT_INPUT)
+              --fit-input=PATH          Cached distribution fit file. Default: $(DEFAULT_FIT_INPUT)
               --outdir=PATH             Output directory. Default: $(DEFAULT_OUTDIR)
               --basename=NAME           Output filename stem. Default: otu-gut1-log-r0-distribution
               --nbins=N                 Number of bins. Default: 28
@@ -53,6 +56,7 @@ function parse_args(args)
 
     return (
         input = options["input"],
+        fit_input = options["fit-input"],
         outdir = options["outdir"],
         basename = options["basename"],
         nbins = parse(Int, replace(options["nbins"], "_" => "")),
@@ -65,6 +69,13 @@ function _load_r0(path::AbstractString)
     data = JLD2.load(path)
     haskey(data, "r0df") || error("Expected key `r0df` in $path")
     return data["r0df"], get(data, "parameters", nothing), get(data, "distribution_parameters", nothing)
+end
+
+function _load_fit_curves(path::AbstractString)
+    isfile(path) || return nothing
+    data = JLD2.load(path)
+    haskey(data, "curve_df") || error("Expected key `curve_df` in $path")
+    return data["curve_df"]
 end
 
 function _prepare_r0df!(r0df::DataFrame)
@@ -131,6 +142,7 @@ end
 
 function plot!(parent;
     input::AbstractString=DEFAULT_INPUT,
+    fit_input::Union{Nothing, AbstractString}=DEFAULT_FIT_INPUT,
     nbins::Int=28,
     distribution_ids=nothing,
     show_legend::Bool=true,
@@ -176,6 +188,7 @@ function plot!(parent;
     edges = collect(range(lo, hi, length=nbins + 1))
     dist_ids = sort(unique(r0df.distribution_id))
     palette = [:black, "#1f77b4", "#ff7f0e"]
+    fit_curves = isnothing(fit_input) ? nothing : _load_fit_curves(fit_input)
     xlims!(ax, lo, hi)
 
     if hi > 0.0
@@ -202,6 +215,20 @@ function plot!(parent;
             label=_distribution_label(distribution_id, distribution_params),
         )
         vlines!(ax, [mean(sdf.logR0)]; color=color, linewidth=0.8 * linewidth_scale, linestyle=:dash)
+
+        if fit_curves !== nothing
+            fitdf = fit_curves[fit_curves.distribution_id .== distribution_id, :]
+            if nrow(fitdf) > 0
+                lines!(
+                    ax,
+                    fitdf.logR0,
+                    fitdf.density;
+                    color=color,
+                    linewidth=1.1 * linewidth_scale,
+                    linestyle=:dash,
+                )
+            end
+        end
     end
 
     if show_legend
@@ -222,6 +249,7 @@ end
 
 function plot(;
     input::AbstractString=DEFAULT_INPUT,
+    fit_input::Union{Nothing, AbstractString}=DEFAULT_FIT_INPUT,
     outdir::AbstractString=DEFAULT_OUTDIR,
     basename::AbstractString="otu-gut1-log-r0-distribution",
     nbins::Int=28,
@@ -238,6 +266,7 @@ function plot(;
     plot!(
         fig[1, 1];
         input=input,
+        fit_input=fit_input,
         nbins=nbins,
         distribution_ids=distribution_ids,
     )
@@ -260,6 +289,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     options = NextGenR0Plot.parse_args(ARGS)
     NextGenR0Plot.plot(;
         input=options.input,
+        fit_input=options.fit_input,
         outdir=options.outdir,
         basename=options.basename,
         nbins=options.nbins,
