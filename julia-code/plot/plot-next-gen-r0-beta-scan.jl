@@ -3,14 +3,17 @@ module NextGenR0BetaScanPlot
 
 using CairoMakie
 using DataFrames
+using Distributions
 using JLD2
 using LaTeXStrings
 using MakiePublication
 using Printf
+using Statistics
 
 using Meris
 
 const DEFAULT_INPUT = joinpath(Meris.DATADIR, "next-gen", "otu-gut1-r0-beta-scan.jld2")
+const DEFAULT_GOF_INPUT = joinpath(Meris.DATADIR, "goodness-of-fit", "otu-candidatefits.jld2")
 const DEFAULT_OUTDIR = joinpath(Meris.FIGDIR, "next-gen")
 
 function parse_args(args)
@@ -21,6 +24,8 @@ function parse_args(args)
         "biomass-sigmas" => "",
         "beta-mean-min" => "",
         "beta-mean-max" => "",
+        "gof-input" => DEFAULT_GOF_INPUT,
+        "theory" => "true",
     )
 
     for arg in args
@@ -36,6 +41,8 @@ function parse_args(args)
               --biomass-sigmas=a,b,c   Optional comma-separated sigma_B curves to plot.
               --beta-mean-min=M        Keep only mean(beta) >= M.
               --beta-mean-max=M        Keep only mean(beta) <= M.
+              --gof-input=PATH         Candidate-fit JLD2 file for the theoretical line. Default: $(DEFAULT_GOF_INPUT)
+              --theory=true|false      Draw the Pareto theoretical line. Default: true
             """)
             exit(0)
         elseif startswith(arg, "--") && occursin("=", arg)
@@ -57,6 +64,8 @@ function parse_args(args)
         input = options["input"],
         outdir = options["outdir"],
         basename = options["basename"],
+        gof_input = options["gof-input"],
+        show_theory = parse(Bool, lowercase(options["theory"])),
         biomass_sigmas = biomass_sigmas,
         beta_mean_min = parse_optional_float(options["beta-mean-min"]),
         beta_mean_max = parse_optional_float(options["beta-mean-max"]),
@@ -67,7 +76,72 @@ function _load_scan(path::AbstractString)
     isfile(path) || error("Input file not found: $path")
     data = JLD2.load(path)
     haskey(data, "result") || error("Expected key `result` in $path")
-    return data["result"], get(data, "parameters", nothing)
+    biomass_records = haskey(data, "biomass_records") ? DataFrame(data["biomass_records"]) : nothing
+    return data["result"], get(data, "parameters", nothing), biomass_records
+end
+
+function _scan_class(parameters)
+    parameters === nothing && return nothing
+    hasproperty(parameters, :class) || return nothing
+    return String(getproperty(parameters, :class))
+end
+
+function _sample_supports(class_name::AbstractString)
+    df = Meris.OTULoader.load()
+    classdf = df[df.class .== class_name, :]
+    nrow(classdf) > 0 || error("No rows found for OTU class $class_name")
+
+    supportdf = combine(
+        groupby(classdf, :sample_id),
+        :component_id => length => :support_size,
+    )
+    return supportdf
+end
+
+function _load_theoretical_samples(path::AbstractString, class_name::AbstractString)
+    isfile(path) || error("Goodness-of-fit file not found: $path")
+    data = JLD2.load(path)
+    haskey(data, "fitdf") || error("Expected key `fitdf` in $path")
+    haskey(data, "aicdf") || error("Expected key `aicdf` in $path")
+
+    fitdf = DataFrame(data["fitdf"])
+    aicdf = DataFrame(data["aicdf"])
+    :environment in propertynames(fitdf) && rename!(fitdf, :environment => :class)
+    :environment in propertynames(aicdf) && rename!(aicdf, :environment => :class)
+    :ParetoI in propertynames(fitdf) || error("Expected `ParetoI` fits in $path")
+
+    passing = aicdf[(aicdf.pvalue .> 0.1) .& (aicdf.ntail .> 50), [:class, :sample_id]]
+    selected = innerjoin(fitdf, passing; on=[:class, :sample_id])
+    selected = selected[selected.class .== class_name, :]
+    nrow(selected) > 0 || error("No passing ParetoI fits found for class $class_name in $path")
+
+    out = selected[:, [:sample_id]]
+    out.epsilon = [row.ParetoI[2] for row in eachrow(selected)]
+    out.xi = [row.ParetoI[1] + 1 for row in eachrow(selected)]
+    return out
+end
+
+function biomass_quantiles(mean_biomass::Real, sigma_biomass::Real; n::Int=129)
+    sigma_biomass == 0.0 && return [Float64(mean_biomass)]
+    mu = log(mean_biomass) - sigma_biomass^2 / 2
+    dist = LogNormal(mu, sigma_biomass)
+    probabilities = range(0.5 / n, 1 - 0.5 / n; length=n)
+    return quantile.(Ref(dist), probabilities)
+end
+
+function theoretical_probability(
+    beta::Real,
+    epsilons::AbstractVector,
+    xis::AbstractVector,
+    support_sizes::AbstractVector,
+    biomasses::AbstractVector,
+)
+    total = 0.0
+    for i in eachindex(epsilons)
+        tail_probability = clamp((epsilons[i] * biomasses[i] * beta)^(xis[i] - 1), 0.0, 1.0)
+        total += 1 - (1 - tail_probability)^support_sizes[i]
+    end
+    return total / length(epsilons)
 end
 
 function biomass_group_column(result::DataFrame)
@@ -176,6 +250,8 @@ end
 
 function plot!(parent;
     input::AbstractString=DEFAULT_INPUT,
+    gof_input::Union{Nothing, AbstractString}=DEFAULT_GOF_INPUT,
+    show_theory::Bool=true,
     biomass_sigmas=nothing,
     beta_mean_min=nothing,
     beta_mean_max=nothing,
@@ -191,7 +267,7 @@ function plot!(parent;
     legend_patchlabelgap::Real=5,
     axis_kwargs=(;),
 )
-    result, parameters = _load_scan(input)
+    result, parameters, biomass_records = _load_scan(input)
     result = _filter_result(
         result;
         biomass_sigmas=biomass_sigmas,
@@ -231,6 +307,26 @@ function plot!(parent;
     epsilon = 1e-4
     beta_c_values = Float64[]
     beta_c_label = nothing
+    theory = nothing
+    if show_theory && gof_input !== nothing
+        class_name = _scan_class(parameters)
+        if class_name !== nothing
+            theoretical_samples = _load_theoretical_samples(gof_input, class_name)
+            supportdf = _sample_supports(class_name)
+            theoretical_samples = innerjoin(theoretical_samples, supportdf; on=:sample_id)
+            nrow(theoretical_samples) > 0 || error("No support sizes found for theoretical samples")
+            theory = (;
+                samples=theoretical_samples,
+                mean_epsilon=mean(theoretical_samples.epsilon),
+                mean_xi=mean(theoretical_samples.xi),
+                mean_support_size=mean(theoretical_samples.support_size),
+                nfits=nrow(theoretical_samples),
+                n_biomass_quantiles=129,
+                biomass_records=biomass_records,
+                class_name=class_name,
+            )
+        end
+    end
 
     for (k, biomass_group) in enumerate(biomass_groups)
         sdf = sort(result[result[!, group_col] .== biomass_group, :], :beta_mean)
@@ -278,6 +374,57 @@ function plot!(parent;
         )
     end
 
+    if theory !== nothing
+        beta_theory = sort(unique(result.beta_mean))
+        for (k, biomass_group) in enumerate(biomass_groups)
+            sdf = result[result[!, group_col] .== biomass_group, :]
+            mean_biomass = first(sdf.biomass_mean)
+            sigma_biomass = group_col == :biomass_sigma ? biomass_group : first(sdf.biomass_sigma)
+            theory_records = if theory.biomass_records === nothing
+                biomasses = biomass_quantiles(
+                    mean_biomass,
+                    sigma_biomass;
+                    n=theory.n_biomass_quantiles,
+                )
+                crossjoin(
+                    theory.samples,
+                    DataFrame(biomass=biomasses);
+                    makeunique=true,
+                )
+            else
+                biomass_subset = theory.biomass_records[
+                    isapprox.(theory.biomass_records.biomass_sigma, sigma_biomass; rtol=1e-8),
+                    [:run, :sample_id, :biomass],
+                ]
+                nrow(biomass_subset) > 0 || error("No biomass records found for sigma_B=$sigma_biomass")
+                innerjoin(theory.samples, biomass_subset; on=:sample_id)
+            end
+            epsilons = theory_records.epsilon
+            xis = theory_records.xi
+            support_sizes = theory_records.support_size
+            biomasses = theory_records.biomass
+            probability_theory = [
+                theoretical_probability(
+                    beta,
+                    epsilons,
+                    xis,
+                    support_sizes,
+                    biomasses,
+                )
+                for beta in beta_theory
+            ]
+            lines!(
+                ax,
+                beta_theory,
+                probability_theory;
+                color=palette[mod1(k, length(palette))],
+                linewidth=1.25 * linewidth_scale,
+                linestyle=:solid,
+                label=k == 1 ? L"\textrm{theory}" : nothing,
+            )
+        end
+    end
+
     if beta_c_label !== nothing
         text!(
             ax,
@@ -309,11 +456,13 @@ function plot!(parent;
         )
     end
 
-    return (axis=ax, result=result, parameters=parameters)
+    return (axis=ax, result=result, parameters=parameters, theory=theory)
 end
 
 function plot(;
     input::AbstractString=DEFAULT_INPUT,
+    gof_input::Union{Nothing, AbstractString}=DEFAULT_GOF_INPUT,
+    show_theory::Bool=true,
     outdir::AbstractString=DEFAULT_OUTDIR,
     basename::AbstractString="otu-gut1-r0-beta-scan",
     biomass_sigmas=nothing,
@@ -331,6 +480,8 @@ function plot(;
     plot!(
         fig[1, 1];
         input=input,
+        gof_input=gof_input,
+        show_theory=show_theory,
         biomass_sigmas=biomass_sigmas,
         beta_mean_min=beta_mean_min,
         beta_mean_max=beta_mean_max,
@@ -354,6 +505,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     options = NextGenR0BetaScanPlot.parse_args(ARGS)
     NextGenR0BetaScanPlot.plot(;
         input=options.input,
+        gof_input=options.gof_input,
+        show_theory=options.show_theory,
         outdir=options.outdir,
         basename=options.basename,
         biomass_sigmas=options.biomass_sigmas,

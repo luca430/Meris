@@ -339,6 +339,10 @@ function main(args=ARGS)
     total_counts = zeros(Int, length(biomass_sigmas), length(beta_means))
     edge_counts = zeros(Int, options.n_runs)
     support_sizes = zeros(Int, nsamples)
+    biomass_records = DataFrame(
+        run=Int[], sample_id=String[], biomass_mu=Float64[], biomass_sigma=Float64[],
+        biomass_mean=Float64[], biomass_var=Float64[], biomass=Float64[]
+    )
     r0_records = options.save_r0 ? DataFrame(
         run=Int[], sample_id=String[], biomass_mu=Float64[], biomass_sigma=Float64[],
         biomass_mean=Float64[], biomass_var=Float64[], biomass=Float64[],
@@ -375,6 +379,19 @@ function main(args=ARGS)
             biomass = rand(biomass_rng, biomass_dists[i], nsamples)
             r0_without_beta_mean = biomass .* base_rhos
             update_probability_counts!(gt1_counts, total_counts, i, r0_without_beta_mean, beta_means)
+
+            append!(
+                biomass_records,
+                DataFrame(
+                    run=fill(run, nsamples),
+                    sample_id=data.sample_ids,
+                    biomass_mu=fill(biomass_mus[i], nsamples),
+                    biomass_sigma=fill(biomass_sigmas[i], nsamples),
+                    biomass_mean=fill(biomass_means[i], nsamples),
+                    biomass_var=fill(lognormal_var_from_mean_sigma(biomass_means[i], biomass_sigmas[i]), nsamples),
+                    biomass=biomass,
+                ),
+            )
 
             if options.save_r0
                 for j in eachindex(beta_means)
@@ -435,6 +452,7 @@ function main(args=ARGS)
             options.outfile;
             result,
             r0_records,
+            biomass_records,
             biomass_mus,
             biomass_means,
             biomass_sigmas,
@@ -448,6 +466,7 @@ function main(args=ARGS)
         jldsave(
             options.outfile;
             result,
+            biomass_records,
             biomass_mus,
             biomass_means,
             biomass_sigmas,
